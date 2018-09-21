@@ -56,6 +56,7 @@ u8 buf[SETUP_SECT_MAX*512];
 unsigned long efi32_stub_entry;
 unsigned long efi64_stub_entry;
 unsigned long efi_pe_entry;
+unsigned long mle_header;
 unsigned long startup_64;
 
 /*----------------------------------------------------------------------*/
@@ -289,6 +290,18 @@ static inline int reserve_pecoff_reloc_section(int c)
 }
 #endif /* CONFIG_EFI_STUB */
 
+#ifdef CONFIG_SECURE_LAUNCH
+
+static void slaunch_stub_entry_update(void)
+{
+	put_unaligned_le32(mle_header, &buf[0x268]);
+}
+
+#else
+
+static void slaunch_stub_entry_update(void) {}
+
+#endif /* CONFIG_SECURE_LAUNCH */
 
 /*
  * Parse zoffset.h and find the entry points. We could just #include zoffset.h
@@ -321,6 +334,7 @@ static void parse_zoffset(char *fname)
 		PARSE_ZOFS(p, efi32_stub_entry);
 		PARSE_ZOFS(p, efi64_stub_entry);
 		PARSE_ZOFS(p, efi_pe_entry);
+		PARSE_ZOFS(p, mle_header);
 		PARSE_ZOFS(p, startup_64);
 
 		p = strchr(p, '\n');
@@ -409,6 +423,8 @@ int main(int argc, char ** argv)
 	update_pecoff_bss(i + (sys_size * 16), init_sz);
 
 	efi_stub_entry_update();
+
+	slaunch_stub_entry_update();
 
 	crc = partial_crc32(buf, i, crc);
 	if (fwrite(buf, 1, i, dest) != i)
