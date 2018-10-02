@@ -32,6 +32,7 @@
 #include <asm/segment.h>
 #include <asm/processor-flags.h>
 #include <asm/realmode.h>
+#include <asm/slaunch.h>
 #include "realmode.h"
 
 	.text
@@ -85,6 +86,45 @@ no_longmode:
 
 	.section ".text32","ax"
 	.code32
+#ifdef CONFIG_SECURE_LAUNCH_STUB
+	.balign 4
+ENTRY(sl_trampoline_start32)
+	/*
+	 * The early secure launch stub AP wakeup code has taken care of all
+	 * the vagaries of launching out of TXT. This bit just mimics what the
+	 * 16b entry code does and jumps off to the real startup_32.
+	 */
+	cli
+	wbinvd
+
+	movl	$0xA5A5A5A5, trampoline_status
+	# write marker for master knows we're running
+
+	/*
+	 * This may seem a little odd but this is what %esp would have had in
+	 * it on the jmp from real mode because all real mode fixups were done
+	 * via the code segment.
+	 */
+	movl	$rm_stack_end, %esp
+
+	/*
+	 * The %ebx provided is not terribly useful since it is the physical
+	 * address of tb_trampoline_start and not the base of the image.
+	 * Use pa_real_mode_base, which is fixed up, to get a run time
+	 * base register to use for offsets to location that do not have
+	 * pa_ symbols.
+	 */
+	movl    $pa_real_mode_base, %ebx
+
+	lgdt    tr_gdt(%ebx)
+	lidt    tr_idt(%ebx)
+
+	movw	$__KERNEL_DS, %dx	# Data segment descriptor
+
+	/* Jump to where the 16b code would have jumped */
+	ljmpl	$__KERNEL32_CS, $pa_startup_32
+#endif
+
 	.balign 4
 ENTRY(startup_32)
 	movl	%edx, %ss
