@@ -115,6 +115,8 @@ endif
 slaunch-objs += $(obj)/sha1.o
 slaunch-objs += $(obj)/sha256.o
 slaunch-objs += $(obj)/early_tpm_extend.o
+slaunch-objs += $(obj)/sl_main.o
+slaunch-objs += $(obj)/sl_stub.o
 
 vmlinux-objs-$(CONFIG_SECURE_LAUNCH) += $(slaunch-objs)
 
