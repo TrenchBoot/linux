@@ -90,7 +90,8 @@ vmlinux-objs-$(CONFIG_EFI_STUB) += $(obj)/eboot.o $(obj)/efi_stub_$(BITS).o \
 	$(objtree)/drivers/firmware/efi/libstub/lib.a
 vmlinux-objs-$(CONFIG_EFI_MIXED) += $(obj)/efi_thunk_$(BITS).o
 
-vmlinux-objs-$(CONFIG_SECURE_LAUNCH_STUB) += $(obj)/early_sha1.o
+vmlinux-objs-$(CONFIG_SECURE_LAUNCH_STUB) += $(obj)/early_sha1.o \
+	$(obj)/early_tpm.o
 
 # The compressed kernel is built with -fPIC/-fPIE so that a boot loader
 # can place it anywhere in memory and it will still run. However, since
