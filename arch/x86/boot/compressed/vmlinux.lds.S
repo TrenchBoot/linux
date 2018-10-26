@@ -74,3 +74,7 @@ SECTIONS
 	. = ALIGN(PAGE_SIZE);	/* keep ZO size page aligned */
 	_end = .;
 }
+
+#ifdef CONFIG_SECURE_LAUNCH
+ASSERT((sl_txt_ap_wake_end - sl_txt_ap_wake_begin) <= PAGE_SIZE, "SL AP wake code bigger than PAGE_SIZE");
+#endif
