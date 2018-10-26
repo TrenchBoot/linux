@@ -41,6 +41,7 @@
 #include <linux/iommu.h>
 #include <asm/irq_remapping.h>
 #include <asm/iommu_table.h>
+#include <asm/slaunch.h>
 
 #include "irq_remapping.h"
 
@@ -632,7 +633,11 @@ parse_dmar_table(void)
 	 * ACPI tables may not be DMA protected by tboot, so use DMAR copy
 	 * SINIT saved in SinitMleData in TXT heap (which is DMA protected)
 	 */
+#ifdef CONFIG_SECURE_LAUNCH_STUB
+	dmar_tbl = slaunch_get_dmar_table(dmar_tbl);
+#else
 	dmar_tbl = tboot_get_dmar_table(dmar_tbl);
+#endif
 
 	dmar = (struct acpi_table_dmar *)dmar_tbl;
 	if (!dmar)
