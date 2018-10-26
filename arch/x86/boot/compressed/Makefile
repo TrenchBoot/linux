@@ -93,7 +93,7 @@ vmlinux-objs-$(CONFIG_EFI_STUB) += $(obj)/eboot.o $(obj)/efi_stub_$(BITS).o \
 vmlinux-objs-$(CONFIG_EFI_MIXED) += $(obj)/efi_thunk_$(BITS).o
 
 vmlinux-objs-$(CONFIG_SECURE_LAUNCH) += $(obj)/early_sha1.o \
-	$(obj)/early_tpm.o
+	$(obj)/early_tpm.o $(obj)/sl_main.o $(obj)/sl_stub.o
 vmlinux-objs-$(CONFIG_SECURE_LAUNCH_SHA256) += $(obj)/early_sha256.o
 vmlinux-objs-$(CONFIG_SECURE_LAUNCH_SHA512) += $(obj)/early_sha512.o
 

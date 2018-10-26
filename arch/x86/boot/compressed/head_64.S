@@ -248,6 +248,21 @@ ENTRY(efi32_stub_entry)
 ENDPROC(efi32_stub_entry)
 #endif
 
+#ifdef CONFIG_SECURE_LAUNCH
+ENTRY(sl_stub_entry)
+	/*
+	 * On entry, %ebx has the entry abs offset to sl_stub_entry. To
+	 * find the beginning of where we are loaded, sub off from the
+	 * beginning.
+	 */
+	leal	(startup_32 - sl_stub_entry)(%ebx), %ebp
+
+	/* More room to work in sl_stub in the text section */
+	jmp	sl_stub
+
+ENDPROC(sl_stub_entry)
+#endif
+
 	.code64
 	.org 0x200
 ENTRY(startup_64)
@@ -522,6 +537,23 @@ ENDPROC(efi64_stub_entry)
 	subq	%rdi, %rcx
 	shrq	$3, %rcx
 	rep	stosq
+
+#ifdef CONFIG_SECURE_LAUNCH
+	/*
+	 * Have to do the final early sl stub work in 64b area.
+	 *
+	 * *********** NOTE ***********
+	 *
+	 * Several boot params get used before we get a chance to measure
+	 * them in this call. This is a known issue and we currently don't
+	 * have a solution. One solution might be to set them in the really
+	 * early sl stub asm code but that might not work well.
+	 */
+	pushq	%rsi
+	movq	%rsi, %rdi
+	callq	sl_main
+	popq	%rsi
+#endif
 
 /*
  * Do the extraction, and jump to the new kernel..
