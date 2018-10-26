@@ -304,6 +304,21 @@ SYM_INNER_LABEL(efi32_pe_stub_entry, SYM_L_LOCAL)
 SYM_FUNC_END(efi32_stub_entry)
 #endif
 
+#ifdef CONFIG_SECURE_LAUNCH
+SYM_FUNC_START(sl_stub_entry)
+	/*
+	 * On entry, %ebx has the entry abs offset to sl_stub_entry. To
+	 * find the beginning of where we are loaded, sub off from the
+	 * beginning.
+	 */
+	leal	(startup_32 - sl_stub_entry)(%ebx), %ebx
+
+	/* More room to work in sl_stub in the text section */
+	jmp	sl_stub
+
+SYM_FUNC_END(sl_stub_entry)
+#endif
+
 	.code64
 	.org 0x200
 SYM_CODE_START(startup_64)
@@ -474,6 +489,19 @@ trampoline_return:
 	pushq	$0
 	popfq
 
+#ifdef CONFIG_SECURE_LAUNCH
+	pushq	%rsi
+	pushq	%rbx
+
+	/* Ensure the relocation region coverd by a PMR */
+	movq	%rbx, %rdi
+	movq	$_bss, %rsi
+	callq	sl_check_region
+
+	popq	%rbx
+	popq	%rsi
+#endif
+
 /*
  * Copy the compressed kernel to the end of our buffer
  * where decompression in place becomes safe.
@@ -531,6 +559,32 @@ SYM_FUNC_START_LOCAL_NOALIGN(.Lrelocated)
 	subq	%rdi, %rcx
 	shrq	$3, %rcx
 	rep	stosq
+
+#ifdef CONFIG_SECURE_LAUNCH
+	/*
+	 * Have to do the final early sl stub work in 64b area.
+	 *
+	 * *********** NOTE ***********
+	 *
+	 * Several boot params get used before we get a chance to measure
+	 * them in this call. This is a known issue and we currently don't
+	 * have a solution. The scratch field doesn't matter and loadflags
+	 * have KEEP_SEGMENTS set by the stub code. There is no obvious way
+	 * to do anything about the use of kernel_alignment or init_size
+	 * though these seem low risk.
+	 */
+	pushq	%rsi
+
+	movq	%rsi, %rdi
+	callq	sl_main
+
+	/* Ensure the decompression location is coverd by a PMR */
+	movq	%rbp, %rdi
+	movq	$z_output_len, %rsi
+	callq	sl_check_region
+
+	popq	%rsi
+#endif
 
 /*
  * If running as an SEV guest, the encryption mask is required in the
