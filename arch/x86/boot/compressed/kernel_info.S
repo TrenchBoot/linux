@@ -17,6 +17,9 @@ kernel_info:
 	/* Maximal allowed type for setup_data and setup_indirect structs. */
 	.long	SETUP_TYPE_MAX
 
+	/* Offset to the MLE header structure */
+	.long	mle_header
+
 kernel_info_var_len_data:
 	/* Empty for time being... */
 kernel_info_end:
