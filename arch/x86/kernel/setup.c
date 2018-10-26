@@ -18,6 +18,7 @@
 #include <linux/sfi.h>
 #include <linux/hugetlb.h>
 #include <linux/tboot.h>
+#include <linux/slaunch.h>
 #include <linux/usb/xhci-dbgp.h>
 
 #include <uapi/linux/mount.h>
@@ -1009,6 +1010,8 @@ void __init setup_arch(char **cmdline_p)
 #else
 	early_gart_iommu_check();
 #endif
+
+	slaunch_setup();
 
 	/*
 	 * partially used pages are not usable - thus
