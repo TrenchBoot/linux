@@ -2036,6 +2036,30 @@ config SECURE_LAUNCH
 	  of all the modules and configuration information used for
 	  boooting the operating system.
 
+choice
+	prompt "Select Secure Launch Algorithm for TPM2"
+	depends on SECURE_LAUNCH
+
+config SECURE_LAUNCH_SHA1
+	bool "Secure Launch TPM2 SHA1"
+	help
+	  When using Secure Launch and TPM2 is present, use SHA1 hash
+	  algorithm for measurements.
+
+config SECURE_LAUNCH_SHA256
+	bool "Secure Launch TPM2 SHA256"
+	help
+	  When using Secure Launch and TPM2 is present, use SHA256 hash
+	  algorithm for measurements.
+
+config SECURE_LAUNCH_SHA512
+	bool "Secure Launch TPM2 SHA512"
+	help
+	  When using Secure Launch and TPM2 is present, use SHA512 hash
+	  algorithm for measurements.
+
+endchoice
+
 config SECCOMP
 	def_bool y
 	prompt "Enable seccomp to safely compute untrusted bytecode"
