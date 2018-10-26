@@ -29,6 +29,7 @@
 #include <linux/utsname.h>
 #include <linux/ctype.h>
 #include <linux/efi.h>
+#include <linux/slaunch.h>
 #include <generated/utsrelease.h>
 #include <asm/efi.h>
 
@@ -837,6 +838,16 @@ void choose_random_location(unsigned long input,
 
 	if (cmdline_find_option_bool("nokaslr")) {
 		warn("KASLR disabled: 'nokaslr' on cmdline.");
+		return;
+	}
+
+	/*
+	 * If a secure launch is in progress, KASLR cannot be used
+	 * since knowing the exact location of things is a crucial
+	 * part of the secure launch.
+	 */
+	if (slaunch_get_cpu_type() & SL_CPU_INTEL) {
+		warn("KASLR disabled: by Secure Launch");
 		return;
 	}
 
