@@ -14,11 +14,13 @@
  */
 #define SL_FLAG_ACTIVE		0x00000001
 #define SL_FLAG_ARCH_TXT	0x00000002
+#define SL_FLAG_ARCH_SKINIT	0x00000004
 
 /*
  * Secure Launch CPU Type
  */
 #define SL_CPU_INTEL	1
+#define SL_CPU_AMD	2
 
 #define __SL32_CS	0x0008
 #define __SL32_DS	0x0010
@@ -146,6 +148,8 @@
 #define SL_ERROR_INVALID_SLRT		0xc0008022
 #define SL_ERROR_SLRT_MISSING_ENTRY	0xc0008023
 #define SL_ERROR_SLRT_MAP		0xc0008024
+#define SL_ERROR_MISSING_EVENT_LOG	0xc0008025
+#define SL_ERROR_MAP_SETUP_DATA		0xc0008026
 
 /*
  * Secure Launch Defined Limits
@@ -326,9 +330,23 @@ struct smx_rlp_mle_join {
 	u32 rlp_entry_point; /* phys addr */
 } __packed;
 
+/* This structure is defined only to compute its size. */
+struct tpm12_tcg_specid_event_head {
+	char signature[16];
+	u32  platform_class;
+	u8   spec_ver_minor;
+	u8   spec_ver_major;
+	u8   errata;
+	u8   uintn_size;	/* reserved (must be 0) for 1.21 */
+	u8   vendor_info_size;
+	/* vendor_info[]; */
+} __packed;
+
 /*
- * TPM event log structures defined in both the TXT specification and
- * the TCG documentation.
+ * TPM event log structures defined by the TXT specification are derived
+ * from the TCG documentation. For TXT this is setup as the container
+ * header. On AMD this header is embedded in to vendor information
+ * after the TCG spec ID header.
  */
 #define TPM_EVTLOG_SIGNATURE "TXT Event Container"
 
@@ -344,6 +362,16 @@ struct tpm_event_log_header {
 	u32 next_event_offset;
 	/* PCREvents[] */
 } __packed;
+
+/* TPM Event Log Size Macros */
+#define TCG_PCClientSpecIDEventStruct_SIZE 			\
+		(sizeof(struct tpm12_tcg_specid_event_head))
+#define TCG_EfiSpecIdEvent_SIZE(n) \
+		((n) * sizeof(struct tcg_efi_specid_event_algs)	\
+		 + sizeof(struct tcg_efi_specid_event_head)	\
+		 + sizeof(u8) /* vendorInfoSize */)
+#define TPM20_HASH_COUNT(base) (*((u32 *)(base)			\
+		+ (offsetof(struct tcg_efi_specid_event_head, num_algs) >> 2)))
 
 /*
  * Functions to extract data from the Intel TXT Heap Memory. The layout
@@ -497,12 +525,14 @@ static inline int tpm2_log_event(struct txt_heap_event_log_pointer2_1_element *e
  * External functions avalailable in mainline kernel.
  */
 void slaunch_setup_txt(void);
+void slaunch_setup_skinit(void);
 void slaunch_fixup_jump_vector(void);
 u32 slaunch_get_flags(void);
 struct sl_ap_wake_info *slaunch_get_ap_wake_info(void);
 struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table_header *dmar);
 void __noreturn slaunch_txt_reset(void __iomem *txt,
 					 const char *msg, u64 error);
+void __noreturn slaunch_skinit_reset(const char *msg, u64 error);
 void slaunch_finalize(int do_sexit);
 
 static inline bool slaunch_is_txt_launch(void)
@@ -515,6 +545,10 @@ static inline bool slaunch_is_txt_launch(void)
 #else
 
 static inline void slaunch_setup_txt(void)
+{
+}
+
+static inline void slaunch_setup_skinit(void)
 {
 }
 
