@@ -433,17 +433,11 @@ void __init slaunch_fixup_jump_vector(void)
 	pr_info("TXT AP startup vector address updated\n");
 }
 
-/*
- * Intel TXT specific late stub setup and validation called from within
- * x86 specific setup_arch().
- */
-void __init slaunch_setup_txt(void)
+/* Intel TXT specific late stub setup. */
+static void __init slaunch_setup_txt(void)
 {
 	u64 one = TXT_REGVALUE_ONE, val;
 	void __iomem *txt;
-
-	if (!boot_cpu_has(X86_FEATURE_SMX))
-		return;
 
 	/*
 	 * If booted through secure launch entry point, the loadflags
@@ -521,6 +515,15 @@ void __init slaunch_setup_txt(void)
 	early_iounmap(txt, TXT_NR_CONFIG_PAGES * PAGE_SIZE);
 
 	pr_info("Intel TXT setup complete\n");
+}
+
+/*
+ * Late stub setup and validation called from within x86-specific setup_arch().
+ */
+void __init slaunch_late_setup(void)
+{
+	if (boot_cpu_has(X86_FEATURE_SMX))
+		slaunch_setup_txt();
 }
 
 static inline void smx_getsec_sexit(void)
