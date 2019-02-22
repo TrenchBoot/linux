@@ -447,3 +447,187 @@ void __init slaunch_setup(void)
 	    vendor[3] == INTEL_CPUID_MFGID_EDX)
 		slaunch_setup_intel();
 }
+
+/*
+ * Securityfs exposure
+ */
+struct memfile {
+	char *name;
+	void __iomem *addr;
+	size_t size;
+};
+
+static struct memfile sl_evtlog = {"eventlog", 0, 0};
+static void __iomem *txt_heap;
+static struct txt_heap_event_log_pointer2_1_element __iomem *evtlog20;
+
+static DEFINE_MUTEX(sl_evt_write_mutex);
+
+static ssize_t sl_evtlog_read(struct file *file, char __user *buf,
+			      size_t count, loff_t *pos)
+{
+	return simple_read_from_buffer(buf, count, pos,
+		sl_evtlog.addr, sl_evtlog.size);
+}
+
+static ssize_t sl_evtlog_write(struct file *file, const char __user *buf,
+				size_t datalen, loff_t *ppos)
+{
+	char *data;
+	ssize_t result;
+
+	/* No partial writes. */
+	result = -EINVAL;
+	if (*ppos != 0)
+		goto out;
+
+	data = memdup_user(buf, datalen);
+	if (IS_ERR(data)) {
+		result = PTR_ERR(data);
+		goto out;
+	}
+
+	mutex_lock(&sl_evt_write_mutex);
+	if (evtlog20)
+		result = tpm20_log_event(evtlog20, sl_evtlog.addr,
+					 datalen, data);
+	else
+		result = tpm12_log_event(sl_evtlog.addr, datalen, data);
+	mutex_unlock(&sl_evt_write_mutex);
+
+	kfree(data);
+out:
+	return result;
+}
+
+static const struct file_operations sl_evtlog_ops = {
+	.read = sl_evtlog_read,
+	.write = sl_evtlog_write,
+	.llseek	= default_llseek,
+};
+
+#define SL_DIR_ENTRY	1 /* directoy node must be last */
+#define SL_FS_ENTRIES	2
+
+static struct dentry *fs_entries[SL_FS_ENTRIES];
+
+static long slaunch_expose_securityfs(void)
+{
+	long ret = 0;
+	int entry = SL_DIR_ENTRY;
+
+	fs_entries[entry] = securityfs_create_dir("slaunch", NULL);
+	if (IS_ERR(fs_entries[entry])) {
+		pr_err("Error creating securityfs sl_evt_log directory\n");
+		ret = PTR_ERR(fs_entries[entry]);
+		goto err;
+	}
+
+	if (sl_evtlog.addr > 0) {
+		entry--;
+		fs_entries[entry] = securityfs_create_file(sl_evtlog.name,
+					   S_IRUSR | S_IRGRP,
+					   fs_entries[SL_DIR_ENTRY], NULL,
+					   &sl_evtlog_ops);
+		if (IS_ERR(fs_entries[entry])) {
+			pr_err("Error creating securityfs %s file\n",
+				sl_evtlog.name);
+			ret = PTR_ERR(fs_entries[entry]);
+			goto err_dir;
+		}
+	}
+
+	return 0;
+
+err_dir:
+	securityfs_remove(fs_entries[SL_DIR_ENTRY]);
+err:
+	return ret;
+}
+
+static void slaunch_teardown_securityfs(void)
+{
+	int i;
+
+	for (i = 0; i < SL_FS_ENTRIES; i++)
+		securityfs_remove(fs_entries[i]);
+
+	if (sl_flags & SL_FLAG_ARCH_TXT) {
+		if (txt_heap) {
+			memunmap(txt_heap);
+			txt_heap = NULL;
+		}
+	}
+
+	sl_evtlog.addr = 0;
+	sl_evtlog.size = 0;
+}
+
+static void slaunch_intel_evtlog(void)
+{
+	void __iomem *config;
+	struct txt_os_mle_data *params;
+	void *os_sinit_data;
+	u64 base, size;
+
+	config = ioremap(TXT_PUB_CONFIG_REGS_BASE, TXT_NR_CONFIG_PAGES *
+			 PAGE_SIZE);
+	if (!config) {
+		pr_err("Error failed to ioremap TXT reqs\n");
+		return;
+	}
+
+	memcpy_fromio(&base, config + TXT_CR_HEAP_BASE, sizeof(u64));
+	memcpy_fromio(&size, config + TXT_CR_HEAP_SIZE, sizeof(u64));
+	iounmap(config);
+
+	/* now map TXT heap */
+	txt_heap = memremap(base, size, MEMREMAP_WB);
+	if (!txt_heap) {
+		pr_err("Error failed to memremap TXT heap\n");
+		return;
+	}
+
+	params = (struct txt_os_mle_data *)txt_os_mle_data_start(txt_heap);
+
+	sl_evtlog.size = TXT_MAX_EVENT_LOG_SIZE;
+	sl_evtlog.addr = (void __iomem *)&params->event_log_buffer[0];
+
+	/* Determine if this is TPM 1.2 or 2.0 event log */
+	if (memcmp(sl_evtlog.addr + sizeof(struct tpm12_pcr_event),
+		    TPM20_EVTLOG_SIGNATURE, sizeof(TPM20_EVTLOG_SIGNATURE)))
+		return; /* looks like it is not 2.0 */
+
+	/* For TPM 2.0 logs, the extended heap element must be located */
+	os_sinit_data = txt_os_sinit_data_start(txt_heap);
+
+	evtlog20 = tpm20_find_log2_1_element(os_sinit_data);
+
+	/*
+	 * If this fails, things are in really bad shape. Any attempt to write
+	 * events to the log will fail.
+	 */
+	if (!evtlog20)
+		pr_err("Error failed to find TPM20 event log element\n");
+}
+
+static int __init slaunch_late_init(void)
+{
+	/* Check to see if Secure Launch happened */
+	if (!(sl_flags & (SL_FLAG_ACTIVE|SL_FLAG_ARCH_TXT)))
+		return 0;
+
+	/* Only Intel TXT is supported at this point */
+	slaunch_intel_evtlog();
+
+	return slaunch_expose_securityfs();
+}
+
+static void __exit slaunch_exit(void)
+{
+	slaunch_teardown_securityfs();
+}
+
+late_initcall(slaunch_late_init);
+
+__exitcall(slaunch_exit);
