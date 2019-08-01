@@ -97,16 +97,6 @@ ENTRY(sl_trampoline_start32)
 	cli
 	wbinvd
 
-	movl	$0xA5A5A5A5, trampoline_status
-	# write marker for master knows we're running
-
-	/*
-	 * This may seem a little odd but this is what %esp would have had in
-	 * it on the jmp from real mode because all real mode fixups were done
-	 * via the code segment.
-	 */
-	movl	$rm_stack_end, %esp
-
 	/*
 	 * The %ebx provided is not terribly useful since it is the physical
 	 * address of tb_trampoline_start and not the base of the image.
@@ -115,6 +105,16 @@ ENTRY(sl_trampoline_start32)
 	 * pa_ symbols.
 	 */
 	movl    $pa_real_mode_base, %ebx
+
+	movl	$0xA5A5A5A5, trampoline_status(%ebx)
+	# write marker for master knows we're running
+
+	/*
+	 * This may seem a little odd but this is what %esp would have had in
+	 * it on the jmp from real mode because all real mode fixups were done
+	 * via the code segment.
+	 */
+	leal	rm_stack_end(%ebx), %esp
 
 	lgdt    tr_gdt(%ebx)
 	lidt    tr_idt(%ebx)
