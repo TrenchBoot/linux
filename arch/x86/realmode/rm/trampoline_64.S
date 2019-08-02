@@ -112,9 +112,9 @@ ENTRY(sl_trampoline_start32)
 	/*
 	 * This may seem a little odd but this is what %esp would have had in
 	 * it on the jmp from real mode because all real mode fixups were done
-	 * via the code segment.
+	 * via the code segment. The base is added at the 32b entry.
 	 */
-	leal	rm_stack_end(%ebx), %esp
+	movl	rm_stack_end, %esp
 
 	lgdt    tr_gdt(%ebx)
 	lidt    tr_idt(%ebx)
