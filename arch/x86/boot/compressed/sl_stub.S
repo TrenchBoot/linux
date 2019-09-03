@@ -146,17 +146,24 @@ ENTRY(sl_stub)
 	movl	SL_ap_wake_block(%eax), %edi
 	movl	%edi, sl_txt_ap_wake_block(%ebp)
 
-	/* %eax still is the base of the OS-MLE block */
-	movl	%eax, %edi
-	call	sl_txt_load_regs
+	/* %eax still is the base of the OS-MLE block, save it */
+	pushl	%eax
 
 	/* Relocate the AP wake code to the safe block */
 	pushl	%esi
 	call	sl_txt_reloc_ap_wake
 	popl	%esi
 
-	/* Wake up all APs and wait for them to halt */
+	/*
+	 * Wake up all APs and wait for them to halt. This should be done
+	 * before restoring the MTRRs so the ACM is still properly in WB
+	 * memory.
+	 */
 	call	sl_txt_wake_aps
+
+	/* Pop OS-MLE base address for call to load MTRRs/MISC MSR */
+	popl	%edi
+	call	sl_txt_load_regs
 
 	jmp	.Lcpu_setup_done
 
@@ -245,6 +252,9 @@ ENTRY(sl_txt_ap_entry)
 	movl	sl_txt_ap_wake_block(%ebp), %eax
 	lidt	(sl_ap_idt_desc - sl_txt_ap_wake)(%eax)
 
+	/* Fixup MTRRs and misc enable MSR on APs too */
+	call	sl_txt_load_regs
+
 	/* Enable SMI with GETSET[SMCTRL] */
 	xorl	%ebx, %ebx
 	movl	$(SMX_X86_GETSEC_SMCTRL), %eax
@@ -258,9 +268,6 @@ ENTRY(sl_txt_ap_entry)
 	iret
 
 .Lnmi_enabled_ap:
-	/* Fixup MTRRs and misc enable MSR on APs too */
-	call	sl_txt_load_regs
-
 	/* Put APs in X2APIC mode like the BSP */
 	movl	$(MSR_IA32_APICBASE), %ecx
 	rdmsr
