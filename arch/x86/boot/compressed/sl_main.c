@@ -5,6 +5,7 @@
 
 #include <linux/init.h>
 #include <linux/linkage.h>
+#include <linux/efi.h>
 #include <asm/segment.h>
 #include <asm/boot.h>
 #include <asm/msr.h>
@@ -14,6 +15,7 @@
 #include <asm/sha1.h>
 #include <asm/tpm.h>
 #include <asm/bootparam.h>
+#include <asm/efi.h>
 #include <asm/slaunch.h>
 
 extern u32 sl_cpu_type;
@@ -117,9 +119,13 @@ void sl_main(u8 *bootparams)
 {
 	struct tpm *tpm;
 	struct boot_params *bp;
+	struct setup_data *data;
 	struct txt_os_mle_data *os_mle_data;
+	const char *signature;
+	unsigned long mmap = 0;
 	u64 *txt_heap;
 	u64 bios_data_size;
+	u32 data_count;
 	u32 os_mle_len;
 
 	/*
@@ -149,8 +155,35 @@ void sl_main(u8 *bootparams)
 
 	/* Measure the command line */
 	sl_tpm_extend_pcr(tpm, SL_CONFIG_PCR18,
-			  (u8 *)((u64)bp->hdr.cmd_line_ptr),
+			  (u8 *)((unsigned long)bp->hdr.cmd_line_ptr),
 			  bp->hdr.cmdline_size);
+
+	/*
+	 * Measuring the boot params measured the fixed e820 memory map.
+	 * Measure any setup_data entries including e820 extended entries.
+	 */
+	data = (struct setup_data *)(unsigned long)bp->hdr.setup_data;
+	while (data) {
+		sl_tpm_extend_pcr(tpm, SL_CONFIG_PCR18,
+				  ((u8 *)data) + sizeof(struct setup_data),
+				  data->len);
+
+		data = (struct setup_data *)(unsigned long)data->next;
+	}
+
+	/* If bootloader was EFI, measure the memory map passed across */
+	signature =
+		(const char *)(unsigned long)bp->efi_info.efi_loader_signature;
+
+	if (!strncmp(signature, EFI32_LOADER_SIGNATURE, 4))
+		mmap =  bp->efi_info.efi_memmap;
+	else if (!strncmp(signature, EFI64_LOADER_SIGNATURE, 4))
+		mmap = (bp->efi_info.efi_memmap |
+			((u64)bp->efi_info.efi_memmap_hi << 32));
+
+	if (mmap)
+		sl_tpm_extend_pcr(tpm, SL_CONFIG_PCR18, (void *)mmap,
+				  bp->efi_info.efi_memmap_size);
 
 	/* Measure any external initrd */
 	if (bp->hdr.ramdisk_image != 0 && bp->hdr.ramdisk_size != 0)
@@ -165,6 +198,12 @@ void sl_main(u8 *bootparams)
 	bios_data_size = *txt_heap;
 	os_mle_data = (struct txt_os_mle_data *)
 			((u8 *)txt_heap + bios_data_size + sizeof(u64));
+
+	/*
+	 * Don't want to measure the value of the ap_wake_ebp field,
+	 * it only used by sl_stub
+	 */
+	os_mle_data->ap_wake_ebp = 0;
 
 	/* Measure OS-MLE data up to the TPM log into 18 */
 	os_mle_len = offsetof(struct txt_os_mle_data, event_log_buffer);
