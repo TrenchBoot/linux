@@ -35,7 +35,7 @@ struct real_mode_header {
 #ifdef CONFIG_X86_64
 	u32	machine_real_restart_seg;
 #endif
-#ifdef CONFIG_SECURE_LAUNCH_STUB
+#ifdef CONFIG_SECURE_LAUNCH
 	u32	sl_trampoline_start32;
 #endif
 };

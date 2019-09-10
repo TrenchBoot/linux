@@ -952,7 +952,7 @@ void common_cpu_up(unsigned int cpu, struct task_struct *idle)
 #endif
 }
 
-#ifdef CONFIG_SECURE_LAUNCH_STUB
+#ifdef CONFIG_SECURE_LAUNCH
 static atomic_t first_ap_only = {1};
 
 /*
@@ -1094,7 +1094,7 @@ static int do_boot_cpu(int apicid, int cpu, struct task_struct *idle,
 	cpumask_clear_cpu(cpu, cpu_initialized_mask);
 	smp_mb();
 
-#ifdef CONFIG_SECURE_LAUNCH_STUB
+#ifdef CONFIG_SECURE_LAUNCH
 	/* With Intel TXT, the AP startup is totally different */
 	if (slaunch_get_flags() & (SL_FLAG_ACTIVE|SL_FLAG_ARCH_TXT)) {
 		boot_error = slaunch_wakeup_cpu_from_txt(cpu, apicid);
@@ -1114,7 +1114,7 @@ static int do_boot_cpu(int apicid, int cpu, struct task_struct *idle,
 		boot_error = wakeup_cpu_via_init_nmi(cpu, start_ip, apicid,
 						     cpu0_nmi_registered);
 
-#ifdef CONFIG_SECURE_LAUNCH_STUB
+#ifdef CONFIG_SECURE_LAUNCH
 skip:
 #endif
 

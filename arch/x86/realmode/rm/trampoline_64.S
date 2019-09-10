@@ -86,7 +86,7 @@ no_longmode:
 
 	.section ".text32","ax"
 	.code32
-#ifdef CONFIG_SECURE_LAUNCH_STUB
+#ifdef CONFIG_SECURE_LAUNCH
 	.balign 4
 ENTRY(sl_trampoline_start32)
 	/*
