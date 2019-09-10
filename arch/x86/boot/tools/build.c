@@ -290,7 +290,7 @@ static inline int reserve_pecoff_reloc_section(int c)
 }
 #endif /* CONFIG_EFI_STUB */
 
-#ifdef CONFIG_SECURE_LAUNCH_STUB
+#ifdef CONFIG_SECURE_LAUNCH
 
 static void slaunch_stub_entry_update(void)
 {
@@ -301,7 +301,7 @@ static void slaunch_stub_entry_update(void)
 
 static void slaunch_stub_entry_update(void) {}
 
-#endif /* CONFIG_SECURE_LAUNCH_STUB */
+#endif /* CONFIG_SECURE_LAUNCH */
 
 /*
  * Parse zoffset.h and find the entry points. We could just #include zoffset.h

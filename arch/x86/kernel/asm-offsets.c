@@ -107,7 +107,7 @@ static void __used common(void)
 	OFFSET(TSS_sp1, tss_struct, x86_tss.sp1);
 	OFFSET(TSS_sp2, tss_struct, x86_tss.sp2);
 
-#ifdef CONFIG_SECURE_LAUNCH_STUB
+#ifdef CONFIG_SECURE_LAUNCH
 	BLANK();
 	OFFSET(SL_zero_page_addr, txt_os_mle_data, zero_page_addr);
 	OFFSET(SL_saved_misc_enable_msr, txt_os_mle_data, saved_misc_enable_msr);

@@ -248,7 +248,7 @@ ENTRY(efi32_stub_entry)
 ENDPROC(efi32_stub_entry)
 #endif
 
-#ifdef CONFIG_SECURE_LAUNCH_STUB
+#ifdef CONFIG_SECURE_LAUNCH
 ENTRY(sl_stub_entry)
 	/*
 	 * On entry, %ebx has the entry abs offset to sl_stub_entry. To
@@ -538,7 +538,7 @@ relocated:
 	shrq	$3, %rcx
 	rep	stosq
 
-#ifdef CONFIG_SECURE_LAUNCH_STUB
+#ifdef CONFIG_SECURE_LAUNCH
 	/*
 	 * Have to do the final early sl stub work in 64b area.
 	 *
