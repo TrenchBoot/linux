@@ -1961,8 +1961,8 @@ config EFI_MIXED
 
 	   If unsure, say N.
 
-config SECURE_LAUNCH_STUB
-	bool "Secure Launch stub support"
+config SECURE_LAUNCH
+	bool "Secure Launch support"
 	default n
 	depends on X86_64
 	help
