@@ -194,7 +194,7 @@ struct txt_mtrr_pair {
 } __packed;
 
 struct txt_mtrr_state {
-	u64	default_type_reg;
+	u64	default_mem_type;
 	u64	mtrr_vcnt;
 	struct txt_mtrr_pair mtrr_pair[TXT_MAX_VARIABLE_MTRRS];
 } __packed;
@@ -208,7 +208,6 @@ struct txt_os_mle_data {
 	u8	msb_key_hash[20];
 	u64	saved_misc_enable_msr;
 	struct	txt_mtrr_state saved_bsp_mtrrs;
-	u64	lo_pmr_min;
 	u64	ap_wake_ebp;
 	u64	ap_wake_block;
 	u8	event_log_buffer[TXT_MAX_EVENT_LOG_SIZE];
