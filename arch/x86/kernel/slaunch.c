@@ -195,6 +195,12 @@ static void __init slaunch_verify_pmrs(void __iomem *txt)
 		slaunch_txt_reset(txt,
 				  "Error lo PMR does not cover MLE kernel\n",
 				  TXT_SLERROR_LO_PMR_MLE);
+
+	/* Check that the AP wake block is protected by the lo PMR. */
+	if (ap_wake_block + PAGE_SIZE > pmrvals[PMR_LO_SIZE])
+		slaunch_txt_reset(txt,
+				  "Error lo PMR does not cover AP wake block\n",
+				  TXT_SLERROR_LO_PMR_MLE);
 }
 
 static int __init slaunch_txt_reserve_range(u64 base, u64 size)
@@ -432,13 +438,13 @@ static void __init slaunch_setup_intel(void)
 	memcpy_toio(txt + TXTCR_CMD_OPEN_LOCALITY1, &val, sizeof(u64));
 	memcpy_fromio(&val, txt + TXTCR_E2STS, sizeof(u64));
 
+	slaunch_fetch_ap_wake_block(txt);
+
 	slaunch_verify_pmrs(txt);
 
 	slaunch_txt_reserve(txt);
 
 	slaunch_copy_dmar_table(txt);
-
-	slaunch_fetch_ap_wake_block(txt);
 
 	early_iounmap(txt, TXT_NR_CONFIG_PAGES * PAGE_SIZE);
 

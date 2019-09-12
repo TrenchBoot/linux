@@ -31,8 +31,8 @@
 #define IDT_VECTOR_HI_BITS	6
 
 	/* The MLE Header per the TXT Specification, section 4.1 */
-	.global	sl_mle_header
-sl_mle_header:
+	.global	mle_header
+mle_header:
 	.long	0x9082ac5a    /* UUID0 */
 	.long	0x74a7476f    /* UUID1 */
 	.long	0xa2555c0f    /* UUID2 */
@@ -349,10 +349,10 @@ ENTRY(sl_txt_load_regs)
 	pushl	%edi
 	addl	$(SL_saved_bsp_mtrrs), %edi
 	movl	(%edi), %ebx
-	pushl	%ebx /* default_type_reg lo */
+	pushl	%ebx /* default_mem_type lo */
 	addl	$4, %edi
 	movl	(%edi), %ebx
-	pushl	%ebx /* default_type_reg hi */
+	pushl	%ebx /* default_mem_type hi */
 	addl	$4, %edi
 	movl	(%edi), %ebx /* mtrr_vcnt lo, don't care about hi part */
 	addl	$8, %edi /* now at MTRR pair array */
