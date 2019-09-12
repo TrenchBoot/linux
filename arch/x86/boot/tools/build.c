@@ -56,7 +56,7 @@ u8 buf[SETUP_SECT_MAX*512];
 unsigned long efi32_stub_entry;
 unsigned long efi64_stub_entry;
 unsigned long efi_pe_entry;
-unsigned long sl_mle_header;
+unsigned long mle_header;
 unsigned long startup_64;
 
 /*----------------------------------------------------------------------*/
@@ -294,7 +294,7 @@ static inline int reserve_pecoff_reloc_section(int c)
 
 static void slaunch_stub_entry_update(void)
 {
-	put_unaligned_le32(sl_mle_header, &buf[0x268]);
+	put_unaligned_le32(mle_header, &buf[0x268]);
 }
 
 #else
@@ -334,7 +334,7 @@ static void parse_zoffset(char *fname)
 		PARSE_ZOFS(p, efi32_stub_entry);
 		PARSE_ZOFS(p, efi64_stub_entry);
 		PARSE_ZOFS(p, efi_pe_entry);
-		PARSE_ZOFS(p, sl_mle_header);
+		PARSE_ZOFS(p, mle_header);
 		PARSE_ZOFS(p, startup_64);
 
 		p = strchr(p, '\n');
