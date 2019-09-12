@@ -82,7 +82,7 @@ static void sl_txt_validate_msrs(struct txt_os_mle_data *os_mle_data)
 		sl_txt_reset(TXT_SLERROR_MTRR_INV_VCNT);
 
 	mtrr_def_type = sl_rdmsr(MSR_MTRRdefType);
-	if (saved_bsp_mtrrs->default_type_reg != mtrr_def_type)
+	if (saved_bsp_mtrrs->default_mem_type != mtrr_def_type)
 		sl_txt_reset(TXT_SLERROR_MTRR_INV_DEF_TYPE);
 
 	for (i = 0; i < saved_bsp_mtrrs->mtrr_vcnt; i++) {
