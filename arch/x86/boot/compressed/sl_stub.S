@@ -31,8 +31,8 @@
 #define IDT_VECTOR_HI_BITS	6
 
 	/* The MLE Header per the TXT Specification, section 4.1 */
-	.global	sl_mle_header
-sl_mle_header:
+	.global	mle_header
+mle_header:
 	.long	0x9082ac5a    /* UUID0 */
 	.long	0x74a7476f    /* UUID1 */
 	.long	0xa2555c0f    /* UUID2 */
