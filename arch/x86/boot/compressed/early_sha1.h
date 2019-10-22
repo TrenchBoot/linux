@@ -12,7 +12,6 @@ void early_sha1_init(struct sha1_state *sctx);
 void early_sha1_update(struct sha1_state *sctx,
 		       const u8 *data,
 		       unsigned int len);
-void early_sha1_finalize(struct sha1_state *sctx);
-void early_sha1_finish(struct sha1_state *sctx, u8 *out);
+void early_sha1_final(struct sha1_state *sctx, u8 *out);
 
 #endif /* _ASM_X86_SHA1_H */

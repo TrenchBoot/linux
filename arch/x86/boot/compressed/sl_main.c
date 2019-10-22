@@ -12,11 +12,12 @@
 #include <asm/mtrr.h>
 #include <asm/processor-flags.h>
 #include <asm/asm-offsets.h>
-#include <asm/sha1.h>
 #include <asm/tpm.h>
 #include <asm/bootparam.h>
 #include <asm/efi.h>
 #include <asm/slaunch.h>
+
+#include "early_sha1.h"
 
 extern u32 sl_cpu_type;
 
@@ -108,8 +109,7 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 len)
 	memset(&sha1_hash[0], 0, SHA1_DIGEST_SIZE);
 	early_sha1_init(&sctx);
 	early_sha1_update(&sctx, data, len);
-	early_sha1_finalize(&sctx);
-	early_sha1_finish(&sctx, &sha1_hash[0]);
+	early_sha1_final(&sctx, &sha1_hash[0]);
 	ret = tpm_extend_pcr(tpm, pcr, TPM_HASH_ALG_SHA1, &sha1_hash[0]);
 	if (ret)
 		sl_txt_reset(TXT_SLERROR_TPM_EXTEND);
