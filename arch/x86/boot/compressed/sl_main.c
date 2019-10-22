@@ -16,6 +16,12 @@
 #include <asm/bootparam.h>
 #include <asm/efi.h>
 #include <asm/slaunch.h>
+#ifdef CONFIG_SECURE_LAUNCH_SHA256
+#include <linux/sha256.h>
+#endif
+#ifdef CONFIG_SECURE_LAUNCH_SHA512
+#include <linux/sha512.h>
+#endif
 
 #include "early_sha1.h"
 
@@ -106,11 +112,37 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 len)
 	u8 sha1_hash[SHA1_DIGEST_SIZE];
 	int ret;
 
+	if (tpm->family == TPM20) {
+#ifdef CONFIG_SECURE_LAUNCH_SHA256
+		struct sha256_state sctx = {0};
+		u8 sha256_hash[SHA256_DIGEST_SIZE];
+
+		memset(&sha256_hash[0], 0, SHA256_DIGEST_SIZE);
+		sha256_init(&sctx);
+		sha256_update(&sctx, data, len);
+		sha256_final(&sctx, &sha256_hash[0]);
+		ret = tpm_extend_pcr(tpm, pcr, TPM_HASH_ALG_SHA256, &sha256_hash[0]);
+		goto err;
+#endif
+#ifdef CONFIG_SECURE_LAUNCH_SHA512
+		struct sha512_state sctx = {0};
+		u8 sha512_hash[SHA512_DIGEST_SIZE];
+
+		memset(&sha512_hash[0], 0, SHA512_DIGEST_SIZE);
+		sha512_init(&sctx);
+		sha512_update(&sctx, data, len);
+		sha512_final(&sctx, &sha512_hash[0]);
+		ret = tpm_extend_pcr(tpm, pcr, TPM_HASH_ALG_SHA512, &sha512_hash[0]);
+		goto err;
+#endif
+	}
+
 	memset(&sha1_hash[0], 0, SHA1_DIGEST_SIZE);
 	early_sha1_init(&sctx);
 	early_sha1_update(&sctx, data, len);
 	early_sha1_final(&sctx, &sha1_hash[0]);
 	ret = tpm_extend_pcr(tpm, pcr, TPM_HASH_ALG_SHA1, &sha1_hash[0]);
+err:
 	if (ret)
 		sl_txt_reset(TXT_SLERROR_TPM_EXTEND);
 }
