@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
-#ifndef _ASM_X86_SHA1_H
-#define _ASM_X86_SHA1_H
+#ifndef BOOT_COMPRESSED_EARLY_SHA1_H
+#define BOOT_COMPRESSED_EARLY_SHA1_H
 
 /*
  * Copyright (c) 2019 Oracle and/or its affiliates. All rights reserved.
@@ -14,4 +14,4 @@ void early_sha1_update(struct sha1_state *sctx,
 		       unsigned int len);
 void early_sha1_final(struct sha1_state *sctx, u8 *out);
 
-#endif /* _ASM_X86_SHA1_H */
+#endif /* BOOT_COMPRESSED_EARLY_SHA1_H */
