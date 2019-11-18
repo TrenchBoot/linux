@@ -122,7 +122,10 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 len)
 		sha256_update(&sctx, data, len);
 		sha256_final(&sctx, &sha256_hash[0]);
 		ret = tpm_extend_pcr(tpm, pcr, TPM_HASH_ALG_SHA256, &sha256_hash[0]);
-		goto err;
+		if (!ret)
+			return;
+		else
+			sl_txt_reset(TXT_SLERROR_TPM_EXTEND);
 #endif
 #ifdef CONFIG_SECURE_LAUNCH_SHA512
 		struct sha512_state sctx = {0};
@@ -133,7 +136,10 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 len)
 		sha512_update(&sctx, data, len);
 		sha512_final(&sctx, &sha512_hash[0]);
 		ret = tpm_extend_pcr(tpm, pcr, TPM_HASH_ALG_SHA512, &sha512_hash[0]);
-		goto err;
+		if (!ret)
+			return;
+		else
+			sl_txt_reset(TXT_SLERROR_TPM_EXTEND);
 #endif
 	}
 
@@ -142,7 +148,7 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 len)
 	early_sha1_update(&sctx, data, len);
 	early_sha1_final(&sctx, &sha1_hash[0]);
 	ret = tpm_extend_pcr(tpm, pcr, TPM_HASH_ALG_SHA1, &sha1_hash[0]);
-err:
+out:
 	if (ret)
 		sl_txt_reset(TXT_SLERROR_TPM_EXTEND);
 }
