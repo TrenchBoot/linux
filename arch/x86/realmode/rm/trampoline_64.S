@@ -32,7 +32,6 @@
 #include <asm/segment.h>
 #include <asm/processor-flags.h>
 #include <asm/realmode.h>
-#include <asm/slaunch.h>
 #include "realmode.h"
 
 	.text
