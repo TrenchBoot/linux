@@ -16,7 +16,7 @@
 #include <asm/tpm.h>
 #include <asm/bootparam.h>
 #include <asm/efi.h>
-#include <asm/slaunch.h>
+#include <linux/slaunch.h>
 
 extern u32 sl_cpu_type;
 

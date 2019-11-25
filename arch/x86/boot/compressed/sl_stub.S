@@ -12,7 +12,7 @@
 #include <asm/asm-offsets.h>
 #include <asm/bootparam.h>
 #include <asm/irq_vectors.h>
-#include <asm/slaunch.h>
+#include <linux/slaunch.h>
 
 /* Can't include apiddef.h in asm */
 #define APIC_BASE_MSR	0x800
