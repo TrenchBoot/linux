@@ -15,11 +15,8 @@
 #include <asm/slaunch.h>
 
 /* Can't include apiddef.h in asm */
-#define APIC_BASE_MSR	0x800
 #define XAPIC_ENABLE	(1 << 11)
 #define X2APIC_ENABLE	(1 << 10)
-#define	APIC_EOI	0xB0
-#define	APIC_EOI_ACK	0x0
 
 /* Can't include traps.h in asm */
 #define X86_TRAP_NMI	2
@@ -79,14 +76,6 @@ ENTRY(sl_stub)
 	lret
 
 .Lsl_cs:
-	/* Before going any further, make sure this is the BSP */
-	movl	$(MSR_IA32_APICBASE), %ecx
-	rdmsr
-	testl	$(MSR_IA32_APICBASE_BSP), %eax
-	jnz	.Lbsp_ok
-	ud2
-
-.Lbsp_ok:
 	/* Assume CPU is AMD to start */
 	movl	$(SL_CPU_AMD), %edi
 
@@ -478,12 +467,7 @@ ENDPROC(sl_txt_ap_wake)
 ENTRY(sl_txt_int_ipi_wake)
 	movl	$1, %ebx
 
-	movl	$(APIC_EOI), %ecx
-	shrl	$4, %ecx
-	addl	$(APIC_BASE_MSR), %ecx
-	movl	$(APIC_EOI_ACK), %eax
-	wrmsr
-
+	/* NMI context, just IRET */
 	iret
 ENDPROC(sl_txt_int_ipi_wake)
 
