@@ -71,6 +71,7 @@
 #include <linux/tboot.h>
 #include <linux/jiffies.h>
 #include <linux/mem_encrypt.h>
+#include <linux/slaunch.h>
 
 #include <linux/usb/xhci-dbgp.h>
 #include <video/edid.h>
@@ -117,7 +118,6 @@
 #include <asm/microcode.h>
 #include <asm/kaslr.h>
 #include <asm/unwind.h>
-#include <asm/slaunch.h>
 
 /*
  * max_low_pfn_mapped: highest direct mapped pfn under 4GB
@@ -1038,9 +1038,7 @@ void __init setup_arch(char **cmdline_p)
 	early_gart_iommu_check();
 #endif
 
-#ifdef CONFIG_SECURE_LAUNCH
 	slaunch_setup();
-#endif
 
 	/*
 	 * partially used pages are not usable - thus
