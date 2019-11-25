@@ -20,6 +20,7 @@
 #include <asm/sections.h>
 #include <asm/boot.h>
 #include <asm/msr.h>
+#include <asm/tlbflush.h>
 #include <asm/processor-flags.h>
 #include <asm/asm-offsets.h>
 #include <asm/e820/api.h>
