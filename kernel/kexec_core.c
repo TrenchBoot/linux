@@ -37,6 +37,7 @@
 #include <linux/compiler.h>
 #include <linux/hugetlb.h>
 #include <linux/frame.h>
+#include <linux/slaunch.h>
 
 #include <asm/page.h>
 #include <asm/sections.h>
@@ -1173,6 +1174,8 @@ int kernel_kexec(void)
 		cpu_hotplug_enable();
 		pr_emerg("Starting new kernel\n");
 		machine_shutdown();
+
+		slaunch_sexit();
 	}
 
 	machine_kexec(kexec_image);
