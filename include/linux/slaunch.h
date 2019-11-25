@@ -45,6 +45,7 @@
 /*
  * SMX GETSEC Leaf Functions
  */
+#define SMX_X86_GETSEC_SEXIT	5
 #define SMX_X86_GETSEC_SMCTRL	7
 #define SMX_X86_GETSEC_WAKEUP	8
 
@@ -63,6 +64,7 @@
 #define TXTCR_ESTS			0x0008
 #define TXTCR_ERRORCODE			0x0030
 #define TXTCR_CMD_RESET			0x0038
+#define TXTCR_CMD_CLOSE_PRIVATE		0x0048
 #define TXTCR_DIDVID			0x0110
 #define TXTCR_CMD_UNLOCK_MEM_CONFIG	0x0218
 #define TXTCR_SINIT_BASE		0x0270
@@ -295,6 +297,7 @@ void slaunch_setup(void);
 u32 slaunch_get_flags(void);
 u32 slaunch_get_ap_wake_block(void);
 struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table_header *dmar);
+void slaunch_sexit(void);
 
 #endif
 
