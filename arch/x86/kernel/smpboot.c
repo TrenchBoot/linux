@@ -57,6 +57,7 @@
 #include <linux/gfp.h>
 #include <linux/cpuidle.h>
 #include <linux/numa.h>
+#include <linux/slaunch.h>
 
 #include <asm/acpi.h>
 #include <asm/desc.h>
@@ -82,7 +83,6 @@
 #include <asm/cpu_device_id.h>
 #include <asm/spec-ctrl.h>
 #include <asm/hw_irq.h>
-#include <asm/slaunch.h>
 
 /* representing HT siblings of each logical CPU */
 DEFINE_PER_CPU_READ_MOSTLY(cpumask_var_t, cpu_sibling_map);
@@ -953,6 +953,7 @@ void common_cpu_up(unsigned int cpu, struct task_struct *idle)
 }
 
 #ifdef CONFIG_SECURE_LAUNCH
+
 static atomic_t first_ap_only = {1};
 
 /*
@@ -1036,7 +1037,12 @@ slaunch_wakeup_cpu_from_txt(int cpu, int apicid)
 
 	return (send_status | accept_status);
 }
-#endif
+
+#else
+
+#define slaunch_wakeup_cpu_from_txt(cpu, apicid)	0
+
+#endif  /* !CONFIG_SECURE_LAUNCH */
 
 /*
  * NOTE - on most systems this is a PHYSICAL apic ID, but on multiquad
@@ -1094,13 +1100,11 @@ static int do_boot_cpu(int apicid, int cpu, struct task_struct *idle,
 	cpumask_clear_cpu(cpu, cpu_initialized_mask);
 	smp_mb();
 
-#ifdef CONFIG_SECURE_LAUNCH
 	/* With Intel TXT, the AP startup is totally different */
 	if (slaunch_get_flags() & (SL_FLAG_ACTIVE|SL_FLAG_ARCH_TXT)) {
 		boot_error = slaunch_wakeup_cpu_from_txt(cpu, apicid);
-		goto skip;
+		goto txt_wake;
 	}
-#endif
 
 	/*
 	 * Wake up a CPU in difference cases:
@@ -1114,9 +1118,7 @@ static int do_boot_cpu(int apicid, int cpu, struct task_struct *idle,
 		boot_error = wakeup_cpu_via_init_nmi(cpu, start_ip, apicid,
 						     cpu0_nmi_registered);
 
-#ifdef CONFIG_SECURE_LAUNCH
-skip:
-#endif
+txt_wake:
 
 	if (!boot_error) {
 		/*

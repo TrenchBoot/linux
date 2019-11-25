@@ -1,6 +1,15 @@
 /* SPDX-License-Identifier: GPL-2.0 */
-#ifndef _ASM_X86_SLAUNCH_H
-#define _ASM_X86_SLAUNCH_H
+#ifndef _LINUX_SLAUNCH_H
+#define _LINUX_SLAUNCH_H
+
+/*
+ * Secure Launch Defined State Flags
+ */
+#define SL_FLAG_ACTIVE		0x00000001
+#define SL_FLAG_ARCH_SKINIT	0x00000002
+#define SL_FLAG_ARCH_TXT	0x00000004
+
+#ifdef CONFIG_SECURE_LAUNCH
 
 /*
  * Secure Launch main definitions file.
@@ -165,13 +174,6 @@
 #define SL_IMAGE_PCR17		17
 #define SL_CONFIG_PCR18		18
 
-/*
- * Secure Launch Defined Flags
- */
-#define SL_FLAG_ACTIVE		0x00000001
-#define SL_FLAG_ARCH_SKINIT	0x00000002
-#define SL_FLAG_ARCH_TXT	0x00000004
-
 #ifndef __ASSEMBLY__
 
 /*
@@ -295,5 +297,14 @@ u32 slaunch_get_ap_wake_block(void);
 struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table_header *dmar);
 
 #endif
+
+#else
+
+#define slaunch_setup()			do { } while (0)
+#define slaunch_get_flags()		0
+#define slaunch_get_dmar_table(d)	(d)
+#define slaunch_sexit()			do { } while (0)
+
+#endif /* !CONFIG_SECURE_LAUNCH */
 
 #endif /* _ASM_X86_SLAUNCH_H */

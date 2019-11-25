@@ -25,7 +25,7 @@
 #include <asm/e820/api.h>
 #include <asm/bootparam.h>
 #include <asm/setup.h>
-#include <asm/slaunch.h>
+#include <linux/slaunch.h>
 
 #define PREFIX	"SLAUNCH: "
 
