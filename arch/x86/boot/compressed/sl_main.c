@@ -23,7 +23,21 @@
 #include <linux/sha512.h>
 #endif
 
+#include "../string.h"
 #include "early_sha1.h"
+
+#define SL_MAX_EVENT_DATA	64
+#define SL_TPM12_LOG_SIZE	(sizeof(struct tpm12_pcr_event) + \
+				SL_MAX_EVENT_DATA)
+#define SL_TPM20_LOG_SIZE	(sizeof(struct tpm20_ha) + \
+				SHA512_DIGEST_SIZE + \
+				sizeof(struct tpm20_digest_values) + \
+				sizeof(struct tpm20_pcr_event_head) + \
+				sizeof(struct tpm20_pcr_event_tail) + \
+				SL_MAX_EVENT_DATA)
+
+static void *evtlog_base;
+static struct txt_heap_event_log_pointer2_1_element *log20_elem;
 
 extern u32 sl_cpu_type;
 
@@ -106,7 +120,117 @@ static void sl_txt_validate_msrs(struct txt_os_mle_data *os_mle_data)
 		sl_txt_reset(TXT_SLERROR_MSR_INV_MISC_EN);
 }
 
-void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 len)
+static void sl_find_event_log(struct tpm *tpm)
+{
+	struct txt_os_mle_data *os_mle_data;
+	void *os_sinit_data;
+	u64 *txt_heap;
+	u64 table_size;
+
+	txt_heap = (void *)sl_txt_read(TXTCR_HEAP_BASE);
+	table_size = *txt_heap;
+	os_mle_data = (struct txt_os_mle_data *)
+			((u8 *)txt_heap + table_size + sizeof(u64));
+
+	evtlog_base = (void *)&os_mle_data->event_log_buffer[0];
+
+	if (tpm->family != TPM20)
+		return;
+
+	/*
+	 * For TPM 2.0, the event log 2.1 extended data structure has to also
+	 * be located and fixed up.
+	 */
+	txt_heap = (u64 *)((u8 *)os_mle_data - sizeof(u64));
+	/* Now at OS-MLE table */
+	table_size = *txt_heap;
+	txt_heap = (u64 *)((u8 *)txt_heap + table_size);
+	/* Now at OS-SINIT table */
+	os_sinit_data = (void *)((u8 *)txt_heap + sizeof(u64));
+
+	/* Find the TPM2.0 logging extended heap element */
+	log20_elem = tpm20_find_log2_1_element(os_sinit_data);
+
+	if (!log20_elem)
+		sl_txt_reset(TXT_SLERROR_TPM_INVALID_LOG20);
+}
+
+static void sl_tpm12_log_event(u32 pcr, u8 *digest,
+			       const u8 *event_data, u32 event_size)
+{
+	struct tpm12_pcr_event *pcr_event;
+	u32 total_size;
+	u8 log_buf[SL_TPM12_LOG_SIZE];
+
+	memset(log_buf, 0, SL_TPM12_LOG_SIZE);
+	pcr_event = (struct tpm12_pcr_event *)log_buf;
+	pcr_event->pcr_index = pcr;
+	pcr_event->type = TXT_EVTYPE_SLAUNCH;
+	memcpy(&pcr_event->digest[0], digest, SHA1_DIGEST_SIZE);
+	pcr_event->size = event_size;
+	memcpy((u8 *)pcr_event + sizeof(struct tpm12_pcr_event),
+	       event_data, event_size);
+
+	total_size = sizeof(struct tpm12_pcr_event) + event_size;
+
+	if (tpm12_log_event(evtlog_base, total_size, pcr_event))
+		sl_txt_reset(TXT_SLERROR_TPM_LOGGING_FAILED);
+}
+
+static void sl_tpm20_log_event(u32 pcr, u8 *digest, u16 algo,
+			       const u8 *event_data, u32 event_size)
+{
+	struct tpm20_pcr_event_head *head;
+	struct tpm20_digest_values *dvs;
+	struct tpm20_ha *ha;
+	struct tpm20_pcr_event_tail *tail;
+	u8 *dptr;
+	u32 total_size;
+	u8 log_buf[SL_TPM20_LOG_SIZE];
+
+	memset(log_buf, 0, SL_TPM20_LOG_SIZE);
+	head = (struct tpm20_pcr_event_head *)log_buf;
+	head->pcr_index = pcr;
+	head->event_type = TXT_EVTYPE_SLAUNCH;
+	dvs = (struct tpm20_digest_values *)
+		((u8 *)head + sizeof(struct tpm20_pcr_event_head));
+	dvs->count = 1;
+	ha = (struct tpm20_ha *)
+		((u8 *)dvs + sizeof(struct tpm20_digest_values));
+	ha->algorithm_id = algo;
+	dptr = (u8 *)ha + sizeof(struct tpm20_ha);
+
+	switch (algo) {
+	case TPM_HASH_ALG_SHA512:
+		memcpy(dptr, digest, SHA512_DIGEST_SIZE);
+		tail = (struct tpm20_pcr_event_tail *)
+			(dptr + SHA512_DIGEST_SIZE);
+		break;
+	case TPM_HASH_ALG_SHA256:
+		memcpy(dptr, digest, SHA256_DIGEST_SIZE);
+		tail = (struct tpm20_pcr_event_tail *)
+			(dptr + SHA256_DIGEST_SIZE);
+		break;
+	case TPM_HASH_ALG_SHA1:
+	default:
+		memcpy(dptr, digest, SHA1_DIGEST_SIZE);
+		tail = (struct tpm20_pcr_event_tail *)
+			(dptr + SHA1_DIGEST_SIZE);
+	};
+
+	tail->event_size = event_size;
+	memcpy((u8 *)tail + sizeof(struct tpm20_pcr_event_tail),
+	       event_data, event_size);
+
+	total_size = (u32)((u8 *)tail - (u8 *)head) +
+		sizeof(struct tpm20_pcr_event_tail) + event_size;
+
+	if (tpm20_log_event(log20_elem, evtlog_base, total_size, &log_buf[0]))
+		sl_txt_reset(TXT_SLERROR_TPM_LOGGING_FAILED);
+}
+
+void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 length,
+		       const char *desc)
 {
 	struct sha1_state sctx = {0};
 	u8 sha1_hash[SHA1_DIGEST_SIZE];
@@ -119,11 +243,15 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 len)
 
 		memset(&sha256_hash[0], 0, SHA256_DIGEST_SIZE);
 		sha256_init(&sctx);
-		sha256_update(&sctx, data, len);
+		sha256_update(&sctx, data, length);
 		sha256_final(&sctx, &sha256_hash[0]);
 		ret = tpm_extend_pcr(tpm, pcr, TPM_HASH_ALG_SHA256, &sha256_hash[0]);
-		if (!ret)
+		if (!ret) {
+			sl_tpm20_log_event(pcr, &sha256_hash[0],
+					   TPM_HASH_ALG_SHA256,
+					   (const u8 *)desc, strlen(desc));
 			return;
+		}
 		else
 			sl_txt_reset(TXT_SLERROR_TPM_EXTEND);
 #endif
@@ -133,11 +261,15 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 len)
 
 		memset(&sha512_hash[0], 0, SHA512_DIGEST_SIZE);
 		sha512_init(&sctx);
-		sha512_update(&sctx, data, len);
+		sha512_update(&sctx, data, length);
 		sha512_final(&sctx, &sha512_hash[0]);
 		ret = tpm_extend_pcr(tpm, pcr, TPM_HASH_ALG_SHA512, &sha512_hash[0]);
-		if (!ret)
+		if (!ret) {
+			sl_tpm20_log_event(pcr, &sha512_hash[0],
+					   TPM_HASH_ALG_SHA512,
+					   (const u8 *)desc, strlen(desc));
 			return;
+		}
 		else
 			sl_txt_reset(TXT_SLERROR_TPM_EXTEND);
 #endif
@@ -145,12 +277,18 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 len)
 
 	memset(&sha1_hash[0], 0, SHA1_DIGEST_SIZE);
 	early_sha1_init(&sctx);
-	early_sha1_update(&sctx, data, len);
+	early_sha1_update(&sctx, data, length);
 	early_sha1_final(&sctx, &sha1_hash[0]);
 	ret = tpm_extend_pcr(tpm, pcr, TPM_HASH_ALG_SHA1, &sha1_hash[0]);
-
 	if (ret)
 		sl_txt_reset(TXT_SLERROR_TPM_EXTEND);
+
+	if (tpm->family == TPM20)
+		sl_tpm20_log_event(pcr, &sha1_hash[0], TPM_HASH_ALG_SHA1,
+				   (const u8 *)desc, strlen(desc));
+	else
+		sl_tpm12_log_event(pcr, &sha1_hash[0],
+				   (const u8 *)desc, strlen(desc));
 }
 
 void sl_main(u8 *bootparams)
@@ -182,11 +320,15 @@ void sl_main(u8 *bootparams)
 	if (!tpm)
 		sl_txt_reset(TXT_SLERROR_TPM_INIT);
 
+	/* Locate the TPM event log. */
+	sl_find_event_log(tpm);
+
 	if (tpm_request_locality(tpm, 2) == TPM_NO_LOCALITY)
 		sl_txt_reset(TXT_SLERROR_TPM_GET_LOC);
 
 	/* Measure the zero page/boot params */
-	sl_tpm_extend_pcr(tpm, SL_CONFIG_PCR18, bootparams, PAGE_SIZE);
+	sl_tpm_extend_pcr(tpm, SL_CONFIG_PCR18, bootparams, PAGE_SIZE,
+			  "Measured boot parameters into PCR18");
 
 	/* Now safe to use boot params */
 	bp = (struct boot_params *)bootparams;
@@ -194,7 +336,8 @@ void sl_main(u8 *bootparams)
 	/* Measure the command line */
 	sl_tpm_extend_pcr(tpm, SL_CONFIG_PCR18,
 			  (u8 *)((unsigned long)bp->hdr.cmd_line_ptr),
-			  bp->hdr.cmdline_size);
+			  bp->hdr.cmdline_size,
+			  "Measured Kernel command line into PCR18");
 
 	/*
 	 * Measuring the boot params measured the fixed e820 memory map.
@@ -204,14 +347,15 @@ void sl_main(u8 *bootparams)
 	while (data) {
 		sl_tpm_extend_pcr(tpm, SL_CONFIG_PCR18,
 				  ((u8 *)data) + sizeof(struct setup_data),
-				  data->len);
+				  data->len,
+				  "Measured Kernel setup_data into PCR18");
 
 		data = (struct setup_data *)(unsigned long)data->next;
 	}
 
 	/* If bootloader was EFI, measure the memory map passed across */
 	signature =
-		(const char *)(unsigned long)bp->efi_info.efi_loader_signature;
+		(const char *)&bp->efi_info.efi_loader_signature;
 
 	if (!strncmp(signature, EFI32_LOADER_SIGNATURE, 4))
 		mmap =  bp->efi_info.efi_memmap;
@@ -221,13 +365,16 @@ void sl_main(u8 *bootparams)
 
 	if (mmap)
 		sl_tpm_extend_pcr(tpm, SL_CONFIG_PCR18, (void *)mmap,
-				  bp->efi_info.efi_memmap_size);
+				  bp->efi_info.efi_memmap_size,
+				  "Measured EFI memory map into PCR18");
 
 	/* Measure any external initrd */
 	if (bp->hdr.ramdisk_image != 0 && bp->hdr.ramdisk_size != 0)
 		sl_tpm_extend_pcr(tpm, SL_IMAGE_PCR17,
 				  (u8 *)((u64)bp->hdr.ramdisk_image),
-				  bp->hdr.ramdisk_size);
+				  bp->hdr.ramdisk_size,
+				  "Measured initramfs into PCR17");
+
 	/*
 	 * Some extra work to do on Intel, have to measure the OS-MLE
 	 * heap area.
@@ -245,7 +392,8 @@ void sl_main(u8 *bootparams)
 
 	/* Measure OS-MLE data up to the TPM log into 18 */
 	os_mle_len = offsetof(struct txt_os_mle_data, event_log_buffer);
-	sl_tpm_extend_pcr(tpm, SL_CONFIG_PCR18, (u8 *)os_mle_data, os_mle_len);
+	sl_tpm_extend_pcr(tpm, SL_CONFIG_PCR18, (u8 *)os_mle_data, os_mle_len,
+			  "Measured TXT OS-MLE data into PCR18");
 
 	/*
 	 * Now that the OS-MLE data is measured, ensure the MTRR and

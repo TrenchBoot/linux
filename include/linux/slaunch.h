@@ -158,12 +158,21 @@
 #define TXT_SLERROR_LO_PMR_MLE		0xc0008018
 #define TXT_SLERROR_HEAP_ZERO_OFFSET	0xc0008019
 #define TXT_SLERROR_AP_WAKE_BLOCK_VAL	0xc000801a
+#define TXT_SLERROR_TPM_INVALID_LOG20	0xc000801b
+#define TXT_SLERROR_TPM_LOGGING_FAILED	0xc000801c
 
 /*
  * Secure Launch Defined Limits
  */
 #define TXT_MAX_CPUS			512
 #define TXT_BOOT_STACK_SIZE		24
+
+/*
+ * Secure Launch event log entry type. The TXT specification defines the
+ * base event value as 0x400 for DRTM values.
+ */
+#define TXT_EVTYPE_BASE		0x400
+#define TXT_EVTYPE_SLAUNCH	(TXT_EVTYPE_BASE + 0x102)
 
 /*
  * TODO this will change when patch 0001 changes
@@ -187,6 +196,35 @@ struct txt_mle_join {
 	u32	ap_gdt_base;
 	u32	ap_seg_sel;	/* cs (ds, es, ss are seg_sel+8) */
 	u32	ap_entry_point;	/* phys addr */
+} __packed;
+
+struct txt_heap_ext_data_element
+{
+	u32 type;
+	u32 size;
+	/* Data */
+} __packed;
+
+#define TXT_HEAP_EXTDATA_TYPE_END			0
+
+struct txt_heap_end_element {
+	u32 type;
+	u32 size;
+} __packed;
+
+#define TXT_HEAP_EXTDATA_TYPE_TPM_EVENT_LOG_PTR		5
+
+struct txt_heap_event_log_element {
+	u64 event_log_phys_addr;
+} __packed;
+
+#define TXT_HEAP_EXTDATA_TYPE_EVENT_LOG_POINTER2_1	8
+
+struct txt_heap_event_log_pointer2_1_element {
+	u64 phys_addr;
+	u32 allocated_event_container_size;
+	u32 first_record_offset;
+	u32 next_record_offset;
 } __packed;
 
 /*
@@ -218,6 +256,28 @@ struct txt_os_mle_data {
 } __packed;
 
 /*
+ * TXT specification defined OS/SINIT TXT Heap table
+ */
+struct txt_os_sinit_data {
+	u32	version; /* Currently 6 for TPM 1.2 and 7 for TPM 2.0 */
+	u32	flags;
+	u64	mle_ptab;
+	u64	mle_size;
+	u64	mle_hdr_base;
+	u64	vtd_pmr_lo_base;
+	u64	vtd_pmr_lo_size;
+	u64	vtd_pmr_hi_base;
+	u64	vtd_pmr_hi_size;
+	u64	lcp_po_base;
+	u64	lcp_po_size;
+	u32	capabilities;
+	/* Version = 5 */
+	u64	efi_rsdt_ptr;
+	/* Versions >= 6 */
+	/* Ext Data Elements */
+} __packed;
+
+/*
  * TXT data reporting structure for memory types
  */
 struct txt_memory_descriptor_record {
@@ -225,6 +285,57 @@ struct txt_memory_descriptor_record {
 	u64	length;
 	u8	type;
 	u8	reserved[7];
+} __packed;
+
+/*
+ * TPM event log structures defined in both the TXT specification and
+ * the TCG documentation.
+ */
+#define TPM12_EVTLOG_SIGNATURE "TXT Event Container"
+
+struct tpm12_event_log_header {
+	char	signature[20];
+	char	reserved[12];
+	u8	container_ver_major;
+	u8	container_ver_minor;
+	u8	pcr_event_ver_major;
+	u8	pcr_event_ver_minor;
+	u32	container_size;
+	u32	pcr_events_offset;
+	u32	next_event_offset;
+	/* PCREvents[] */
+} __packed;
+
+struct tpm12_pcr_event {
+	u32	pcr_index;
+	u32	type;
+	u8	digest[20];
+	u32	size;
+	/* Data[] */
+} __packed;
+
+#define TPM20_EVTLOG_SIGNATURE "Spec ID Event03"
+
+struct tpm20_ha {
+	u16	algorithm_id;
+	/* digest[AlgorithmID_DIGEST_SIZE] */
+} __packed;
+
+struct tpm20_digest_values {
+	u32	count;
+	/* TPMT_HA digests[count] */
+} __packed;
+
+struct tpm20_pcr_event_head {
+	u32	pcr_index;
+	u32	event_type;
+} __packed;
+
+/* Variable size array of hashes in the tpm20_digest_values structure */
+
+struct tpm20_pcr_event_tail {
+	u32	event_size;
+	/* Event[EventSize]; */
 } __packed;
 
 #include <asm/io.h>
@@ -291,6 +402,77 @@ static inline void __iomem *txt_sinit_mle_data_start(void __iomem *heap)
 }
 
 /*
+ * TPM event logging functions.
+ */
+static inline struct txt_heap_event_log_pointer2_1_element*
+tpm20_find_log2_1_element(struct txt_os_sinit_data *os_sinit_data)
+{
+	struct txt_heap_ext_data_element *ext_elem;
+
+	/* The extended element array as at the end of this table */
+	ext_elem = (struct txt_heap_ext_data_element *)
+		((u8 *)os_sinit_data + sizeof(struct txt_os_sinit_data));
+
+	while (ext_elem->type != TXT_HEAP_EXTDATA_TYPE_END) {
+		if (ext_elem->type ==
+		    TXT_HEAP_EXTDATA_TYPE_EVENT_LOG_POINTER2_1) {
+			return (struct txt_heap_event_log_pointer2_1_element *)
+				((u8 *)ext_elem +
+					sizeof(struct txt_heap_ext_data_element));
+		}
+		ext_elem =
+			(struct txt_heap_ext_data_element *)
+			((u8 *)ext_elem + ext_elem->size);
+	}
+
+	return NULL;
+}
+
+static inline int tpm12_log_event(void *evtlog_base,
+				  u32 event_size, void *event)
+{
+	struct tpm12_event_log_header *evtlog =
+		(struct tpm12_event_log_header *)evtlog_base;
+
+	if (memcmp(evtlog->signature, TPM12_EVTLOG_SIGNATURE,
+		   sizeof(TPM12_EVTLOG_SIGNATURE)))
+		return -EINVAL;
+
+	if (evtlog->next_event_offset + event_size > evtlog->container_size)
+		return -E2BIG;
+
+	memcpy(evtlog_base + evtlog->next_event_offset, event, event_size);
+	evtlog->next_event_offset += event_size;
+
+	return 0;
+}
+
+static inline int tpm20_log_event(struct txt_heap_event_log_pointer2_1_element *elem,
+				  void *evtlog_base,
+				  u32 event_size, void *event)
+{
+	struct tpm12_pcr_event *header =
+		(struct tpm12_pcr_event *)evtlog_base;
+
+	/* Has to be at least big enough for the signature */
+	if (header->size < sizeof(TPM20_EVTLOG_SIGNATURE))
+		return -EINVAL;
+
+	if (memcmp((u8 *)header + sizeof(struct tpm12_pcr_event),
+		   TPM20_EVTLOG_SIGNATURE, sizeof(TPM20_EVTLOG_SIGNATURE)))
+		return -EINVAL;
+
+	if (elem->next_record_offset + event_size >
+	    elem->allocated_event_container_size)
+		return -E2BIG;
+
+	memcpy(evtlog_base + elem->next_record_offset, event, event_size);
+	elem->next_record_offset += event_size;
+
+	return 0;
+}
+
+/*
  * External functions
  */
 void slaunch_setup(void);
@@ -299,7 +481,7 @@ u32 slaunch_get_ap_wake_block(void);
 struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table_header *dmar);
 void slaunch_sexit(void);
 
-#endif
+#endif /* !__ASSEMBLY */
 
 #else
 
@@ -310,4 +492,4 @@ void slaunch_sexit(void);
 
 #endif /* !CONFIG_SECURE_LAUNCH */
 
-#endif /* _ASM_X86_SLAUNCH_H */
+#endif /* _LINUX_SLAUNCH_H */

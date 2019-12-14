@@ -477,6 +477,9 @@ struct memfile {
 
 static struct memfile sl_evtlog = {"eventlog", 0, 0};
 static void __iomem *txt_heap;
+static struct txt_heap_event_log_pointer2_1_element __iomem *evtlog20;
+
+static DEFINE_MUTEX(sl_evt_write_mutex);
 
 static ssize_t sl_evtlog_read(struct file *file, char __user *buf,
 			      size_t count, loff_t *pos)
@@ -485,8 +488,39 @@ static ssize_t sl_evtlog_read(struct file *file, char __user *buf,
 		sl_evtlog.addr, sl_evtlog.size);
 }
 
+static ssize_t sl_evtlog_write(struct file *file, const char __user *buf,
+				size_t datalen, loff_t *ppos)
+{
+	char *data;
+	ssize_t result;
+
+	/* No partial writes. */
+	result = -EINVAL;
+	if (*ppos != 0)
+		goto out;
+
+	data = memdup_user(buf, datalen);
+	if (IS_ERR(data)) {
+		result = PTR_ERR(data);
+		goto out;
+	}
+
+	mutex_lock(&sl_evt_write_mutex);
+	if (evtlog20)
+		result = tpm20_log_event(evtlog20, sl_evtlog.addr,
+					 datalen, data);
+	else
+		result = tpm12_log_event(sl_evtlog.addr, datalen, data);
+	mutex_unlock(&sl_evt_write_mutex);
+
+	kfree(data);
+out:
+	return result;
+}
+
 static const struct file_operations sl_evtlog_ops = {
 	.read = sl_evtlog_read,
+	.write = sl_evtlog_write,
 	.llseek	= default_llseek,
 };
 
@@ -551,6 +585,7 @@ static void slaunch_intel_evtlog(void)
 {
 	void __iomem *config;
 	struct txt_os_mle_data *params;
+	void __iomem *os_sinit_data;
 
 	config = ioremap(TXT_PUB_CONFIG_REGS_BASE, TXT_NR_CONFIG_PAGES *
 			 PAGE_SIZE);
@@ -572,6 +607,23 @@ static void slaunch_intel_evtlog(void)
 
 	sl_evtlog.size = TXT_MAX_EVENT_LOG_SIZE;
 	sl_evtlog.addr = (void __iomem *)&params->event_log_buffer[0];
+
+	/* Determine if this is TPM 1.2 or 2.0 event log */
+	if (memcmp(sl_evtlog.addr + sizeof(struct tpm12_pcr_event),
+		    TPM20_EVTLOG_SIGNATURE, sizeof(TPM20_EVTLOG_SIGNATURE)))
+		return; /* looks like it is not 2.0 */
+
+	/* For TPM 2.0 logs, the extended heap element must be located */
+	os_sinit_data = txt_os_sinit_data_start(txt_heap);
+
+	evtlog20 = tpm20_find_log2_1_element(os_sinit_data);
+
+	/*
+	 * If this fails, things are in really bad shape. Any attempt to write
+	 * events to the log will fail.
+	 */
+	if (!evtlog20)
+		pr_err("Error failed to find TPM20 event log element\n");
 }
 
 static int __init slaunch_late_init(void)
