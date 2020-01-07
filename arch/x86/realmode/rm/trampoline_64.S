@@ -102,9 +102,6 @@ ENTRY(sl_trampoline_start32)
 	 */
 	movl    $pa_real_mode_base, %ebx
 
-	movl	$0xA5A5A5A5, trampoline_status(%ebx)
-	# write marker for master knows we're running
-
 	/*
 	 * This may seem a little odd but this is what %esp would have had in
 	 * it on the jmp from real mode because all real mode fixups were done
