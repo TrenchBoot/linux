@@ -175,11 +175,6 @@
 #define TXT_EVTYPE_SLAUNCH	(TXT_EVTYPE_BASE + 0x102)
 
 /*
- * TODO this will change when patch 0001 changes
- */
-#define SLAUNCH_INFO_OFFSET	0x268
-
-/*
  * Measured Launch PCRs
  */
 #define SL_IMAGE_PCR17		17
