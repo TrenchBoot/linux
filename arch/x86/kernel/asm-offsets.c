@@ -112,7 +112,7 @@ static void __used common(void)
 	OFFSET(SL_zero_page_addr, txt_os_mle_data, zero_page_addr);
 	OFFSET(SL_saved_misc_enable_msr, txt_os_mle_data, saved_misc_enable_msr);
 	OFFSET(SL_saved_bsp_mtrrs, txt_os_mle_data, saved_bsp_mtrrs);
-	OFFSET(SL_ap_wake_ebp, txt_os_mle_data, ap_wake_ebp);
+	OFFSET(SL_mle_scratch, txt_os_mle_data, mle_scratch);
 	OFFSET(SL_ap_wake_block, txt_os_mle_data, ap_wake_block);
 	OFFSET(SL_ap_gdt_base, txt_mle_join, ap_gdt_base);
 	OFFSET(SL_ap_entry_point, txt_mle_join, ap_entry_point);
