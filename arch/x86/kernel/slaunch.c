@@ -31,7 +31,7 @@
 #define PREFIX	"SLAUNCH: "
 
 static u32 sl_flags;
-static u32 ap_wake_block;
+static struct sl_ap_wake_info ap_wake_info;
 
 /* This should be plenty of room */
 static u8 txt_dmar[PAGE_SIZE] __aligned(16);
@@ -41,9 +41,9 @@ u32 slaunch_get_flags(void)
 	return sl_flags;
 }
 
-u32 slaunch_get_ap_wake_block(void)
+struct sl_ap_wake_info *slaunch_get_ap_wake_info(void)
 {
-	return ap_wake_block;
+	return &ap_wake_info;
 }
 
 struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table_header *dmar)
@@ -198,7 +198,7 @@ static void __init slaunch_verify_pmrs(void __iomem *txt)
 				  TXT_SLERROR_LO_PMR_MLE);
 
 	/* Check that the AP wake block is protected by the lo PMR. */
-	if (ap_wake_block + PAGE_SIZE > pmrvals[PMR_LO_SIZE])
+	if (ap_wake_info.ap_wake_block + PAGE_SIZE > pmrvals[PMR_LO_SIZE])
 		slaunch_txt_reset(txt,
 				  "Error lo PMR does not cover AP wake block\n",
 				  TXT_SLERROR_LO_PMR_MLE);
@@ -358,6 +358,8 @@ static void __init slaunch_fetch_ap_wake_block(void __iomem *txt)
 	void __iomem *heap;
 	u32 ap_wake_block_offset =
 		offsetof(struct txt_os_mle_data, ap_wake_block);
+	u32 mle_scratch_offset =
+		offsetof(struct txt_os_mle_data, mle_scratch);
 
 	heap = txt_early_get_heap_table(TXT_OS_MLE_DATA_TABLE,
 					ap_wake_block_offset + 4);
@@ -366,7 +368,11 @@ static void __init slaunch_fetch_ap_wake_block(void __iomem *txt)
 				  "Error early_ioremap of AP wake block\n",
 				  TXT_SLERROR_AP_WAKE_BLOCK_VAL);
 
-	ap_wake_block = readl(heap + ap_wake_block_offset);
+	ap_wake_info.ap_jmp_offset = readl(heap + mle_scratch_offset +
+					   SL_MLE_SCRATCH_AP_JMP_OFFSET);
+	memcpy_fromio(&ap_wake_info.ap_wake_block,
+		      heap + ap_wake_block_offset, sizeof(u64));
+
 	early_iounmap(heap, ap_wake_block_offset + 4);
 }
 
