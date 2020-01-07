@@ -180,7 +180,21 @@
 #define SL_IMAGE_PCR17		17
 #define SL_CONFIG_PCR18		18
 
+/*
+ * MLE scratch area offsets
+ */
+#define SL_MLE_SCRATCH_AP_EBP		0
+#define SL_MLE_SCRATCH_AP_JMP_OFFSET	4
+
 #ifndef __ASSEMBLY__
+
+/*
+ * Secure Launch AP wakeup information fetched in SMP boot code.
+ */
+struct sl_ap_wake_info {
+	u64 ap_wake_block;
+	u32 ap_jmp_offset;
+};
 
 /*
  * TXT data structure used by a responsive local processor (RLP) to start
@@ -245,7 +259,7 @@ struct txt_os_mle_data {
 	u8	msb_key_hash[20];
 	u64	saved_misc_enable_msr;
 	struct	txt_mtrr_state saved_bsp_mtrrs;
-	u64	ap_wake_ebp;
+	u64	mle_scratch;
 	u64	ap_wake_block;
 	u8	event_log_buffer[TXT_MAX_EVENT_LOG_SIZE];
 } __packed;
@@ -472,7 +486,7 @@ static inline int tpm20_log_event(struct txt_heap_event_log_pointer2_1_element *
  */
 void slaunch_setup(void);
 u32 slaunch_get_flags(void);
-u32 slaunch_get_ap_wake_block(void);
+struct sl_ap_wake_info *slaunch_get_ap_wake_info(void);
 struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table_header *dmar);
 void slaunch_sexit(void);
 
