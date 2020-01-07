@@ -301,6 +301,7 @@ void sl_main(u8 *bootparams)
 	u64 bios_data_size;
 	u32 data_count;
 	u32 os_mle_len;
+	u64 scratch;
 
 	/*
 	 * Currently only Intel TXT is supported for Secure Launch. Testing this value
@@ -383,15 +384,18 @@ void sl_main(u8 *bootparams)
 			((u8 *)txt_heap + bios_data_size + sizeof(u64));
 
 	/*
-	 * Don't want to measure the value of the ap_wake_ebp field,
-	 * it only used by sl_stub
+	 * Don't want to measure the value of the mle_scratch field,
+	 * it only used internally by the MLE kernel.
 	 */
-	os_mle_data->ap_wake_ebp = 0;
+	scratch = os_mle_data->mle_scratch;
+	os_mle_data->mle_scratch = 0;
 
 	/* Measure OS-MLE data up to the TPM log into 18 */
 	os_mle_len = offsetof(struct txt_os_mle_data, event_log_buffer);
 	sl_tpm_extend_pcr(tpm, SL_CONFIG_PCR18, (u8 *)os_mle_data, os_mle_len,
 			  "Measured TXT OS-MLE data into PCR18");
+
+	os_mle_data->mle_scratch = scratch;
 
 	/*
 	 * Now that the OS-MLE data is measured, ensure the MTRR and

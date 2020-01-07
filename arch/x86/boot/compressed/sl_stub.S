@@ -129,11 +129,14 @@ ENTRY(sl_stub)
 	movl	SL_zero_page_addr(%eax), %esi
 
 	/* Save ebp so the APs can find their way home */
-	movl	%ebp, SL_ap_wake_ebp(%eax)
+	movl	%ebp, (SL_mle_scratch + SL_MLE_SCRATCH_AP_EBP)(%eax)
 
 	/* Fetch the AP wake code block address from the heap */
 	movl	SL_ap_wake_block(%eax), %edi
 	movl	%edi, sl_txt_ap_wake_block(%ebp)
+
+	/* Store the offset in the AP wake block to the jmp address */
+	movl	$(sl_ap_jmp_offset - sl_txt_ap_wake), (SL_mle_scratch + SL_MLE_SCRATCH_AP_JMP_OFFSET)(%eax)
 
 	/* %eax still is the base of the OS-MLE block, save it */
 	pushl	%eax
@@ -196,7 +199,7 @@ ENTRY(sl_txt_ap_entry)
 	leal	8(%eax, %ecx), %eax
 
 	/* Saved ebp from the BSP and stash OS-MLE pointer */
-	movl	SL_ap_wake_ebp(%eax), %ebp
+	movl	(SL_mle_scratch + SL_MLE_SCRATCH_AP_EBP)(%eax), %ebp
 	movl	%eax, %edi
 
 	/* Lock and get our stack index */
@@ -460,6 +463,7 @@ ENTRY(sl_txt_ap_wake)
 	 * is provided and protected in the memory map by the prelaunch code.
 	 */
 	.byte	0xea
+sl_ap_jmp_offset:
 	.long	0x00000000
 	.word	__SL32_CS
 ENDPROC(sl_txt_ap_wake)
