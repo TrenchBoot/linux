@@ -1026,31 +1026,16 @@ static atomic_t first_ap_only = {1};
 static int
 slaunch_fixup_jump_vector(void)
 {
-	unsigned int ap_wake_block = slaunch_get_ap_wake_block();
+	struct sl_ap_wake_info *ap_wake_info;
 	unsigned int *ap_jmp_ptr = 0;
-	unsigned char *scan_ptr;
-	int i;
 
 	if (!atomic_dec_and_test(&first_ap_only))
 		return 0;
 
-	/* Scan for the far jmp op code 0xea where the fixup is done */
-	scan_ptr = (unsigned char *)__va(ap_wake_block);
-	for (i = 0; i < (PAGE_SIZE - 5); i++, scan_ptr++) {
-		if (*scan_ptr == 0xea) {
-			scan_ptr++;
-			if (*(unsigned int *)scan_ptr != 0x0000000)
-				break;
+	ap_wake_info = slaunch_get_ap_wake_info();
 
-			ap_jmp_ptr = (unsigned int *)scan_ptr;
-			break;
-		}
-	}
-
-	if (unlikely(!ap_jmp_ptr)) {
-		pr_err("Error failed to find TXT AP wake block\n");
-		return -1;
-	}
+	ap_jmp_ptr = (unsigned int *)__va(ap_wake_info->ap_wake_block +
+					  ap_wake_info->ap_jmp_offset);
 
 	*ap_jmp_ptr = real_mode_header->sl_trampoline_start32;
 
