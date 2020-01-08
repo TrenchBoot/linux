@@ -392,9 +392,9 @@ ENTRY(sl_txt_wake_aps)
 	/* First setup the MLE join structure and load it into TXT reg */
 	leal	sl_gdt(%ebp), %eax
 	leal	sl_txt_ap_entry(%ebp), %ecx
-	leal	sl_txt_mle_join(%ebp), %edx
-	movl	%eax, SL_ap_gdt_base(%edx)
-	movl	%ecx, SL_ap_entry_point(%edx)
+	leal	sl_smx_rlp_mle_join(%ebp), %edx
+	movl	%eax, SL_rlp_gdt_base(%edx)
+	movl	%ecx, SL_rlp_entry_point(%edx)
 	movl	%edx, (TXT_PRIV_CONFIG_REGS_BASE + TXTCR_MLE_JOIN)
 
 	/* Another TXT heap walk to find various values needed to wake APs */
@@ -530,7 +530,7 @@ sl_gdt:
 sl_gdt_end:
 
 	.balign 16
-sl_txt_mle_join:
+sl_smx_rlp_mle_join:
 	.long	sl_gdt_end - sl_gdt - 1	/* GDT limit */
 	.long	0x00000000		/* GDT base */
 	.long	__SL32_CS	/* Seg Sel - CS (DS, ES, SS = seg_sel+8) */
