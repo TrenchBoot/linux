@@ -98,29 +98,6 @@
 #define TXT_OS_MLE_STRUCT_VERSION	1
 
 /*
- * TXT Heap BIOS Table Field Offsets
- */
-#define TXT_BIOS_NUM_LOG_PROCS		0x18
-
-/*
- * TXT Heap OS/SINIT Table Field Offsets
- */
-#define TXT_OS_SINIT_LO_PMR_BASE	0x20
-#define TXT_OS_SINIT_LO_PMR_SIZE	0x28
-#define TXT_OS_SINIT_HI_PMR_BASE	0x30
-#define TXT_OS_SINIT_HI_PMR_SIZE	0x38
-#define TXT_OS_SINIT_CAPABILITIES	0x50
-
-/*
- * TXT Heap SINIT/MLE Table Field Offsets
- */
-#define TXT_SINIT_MLE_RLP_WAKEUP_ADDR	0x78
-#define TXT_SINIT_MLE_NUMBER_MDRS	0x80
-#define TXT_SINIT_MLE_MDRS_OFFSET	0x84
-#define TXT_SINIT_MLE_DMAR_TABLE_SIZE	0x88
-#define TXT_SINIT_MLE_DMAR_TABLE_OFFSET	0x8c
-
-/*
  * TXT Heap Table Enumeration
  */
 #define TXT_BIOS_DATA_TABLE		1
@@ -146,18 +123,18 @@
 #define TXT_SLERROR_HEAP_WALK		0xc000800c
 #define TXT_SLERROR_HEAP_MAP		0xc000800d
 #define TXT_SLERROR_HEAP_MDR_VALS	0xc000800e
-#define TXT_SLERROR_HEAP_MDRS_MAP	0xc000800f
-#define TXT_SLERROR_HEAP_DMAR_VALS	0xc0008010
+#define TXT_SLERROR_UNUSED1		0xc000800f
+#define TXT_SLERROR_UNUSED3		0xc0008010
 #define TXT_SLERROR_HEAP_INVALID_DMAR	0xc0008011
 #define TXT_SLERROR_HEAP_DMAR_SIZE	0xc0008012
 #define TXT_SLERROR_HEAP_DMAR_MAP	0xc0008013
-#define TXT_SLERROR_PMR_VALS		0xc0008014
+#define TXT_SLERROR_UNUSED2		0xc0008014
 #define TXT_SLERROR_HI_PMR_BASE		0xc0008015
 #define TXT_SLERROR_HI_PMR_SIZE		0xc0008016
 #define TXT_SLERROR_LO_PMR_BASE		0xc0008017
 #define TXT_SLERROR_LO_PMR_MLE		0xc0008018
 #define TXT_SLERROR_HEAP_ZERO_OFFSET	0xc0008019
-#define TXT_SLERROR_AP_WAKE_BLOCK_VAL	0xc000801a
+#define TXT_SLERROR_UNUSED4		0xc000801a
 #define TXT_SLERROR_TPM_INVALID_LOG20	0xc000801b
 #define TXT_SLERROR_TPM_LOGGING_FAILED	0xc000801c
 
@@ -250,8 +227,9 @@ struct txt_os_mle_data {
 	u8 msb_key_hash[20];
 	u64 saved_misc_enable_msr;
 	struct txt_mtrr_state saved_bsp_mtrrs;
-	u64 mle_scratch;
 	u64 ap_wake_block;
+	/* These two fields should always be last */
+	u64 mle_scratch;
 	u8 event_log_buffer[TXT_MAX_EVENT_LOG_SIZE];
 } __packed;
 
@@ -397,58 +375,46 @@ struct tpm20_pcr_event_tail {
 /*
  * Functions to extract data from the Intel TXT Heap Memory
  */
-static inline u64 txt_bios_data_size(void __iomem *heap)
+static inline u64 txt_bios_data_size(void *heap)
 {
-	u64 val;
-
-	memcpy_fromio(&val, heap, sizeof(u64));
-	return val;
+	return *((u64 *)heap);
 }
 
-static inline void __iomem *txt_bios_data_start(void __iomem *heap)
+static inline void *txt_bios_data_start(void *heap)
 {
 	return heap + sizeof(u64);
 }
 
-static inline u64 txt_os_mle_data_size(void __iomem *heap)
+static inline u64 txt_os_mle_data_size(void *heap)
 {
-	u64 val;
-
-	memcpy_fromio(&val, heap + txt_bios_data_size(heap), sizeof(u64));
-	return val;
+	return *((u64 *)(heap + txt_bios_data_size(heap)));
 }
 
-static inline void __iomem *txt_os_mle_data_start(void __iomem *heap)
+static inline void *txt_os_mle_data_start(void *heap)
 {
 	return heap + txt_bios_data_size(heap) + sizeof(u64);
 }
 
-static inline u64 txt_os_sinit_data_size(void __iomem *heap)
+static inline u64 txt_os_sinit_data_size(void *heap)
 {
-	u64 val;
-
-	memcpy_fromio(&val, heap + txt_bios_data_size(heap) +
-			txt_os_mle_data_size(heap), sizeof(u64));
-	return val;
+	return *((u64 *)(heap + txt_bios_data_size(heap) +
+			txt_os_mle_data_size(heap)));
 }
 
-static inline void __iomem *txt_os_sinit_data_start(void __iomem *heap)
+static inline void *txt_os_sinit_data_start(void *heap)
 {
 	return heap + txt_bios_data_size(heap) +
 		txt_os_mle_data_size(heap) + sizeof(u64);
 }
 
-static inline u64 txt_sinit_mle_data_size(void __iomem *heap)
+static inline u64 txt_sinit_mle_data_size(void *heap)
 {
-	u64 val;
-
-	memcpy_fromio(&val, heap + txt_bios_data_size(heap) +
+	return *((u64 *)(heap + txt_bios_data_size(heap) +
 			txt_os_mle_data_size(heap) +
-			txt_os_sinit_data_size(heap), sizeof(u64));
-	return val;
+			txt_os_sinit_data_size(heap)));
 }
 
-static inline void __iomem *txt_sinit_mle_data_start(void __iomem *heap)
+static inline void *txt_sinit_mle_data_start(void *heap)
 {
 	return heap + txt_bios_data_size(heap) +
 		txt_os_mle_data_size(heap) +
