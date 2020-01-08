@@ -197,18 +197,9 @@ struct sl_ap_wake_info {
 };
 
 /*
- * TXT data structure used by a responsive local processor (RLP) to start
- * execution in response to a GETSEC[WAKEUP].
+ * TXT heap extended data elements.
  */
-struct txt_mle_join {
-	u32	ap_gdt_limit;
-	u32	ap_gdt_base;
-	u32	ap_seg_sel;	/* cs (ds, es, ss are seg_sel+8) */
-	u32	ap_entry_point;	/* phys addr */
-} __packed;
-
-struct txt_heap_ext_data_element
-{
+struct txt_heap_ext_data_element {
 	u32 type;
 	u32 size;
 	/* Data */
@@ -240,13 +231,13 @@ struct txt_heap_event_log_pointer2_1_element {
  * Secure Launch defined MTRR saving structures
  */
 struct txt_mtrr_pair {
-	u64	mtrr_physbase;
-	u64	mtrr_physmask;
+	u64 mtrr_physbase;
+	u64 mtrr_physmask;
 } __packed;
 
 struct txt_mtrr_state {
-	u64	default_mem_type;
-	u64	mtrr_vcnt;
+	u64 default_mem_type;
+	u64 mtrr_vcnt;
 	struct txt_mtrr_pair mtrr_pair[TXT_MAX_VARIABLE_MTRRS];
 } __packed;
 
@@ -254,46 +245,100 @@ struct txt_mtrr_state {
  * Secure Launch defined OS/MLE TXT Heap table
  */
 struct txt_os_mle_data {
-	u32	version;
-	u32	zero_page_addr;
-	u8	msb_key_hash[20];
-	u64	saved_misc_enable_msr;
-	struct	txt_mtrr_state saved_bsp_mtrrs;
-	u64	mle_scratch;
-	u64	ap_wake_block;
-	u8	event_log_buffer[TXT_MAX_EVENT_LOG_SIZE];
+	u32 version;
+	u32 zero_page_addr;
+	u8 msb_key_hash[20];
+	u64 saved_misc_enable_msr;
+	struct txt_mtrr_state saved_bsp_mtrrs;
+	u64 mle_scratch;
+	u64 ap_wake_block;
+	u8 event_log_buffer[TXT_MAX_EVENT_LOG_SIZE];
+} __packed;
+
+/*
+ * TXT specification defined BIOS data TXT Heap table
+ */
+struct txt_bios_data {
+	u32 version; /* Currently 5 for TPM 1.2 and 6 for TPM 2.0 */
+	u32 bios_sinit_size;
+	u64 reserved1;
+	u64 reserved2;
+	u32 num_logical_procs;
+	/* Versions >= 5 with updates in version 6 */
+	u32 sinit_flags;
+	u32 mle_flags;
+	/* Versions >= 4 */
+	/* Ext Data Elements */
 } __packed;
 
 /*
  * TXT specification defined OS/SINIT TXT Heap table
  */
 struct txt_os_sinit_data {
-	u32	version; /* Currently 6 for TPM 1.2 and 7 for TPM 2.0 */
-	u32	flags;
-	u64	mle_ptab;
-	u64	mle_size;
-	u64	mle_hdr_base;
-	u64	vtd_pmr_lo_base;
-	u64	vtd_pmr_lo_size;
-	u64	vtd_pmr_hi_base;
-	u64	vtd_pmr_hi_size;
-	u64	lcp_po_base;
-	u64	lcp_po_size;
-	u32	capabilities;
+	u32 version; /* Currently 6 for TPM 1.2 and 7 for TPM 2.0 */
+	u32 flags;
+	u64 mle_ptab;
+	u64 mle_size;
+	u64 mle_hdr_base;
+	u64 vtd_pmr_lo_base;
+	u64 vtd_pmr_lo_size;
+	u64 vtd_pmr_hi_base;
+	u64 vtd_pmr_hi_size;
+	u64 lcp_po_base;
+	u64 lcp_po_size;
+	u32 capabilities;
 	/* Version = 5 */
-	u64	efi_rsdt_ptr;
+	u64 efi_rsdt_ptr;
 	/* Versions >= 6 */
+	/* Ext Data Elements */
+} __packed;
+
+/*
+ * TXT specification defined SINIT/MLE TXT Heap table
+ */
+struct txt_sinit_mle_data {
+	u32 version;             /* Current values are 6 through 9 */
+	/* Versions <= 8 */
+	u8 bios_acm_id[20];
+	u32 edx_senter_flags;
+	u64 mseg_valid;
+	u8 sinit_hash[20];
+	u8 mle_hash[20];
+	u8 stm_hash[20];
+	u8 lcp_policy_hash[20];
+	u32 lcp_policy_control;
+	/* Versions >= 7 */
+	u32 rlp_wakeup_addr;
+	u32 reserved;
+	u32 num_of_sinit_mdrs;
+	u32 sinit_mdrs_table_offset;
+	u32 sinit_vtd_dmar_table_size;
+	u32 sinit_vtd_dmar_table_offset;
+	/* Versions >= 8 */
+	u32 processor_scrtm_status;
+	/* Versions >= 9 */
 	/* Ext Data Elements */
 } __packed;
 
 /*
  * TXT data reporting structure for memory types
  */
-struct txt_memory_descriptor_record {
-	u64	address;
-	u64	length;
-	u8	type;
-	u8	reserved[7];
+struct txt_sinit_memory_descriptor_record {
+	u64 address;
+	u64 length;
+	u8 type;
+	u8 reserved[7];
+} __packed;
+
+/*
+ * TXT data structure used by a responsive local processor (RLP) to start
+ * execution in response to a GETSEC[WAKEUP].
+ */
+struct smx_rlp_mle_join {
+	u32 rlp_gdt_limit;
+	u32 rlp_gdt_base;
+	u32 rlp_seg_sel;     /* cs (ds, es, ss are seg_sel+8) */
+	u32 rlp_entry_point; /* phys addr */
 } __packed;
 
 /*
@@ -303,47 +348,47 @@ struct txt_memory_descriptor_record {
 #define TPM12_EVTLOG_SIGNATURE "TXT Event Container"
 
 struct tpm12_event_log_header {
-	char	signature[20];
-	char	reserved[12];
-	u8	container_ver_major;
-	u8	container_ver_minor;
-	u8	pcr_event_ver_major;
-	u8	pcr_event_ver_minor;
-	u32	container_size;
-	u32	pcr_events_offset;
-	u32	next_event_offset;
+	char signature[20];
+	char reserved[12];
+	u8 container_ver_major;
+	u8 container_ver_minor;
+	u8 pcr_event_ver_major;
+	u8 pcr_event_ver_minor;
+	u32 container_size;
+	u32 pcr_events_offset;
+	u32 next_event_offset;
 	/* PCREvents[] */
 } __packed;
 
 struct tpm12_pcr_event {
-	u32	pcr_index;
-	u32	type;
-	u8	digest[20];
-	u32	size;
+	u32 pcr_index;
+	u32 type;
+	u8 digest[20];
+	u32 size;
 	/* Data[] */
 } __packed;
 
 #define TPM20_EVTLOG_SIGNATURE "Spec ID Event03"
 
 struct tpm20_ha {
-	u16	algorithm_id;
+	u16 algorithm_id;
 	/* digest[AlgorithmID_DIGEST_SIZE] */
 } __packed;
 
 struct tpm20_digest_values {
-	u32	count;
+	u32 count;
 	/* TPMT_HA digests[count] */
 } __packed;
 
 struct tpm20_pcr_event_head {
-	u32	pcr_index;
-	u32	event_type;
+	u32 pcr_index;
+	u32 event_type;
 } __packed;
 
 /* Variable size array of hashes in the tpm20_digest_values structure */
 
 struct tpm20_pcr_event_tail {
-	u32	event_size;
+	u32 event_size;
 	/* Event[EventSize]; */
 } __packed;
 
