@@ -551,7 +551,7 @@ static void slaunch_teardown_securityfs(void)
 
 	if (sl_flags & SL_FLAG_ARCH_TXT) {
 		if (txt_heap) {
-			iounmap(txt_heap);
+			memunmap(txt_heap);
 			txt_heap = NULL;
 		}
 	}
@@ -564,7 +564,8 @@ static void slaunch_intel_evtlog(void)
 {
 	void __iomem *config;
 	struct txt_os_mle_data *params;
-	void __iomem *os_sinit_data;
+	void *os_sinit_data;
+	u64 base, size;
 
 	config = ioremap(TXT_PUB_CONFIG_REGS_BASE, TXT_NR_CONFIG_PAGES *
 			 PAGE_SIZE);
@@ -573,12 +574,14 @@ static void slaunch_intel_evtlog(void)
 		return;
 	}
 
-	/* now map TXT heap */
-	txt_heap = ioremap(*(u64 *)(config + TXTCR_HEAP_BASE),
-		    *(u64 *)(config + TXTCR_HEAP_SIZE));
+	memcpy_fromio(&base, config + TXTCR_HEAP_BASE, sizeof(u64));
+	memcpy_fromio(&size, config + TXTCR_HEAP_SIZE, sizeof(u64));
 	iounmap(config);
+
+	/* now map TXT heap */
+	txt_heap = memremap(base, size, MEMREMAP_WB);
 	if (!txt_heap) {
-		pr_err("Error failed to ioremap TXT heap\n");
+		pr_err("Error failed to memremap TXT heap\n");
 		return;
 	}
 
