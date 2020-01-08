@@ -114,7 +114,7 @@ static void __used common(void)
 	OFFSET(SL_saved_bsp_mtrrs, txt_os_mle_data, saved_bsp_mtrrs);
 	OFFSET(SL_mle_scratch, txt_os_mle_data, mle_scratch);
 	OFFSET(SL_ap_wake_block, txt_os_mle_data, ap_wake_block);
-	OFFSET(SL_ap_gdt_base, txt_mle_join, ap_gdt_base);
-	OFFSET(SL_ap_entry_point, txt_mle_join, ap_entry_point);
+	OFFSET(SL_rlp_gdt_base, smx_rlp_mle_join, rlp_gdt_base);
+	OFFSET(SL_rlp_entry_point, smx_rlp_mle_join, rlp_entry_point);
 #endif
 }
