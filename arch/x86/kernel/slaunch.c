@@ -232,7 +232,7 @@ static int __init slaunch_txt_reserve_range(u64 base, u64 size)
  */
 static void __init slaunch_txt_reserve(void __iomem *txt)
 {
-	struct txt_memory_descriptor_record *mdr;
+	struct txt_sinit_memory_descriptor_record *mdr;
 	void __iomem *heap;
 	u64 base, size;
 	u32 mdrvals[2];
@@ -268,7 +268,7 @@ static void __init slaunch_txt_reserve(void __iomem *txt)
 		goto out;
 
 	mdrslen = (mdrvals[MDRS_NUM]*
-		   sizeof(struct txt_memory_descriptor_record));
+		   sizeof(struct txt_sinit_memory_descriptor_record));
 
 	heap = txt_early_get_heap_table(TXT_SINIT_MLE_DATA_TABLE,
 					mdrvals[MDRS_OFFSET] + mdrslen);
@@ -277,7 +277,7 @@ static void __init slaunch_txt_reserve(void __iomem *txt)
 				  "Error early_ioremap of MDRs\n",
 				  TXT_SLERROR_HEAP_MDRS_MAP);
 
-	mdr = (struct txt_memory_descriptor_record *)
+	mdr = (struct txt_sinit_memory_descriptor_record *)
 			(heap + mdrvals[MDRS_OFFSET] - 8);
 
 	for (i = 0; i < mdrvals[MDRS_NUM]; i++, mdr++) {
