@@ -38,6 +38,7 @@
 
 static void *evtlog_base;
 static struct txt_heap_event_log_pointer2_1_element *log20_elem;
+
 extern u32 sl_cpu_type;
 
 static u64 sl_txt_read(u32 reg)
@@ -123,14 +124,11 @@ static void sl_find_event_log(struct tpm *tpm)
 {
 	struct txt_os_mle_data *os_mle_data;
 	void *os_sinit_data;
-	u64 *txt_heap;
-	u64 table_size;
+	void *txt_heap;
 
 	txt_heap = (void *)sl_txt_read(TXTCR_HEAP_BASE);
-	table_size = *txt_heap;
-	os_mle_data = (struct txt_os_mle_data *)
-			((u8 *)txt_heap + table_size + sizeof(u64));
 
+	os_mle_data = txt_os_mle_data_start(txt_heap);
 	evtlog_base = (void *)&os_mle_data->event_log_buffer[0];
 
 	if (tpm->family != TPM20)
@@ -140,12 +138,7 @@ static void sl_find_event_log(struct tpm *tpm)
 	 * For TPM 2.0, the event log 2.1 extended data structure has to also
 	 * be located and fixed up.
 	 */
-	txt_heap = (u64 *)((u8 *)os_mle_data - sizeof(u64));
-	/* Now at OS-MLE table */
-	table_size = *txt_heap;
-	txt_heap = (u64 *)((u8 *)txt_heap + table_size);
-	/* Now at OS-SINIT table */
-	os_sinit_data = (void *)((u8 *)txt_heap + sizeof(u64));
+	os_sinit_data = txt_os_sinit_data_start(txt_heap);
 
 	/* Find the TPM2.0 logging extended heap element */
 	log20_elem = tpm20_find_log2_1_element(os_sinit_data);
@@ -250,7 +243,8 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 length,
 					   TPM_HASH_ALG_SHA256,
 					   (const u8 *)desc, strlen(desc));
 			return;
-		} else
+		}
+		else
 			sl_txt_reset(TXT_SLERROR_TPM_EXTEND);
 #endif
 #ifdef CONFIG_SECURE_LAUNCH_SHA512
@@ -267,7 +261,8 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 length,
 					   TPM_HASH_ALG_SHA512,
 					   (const u8 *)desc, strlen(desc));
 			return;
-		} else
+		}
+		else
 			sl_txt_reset(TXT_SLERROR_TPM_EXTEND);
 #endif
 	}
@@ -277,7 +272,6 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 length,
 	early_sha1_update(&sctx, data, length);
 	early_sha1_final(&sctx, &sha1_hash[0]);
 	ret = tpm_extend_pcr(tpm, pcr, TPM_HASH_ALG_SHA1, &sha1_hash[0]);
-
 	if (ret)
 		sl_txt_reset(TXT_SLERROR_TPM_EXTEND);
 
@@ -297,11 +291,8 @@ void sl_main(u8 *bootparams)
 	struct txt_os_mle_data *os_mle_data;
 	const char *signature;
 	unsigned long mmap = 0;
-	u64 *txt_heap;
-	u64 bios_data_size;
-	u32 data_count;
-	u32 os_mle_len;
-	u64 scratch;
+	void *txt_heap;
+	u32 data_count, os_mle_len;
 
 	/*
 	 * Currently only Intel TXT is supported for Secure Launch. Testing this value
@@ -379,23 +370,15 @@ void sl_main(u8 *bootparams)
 	 * heap area.
 	 */
 	txt_heap = (void *)sl_txt_read(TXTCR_HEAP_BASE);
-	bios_data_size = *txt_heap;
-	os_mle_data = (struct txt_os_mle_data *)
-			((u8 *)txt_heap + bios_data_size + sizeof(u64));
+	os_mle_data = txt_os_mle_data_start(txt_heap);
 
 	/*
-	 * Don't want to measure the value of the mle_scratch field,
-	 * it only used internally by the MLE kernel.
+	 * Measure OS-MLE data up to the MLE scratch field. The MLE scratch
+	 * field and the TPM logging should not be measured.
 	 */
-	scratch = os_mle_data->mle_scratch;
-	os_mle_data->mle_scratch = 0;
-
-	/* Measure OS-MLE data up to the TPM log into 18 */
-	os_mle_len = offsetof(struct txt_os_mle_data, event_log_buffer);
+	os_mle_len = offsetof(struct txt_os_mle_data, mle_scratch);
 	sl_tpm_extend_pcr(tpm, SL_CONFIG_PCR18, (u8 *)os_mle_data, os_mle_len,
 			  "Measured TXT OS-MLE data into PCR18");
-
-	os_mle_data->mle_scratch = scratch;
 
 	/*
 	 * Now that the OS-MLE data is measured, ensure the MTRR and

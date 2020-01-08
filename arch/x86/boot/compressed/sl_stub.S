@@ -400,7 +400,7 @@ ENTRY(sl_txt_wake_aps)
 	/* Another TXT heap walk to find various values needed to wake APs */
 	movl	(TXT_PRIV_CONFIG_REGS_BASE + TXTCR_HEAP_BASE), %eax
 	/* At BIOS data size, find the number of logical processors */
-	movl	(TXT_BIOS_NUM_LOG_PROCS + 8)(%eax), %edx
+	movl	(SL_num_logical_procs + 8)(%eax), %edx
 	/* Skip over BIOS data */
 	movl	(%eax), %ecx
 	addl	%ecx, %eax
@@ -408,12 +408,12 @@ ENTRY(sl_txt_wake_aps)
 	movl	(%eax), %ecx
 	addl	%ecx, %eax
 	/* At OS-SNIT size, get capabilities to know how to wake up the APs */
-	movl	(TXT_OS_SINIT_CAPABILITIES + 8)(%eax), %ebx
+	movl	(SL_capabilities + 8)(%eax), %ebx
 	/* Skip over OS to SNIT */
 	movl	(%eax), %ecx
 	addl	%ecx, %eax
 	/* At SNIT-MLE size, get the AP wake MONITOR address */
-	movl	(TXT_SINIT_MLE_RLP_WAKEUP_ADDR + 8)(%eax), %edi
+	movl	(SL_rlp_wakeup_addr + 8)(%eax), %edi
 
 	/* Determine how to wake up the APs */
 	testl	$(1 << TXT_SINIT_MLE_CAP_WAKE_MONITOR), %ebx
