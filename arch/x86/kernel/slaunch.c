@@ -12,6 +12,7 @@
 #include <linux/init.h>
 #include <linux/linkage.h>
 #include <linux/mm.h>
+#include <linux/io.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/security.h>
@@ -76,22 +77,16 @@ static void __init slaunch_txt_reset(void __iomem *txt,
  * The TXT heap is too big to map all at once with early_ioremap
  * so it is done a table at a time.
  */
-static void __init __iomem *txt_early_get_heap_table(u32 type, u32 bytes)
+static void __init *txt_early_get_heap_table(void __iomem *txt, u32 type, u32 bytes)
 {
-	void __iomem *txt;
-	void __iomem *heap;
+	void *heap;
 	u64 base, size, offset = 0;
 	int i;
 
 	if (type > TXT_SINIT_MLE_DATA_TABLE)
-		panic("Error invalid type for early heap walk\n");
-
-	txt = early_ioremap(TXT_PRIV_CONFIG_REGS_BASE,
-			    TXT_NR_CONFIG_PAGES * PAGE_SIZE);
-	if (!txt) {
-		/* This should not occur, no recovery possible */
-		panic("Error early_ioremap of TXT registers for heap walk\n");
-	}
+		slaunch_txt_reset(txt,
+			"Error invalid table type for early heap walk\n",
+			TXT_SLERROR_HEAP_WALK);
 
 	memcpy_fromio(&base, txt + TXTCR_HEAP_BASE, sizeof(u64));
 	memcpy_fromio(&size, txt + TXTCR_HEAP_SIZE, sizeof(u64));
@@ -99,13 +94,13 @@ static void __init __iomem *txt_early_get_heap_table(u32 type, u32 bytes)
 	/* Iterate over heap tables looking for table of "type" */
 	for (i = 0; i < type; i++) {
 		base += offset;
-		heap = early_ioremap(base, sizeof(u64));
+		heap = early_memremap(base, sizeof(u64));
 		if (!heap)
 			slaunch_txt_reset(txt,
-				"Error early_ioremap of heap for heap walk\n",
+				"Error early_memremap of heap for heap walk\n",
 				TXT_SLERROR_HEAP_WALK);
 
-		memcpy_fromio(&offset, heap, sizeof(u64));
+		offset = *((u64 *)heap);
 
 		/*
 		 * After the first iteration, any offset of zero is invalid and
@@ -116,26 +111,19 @@ static void __init __iomem *txt_early_get_heap_table(u32 type, u32 bytes)
 				"Error invalid 0 offset in heap walk\n",
 				TXT_SLERROR_HEAP_ZERO_OFFSET);
 
-		early_iounmap(heap, sizeof(u64));
+		early_memunmap(heap, sizeof(u64));
 	}
 
 	/* Skip the size field at the head of each table */
 	base += sizeof(u64);
-	heap = early_ioremap(base, bytes);
+	heap = early_memremap(base, bytes);
 	if (!heap)
 		slaunch_txt_reset(txt,
-				  "Error early_ioremap of heap section\n",
+				  "Error early_memremap of heap section\n",
 				  TXT_SLERROR_HEAP_MAP);
-
-	early_iounmap(txt, TXT_NR_CONFIG_PAGES * PAGE_SIZE);
 
 	return heap;
 }
-
-#define PMR_LO_BASE	0
-#define PMR_LO_SIZE	1
-#define PMR_HI_BASE	2
-#define PMR_HI_SIZE	3
 
 /*
  * TXT uses a special set of VTd registers to protect all of memory from DMA
@@ -146,21 +134,14 @@ static void __init __iomem *txt_early_get_heap_table(u32 type, u32 bytes)
  */
 static void __init slaunch_verify_pmrs(void __iomem *txt)
 {
-	void __iomem *heap;
-	u64 pmrvals[4];
+	struct txt_os_sinit_data *os_sinit_data;
 	unsigned long last_pfn;
+	u32 field_offset, err = 0;
+	const char *errmsg = "";
 
-	heap = txt_early_get_heap_table(TXT_OS_SINIT_DATA_TABLE,
-					TXT_OS_SINIT_LO_PMR_BASE +
-					sizeof(pmrvals));
-	if (!heap)
-		slaunch_txt_reset(txt,
-				  "Error early_ioremap of PMR values\n",
-				  TXT_SLERROR_PMR_VALS);
-	memcpy_fromio(&pmrvals[0], heap + TXT_OS_SINIT_LO_PMR_BASE,
-		      sizeof(pmrvals));
-
-	early_iounmap(heap, TXT_OS_SINIT_LO_PMR_BASE + sizeof(pmrvals));
+	field_offset = offsetof(struct txt_os_sinit_data, lcp_po_base);
+	os_sinit_data = txt_early_get_heap_table(txt, TXT_OS_SINIT_DATA_TABLE,
+						 field_offset);
 
 	last_pfn = e820__end_of_ram_pfn();
 
@@ -169,39 +150,52 @@ static void __init slaunch_verify_pmrs(void __iomem *txt)
 	 * unlikely case where there is < 4G on the system, the hi PMR will
 	 * not be set.
 	 */
-	if (pmrvals[PMR_HI_BASE] != 0x0ULL) {
-		if (pmrvals[PMR_HI_BASE] != 0x100000000ULL)
-			slaunch_txt_reset(txt,
-					  "Error hi PMR base\n",
-					  TXT_SLERROR_HI_PMR_BASE);
+	if (os_sinit_data->vtd_pmr_hi_base != 0x0ULL) {
+		if (os_sinit_data->vtd_pmr_hi_base != 0x100000000ULL) {
+			err = TXT_SLERROR_HI_PMR_BASE;
+			errmsg =  "Error hi PMR base\n";
+			goto out;
+		}
 
 		if (last_pfn << PAGE_SHIFT >
-		    pmrvals[PMR_HI_BASE] + pmrvals[PMR_HI_SIZE])
-			slaunch_txt_reset(txt,
-					  "Error hi PMR size\n",
-					  TXT_SLERROR_HI_PMR_SIZE);
+		    os_sinit_data->vtd_pmr_hi_base +
+		    os_sinit_data->vtd_pmr_hi_size) {
+			err = TXT_SLERROR_HI_PMR_SIZE;
+			errmsg = "Error hi PMR size\n";
+			goto out;
+		}
 	}
 
 	/* Lo PMR base should always be 0 */
-	if (pmrvals[PMR_LO_BASE] != 0x0ULL)
-		slaunch_txt_reset(txt,
-				  "Error lo PMR base\n",
-				  TXT_SLERROR_LO_PMR_BASE);
+	if (os_sinit_data->vtd_pmr_lo_base != 0x0ULL) {
+		err = TXT_SLERROR_LO_PMR_BASE;
+		errmsg = "Error lo PMR base\n";
+		goto out;
+	}
 
 	/*
 	 * Check that if the kernel was loaded below 4G, that it is protected
 	 * by the lo PMR.
 	 */
-	if (__pa_symbol(_end) > pmrvals[PMR_LO_SIZE])
-		slaunch_txt_reset(txt,
-				  "Error lo PMR does not cover MLE kernel\n",
-				  TXT_SLERROR_LO_PMR_MLE);
+	if ((__pa_symbol(_end) < 0x100000000ULL) &&
+	    (__pa_symbol(_end) > os_sinit_data->vtd_pmr_lo_size)) {
+		err = TXT_SLERROR_LO_PMR_MLE;
+		errmsg = "Error lo PMR does not cover MLE kernel\n";
+		goto out;
+	}
 
 	/* Check that the AP wake block is protected by the lo PMR. */
-	if (ap_wake_info.ap_wake_block + PAGE_SIZE > pmrvals[PMR_LO_SIZE])
-		slaunch_txt_reset(txt,
-				  "Error lo PMR does not cover AP wake block\n",
-				  TXT_SLERROR_LO_PMR_MLE);
+	if (ap_wake_info.ap_wake_block + PAGE_SIZE >
+	    os_sinit_data->vtd_pmr_lo_size) {
+		err = TXT_SLERROR_LO_PMR_MLE;
+		errmsg = "Error lo PMR does not cover AP wake block\n";
+	}
+
+out:
+	early_memunmap(os_sinit_data, field_offset);
+
+	if (err)
+		slaunch_txt_reset(txt, errmsg, err);
 }
 
 static int __init slaunch_txt_reserve_range(u64 base, u64 size)
@@ -218,9 +212,6 @@ static int __init slaunch_txt_reserve_range(u64 base, u64 size)
 	return 0;
 }
 
-#define MDRS_NUM	0
-#define MDRS_OFFSET	1
-
 /*
  * For Intel, certain reqions of memory must be marked as reserved in the e820
  * memory map if they are not already. This includes the TXT HEAP, the ACM area,
@@ -233,11 +224,10 @@ static int __init slaunch_txt_reserve_range(u64 base, u64 size)
 static void __init slaunch_txt_reserve(void __iomem *txt)
 {
 	struct txt_sinit_memory_descriptor_record *mdr;
-	void __iomem *heap;
+	struct txt_sinit_mle_data *sinit_mle_data;
+	void *mdrs;
 	u64 base, size;
-	u32 mdrvals[2];
-	u32 mdrslen;
-	u32 i;
+	u32 field_offset, mdrnum, mdroffset, mdrslen, i;
 	int updated = 0;
 
 	base = TXT_PRIV_CONFIG_REGS_BASE;
@@ -252,42 +242,35 @@ static void __init slaunch_txt_reserve(void __iomem *txt)
 	memcpy_fromio(&size, txt + TXTCR_SINIT_SIZE, sizeof(u64));
 	updated += slaunch_txt_reserve_range(base, size);
 
-	heap = txt_early_get_heap_table(TXT_SINIT_MLE_DATA_TABLE,
-					TXT_SINIT_MLE_NUMBER_MDRS +
-					sizeof(mdrvals));
-	if (!heap)
-		slaunch_txt_reset(txt,
-				  "Error early_ioremap of MDR values\n",
-				  TXT_SLERROR_HEAP_MDR_VALS);
-	memcpy_fromio(&mdrvals[MDRS_NUM], heap + TXT_SINIT_MLE_NUMBER_MDRS,
-		      sizeof(mdrvals));
+	field_offset = offsetof(struct txt_sinit_mle_data,
+				sinit_vtd_dmar_table_size);
+	sinit_mle_data = txt_early_get_heap_table(txt, TXT_SINIT_MLE_DATA_TABLE,
+					field_offset);
 
-	early_iounmap(heap, TXT_SINIT_MLE_NUMBER_MDRS + sizeof(mdrvals));
+	mdrnum = sinit_mle_data->num_of_sinit_mdrs;
+	mdroffset = sinit_mle_data->sinit_mdrs_table_offset;
 
-	if (!mdrvals[MDRS_NUM])
+	early_memunmap(sinit_mle_data, field_offset);
+
+	if (!mdrnum)
 		goto out;
 
-	mdrslen = (mdrvals[MDRS_NUM]*
-		   sizeof(struct txt_sinit_memory_descriptor_record));
+	mdrslen = (mdrnum * sizeof(struct txt_sinit_memory_descriptor_record));
 
-	heap = txt_early_get_heap_table(TXT_SINIT_MLE_DATA_TABLE,
-					mdrvals[MDRS_OFFSET] + mdrslen);
-	if (!heap)
-		slaunch_txt_reset(txt,
-				  "Error early_ioremap of MDRs\n",
-				  TXT_SLERROR_HEAP_MDRS_MAP);
+	mdrs = txt_early_get_heap_table(txt, TXT_SINIT_MLE_DATA_TABLE,
+					mdroffset + mdrslen - 8);
 
 	mdr = (struct txt_sinit_memory_descriptor_record *)
-			(heap + mdrvals[MDRS_OFFSET] - 8);
+			(mdrs + mdroffset - 8);
 
-	for (i = 0; i < mdrvals[MDRS_NUM]; i++, mdr++) {
+	for (i = 0; i < mdrnum; i++, mdr++) {
 		/* Spec says some entries can have length 0, ignore them */
 		if (mdr->type > 0 && mdr->length > 0)
 			updated += slaunch_txt_reserve_range(mdr->address,
 							     mdr->length);
 	}
 
-	early_iounmap(heap, mdrvals[MDRS_OFFSET] + mdrslen);
+	early_memunmap(mdrs, mdroffset + mdrslen - 8);
 
 out:
 	if (updated) {
@@ -297,9 +280,6 @@ out:
 	}
 }
 
-#define DMAR_SIZE	0
-#define DMAR_OFFSET	1
-
 /*
  * TXT stashes a safe copy of the DMAR ACPI table to prevent tampering.
  * It is stored in the TXT heap. Fetch it from there and make it available
@@ -307,46 +287,43 @@ out:
  */
 static void __init slaunch_copy_dmar_table(void __iomem *txt)
 {
-	void __iomem *heap;
-	u32 dmarvals[2];
+	struct txt_sinit_mle_data *sinit_mle_data;
+	void *dmar;
+	u32 field_offset, dmar_size, dmar_offset;
 
 	memset(&txt_dmar, 0, PAGE_SIZE);
 
-	heap = txt_early_get_heap_table(TXT_SINIT_MLE_DATA_TABLE,
-					TXT_SINIT_MLE_DMAR_TABLE_SIZE +
-					sizeof(dmarvals));
-	if (!heap)
-		slaunch_txt_reset(txt,
-				  "Error early_ioremap of DMAR values\n",
-				  TXT_SLERROR_HEAP_DMAR_VALS);
-	memcpy_fromio(&dmarvals[0], heap + TXT_SINIT_MLE_DMAR_TABLE_SIZE,
-		      sizeof(dmarvals));
+	field_offset = offsetof(struct txt_sinit_mle_data,
+				processor_scrtm_status);
+	sinit_mle_data = txt_early_get_heap_table(txt, TXT_SINIT_MLE_DATA_TABLE,
+						  field_offset);
 
-	early_iounmap(heap, TXT_SINIT_MLE_DMAR_TABLE_SIZE + sizeof(dmarvals));
+	dmar_size = sinit_mle_data->sinit_vtd_dmar_table_size;
+	dmar_offset = sinit_mle_data->sinit_vtd_dmar_table_offset;
 
-	if (!dmarvals[DMAR_SIZE] || !dmarvals[DMAR_OFFSET])
+	early_memunmap(sinit_mle_data, field_offset);
+
+	if (!dmar_size || !dmar_offset)
 		slaunch_txt_reset(txt,
 				  "Error invalid DMAR table values\n",
 				  TXT_SLERROR_HEAP_INVALID_DMAR);
 
-	if (unlikely(dmarvals[DMAR_SIZE] > PAGE_SIZE))
+	if (unlikely(dmar_size > PAGE_SIZE))
 		slaunch_txt_reset(txt,
 				  "Error DMAR too big to store\n",
 				  TXT_SLERROR_HEAP_DMAR_SIZE);
 
 
-	heap = txt_early_get_heap_table(TXT_SINIT_MLE_DATA_TABLE,
-					dmarvals[DMAR_SIZE]);
-	if (!heap)
+	dmar = txt_early_get_heap_table(txt, TXT_SINIT_MLE_DATA_TABLE,
+					dmar_offset + dmar_size - 8);
+	if (!dmar)
 		slaunch_txt_reset(txt,
 				  "Error early_ioremap of DMAR\n",
 				  TXT_SLERROR_HEAP_DMAR_MAP);
 
-	memcpy_fromio(&txt_dmar[DMAR_SIZE],
-		      (void *)(heap + dmarvals[DMAR_OFFSET] - 8),
-		      dmarvals[DMAR_SIZE]);
+	memcpy(&txt_dmar[0], dmar + dmar_offset - 8, dmar_size);
 
-	early_iounmap(heap, dmarvals[DMAR_SIZE]);
+	early_memunmap(dmar, dmar_offset + dmar_size - 8);
 }
 
 /*
@@ -355,25 +332,21 @@ static void __init slaunch_copy_dmar_table(void __iomem *txt)
  */
 static void __init slaunch_fetch_ap_wake_block(void __iomem *txt)
 {
-	void __iomem *heap;
-	u32 ap_wake_block_offset =
-		offsetof(struct txt_os_mle_data, ap_wake_block);
-	u32 mle_scratch_offset =
-		offsetof(struct txt_os_mle_data, mle_scratch);
+	struct txt_os_mle_data *os_mle_data;
+	u8 *jmp_offset;
+	u32 field_offset;
 
-	heap = txt_early_get_heap_table(TXT_OS_MLE_DATA_TABLE,
-					ap_wake_block_offset + 4);
-	if (!heap)
-		slaunch_txt_reset(txt,
-				  "Error early_ioremap of AP wake block\n",
-				  TXT_SLERROR_AP_WAKE_BLOCK_VAL);
+	field_offset = offsetof(struct txt_os_mle_data, event_log_buffer);
+	os_mle_data = txt_early_get_heap_table(txt, TXT_OS_MLE_DATA_TABLE,
+					       field_offset);
 
-	ap_wake_info.ap_jmp_offset = readl(heap + mle_scratch_offset +
-					   SL_MLE_SCRATCH_AP_JMP_OFFSET);
-	memcpy_fromio(&ap_wake_info.ap_wake_block,
-		      heap + ap_wake_block_offset, sizeof(u64));
+	ap_wake_info.ap_wake_block = os_mle_data->ap_wake_block;
 
-	early_iounmap(heap, ap_wake_block_offset + 4);
+	jmp_offset = ((u8 *)&os_mle_data->mle_scratch)
+			+ SL_MLE_SCRATCH_AP_JMP_OFFSET;
+	ap_wake_info.ap_jmp_offset = *((u32 *)jmp_offset);
+
+	early_memunmap(os_mle_data, field_offset);
 }
 
 /*
