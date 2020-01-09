@@ -656,16 +656,16 @@ void slaunch_sexit(void)
 	}
 
 	/* Clear secrets bit for SEXIT */
-	memcpy_toio(config + TXTCR_CMD_NO_SECRETS, &one, sizeof(u64));
-	memcpy_fromio(&val, config + TXTCR_E2STS, sizeof(u64));
+	memcpy_toio(config + TXT_CR_CMD_NO_SECRETS, &one, sizeof(u64));
+	memcpy_fromio(&val, config + TXT_CR_E2STS, sizeof(u64));
 
 	/* Unlock memory configurations */
-	memcpy_toio(config + TXTCR_CMD_UNLOCK_MEM_CONFIG, &one, sizeof(u64));
-	memcpy_fromio(&val, config + TXTCR_E2STS, sizeof(u64));
+	memcpy_toio(config + TXT_CR_CMD_UNLOCK_MEM_CONFIG, &one, sizeof(u64));
+	memcpy_fromio(&val, config + TXT_CR_E2STS, sizeof(u64));
 
 	/* Close the TXT private register space */
-	memcpy_fromio(&val, config + TXTCR_E2STS, sizeof(u64));
-	memcpy_toio(config + TXTCR_CMD_CLOSE_PRIVATE, &one, sizeof(u64));
+	memcpy_fromio(&val, config + TXT_CR_E2STS, sizeof(u64));
+	memcpy_toio(config + TXT_CR_CMD_CLOSE_PRIVATE, &one, sizeof(u64));
 
 	/*
 	 * Calls to iounmap are not being done because of the state of the
@@ -683,7 +683,7 @@ void slaunch_sexit(void)
 		return;
 	}
 
-	memcpy_fromio(&val, config + TXTCR_E2STS, sizeof(u64));
+	memcpy_fromio(&val, config + TXT_CR_E2STS, sizeof(u64));
 
 	/* Disable SMX mode */
 	cr4_set_bits(X86_CR4_SMXE);
