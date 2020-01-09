@@ -574,8 +574,8 @@ static void slaunch_intel_evtlog(void)
 		return;
 	}
 
-	memcpy_fromio(&base, config + TXTCR_HEAP_BASE, sizeof(u64));
-	memcpy_fromio(&size, config + TXTCR_HEAP_SIZE, sizeof(u64));
+	memcpy_fromio(&base, config + TXT_CR_HEAP_BASE, sizeof(u64));
+	memcpy_fromio(&size, config + TXT_CR_HEAP_SIZE, sizeof(u64));
 	iounmap(config);
 
 	/* now map TXT heap */
