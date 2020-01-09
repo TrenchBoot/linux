@@ -63,11 +63,11 @@ static void __init slaunch_txt_reset(void __iomem *txt,
 
 	printk(KERN_ERR PREFIX "%s", msg);
 
-	memcpy_toio(txt + TXTCR_ERRORCODE, &error, sizeof(u64));
-	memcpy_fromio(&val, txt + TXTCR_E2STS, sizeof(u64));
-	memcpy_toio(txt + TXTCR_CMD_UNLOCK_MEM_CONFIG, &one, sizeof(u64));
-	memcpy_fromio(&val, txt + TXTCR_E2STS, sizeof(u64));
-	memcpy_toio(txt + TXTCR_CMD_RESET, &one, sizeof(u64));
+	memcpy_toio(txt + TXT_CR_ERRORCODE, &error, sizeof(u64));
+	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(u64));
+	memcpy_toio(txt + TXT_CR_CMD_UNLOCK_MEM_CONFIG, &one, sizeof(u64));
+	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(u64));
+	memcpy_toio(txt + TXT_CR_CMD_RESET, &one, sizeof(u64));
 
 	for ( ; ; )
 		__asm__ __volatile__ ("pause");
@@ -86,10 +86,10 @@ static void __init *txt_early_get_heap_table(void __iomem *txt, u32 type, u32 by
 	if (type > TXT_SINIT_MLE_DATA_TABLE)
 		slaunch_txt_reset(txt,
 			"Error invalid table type for early heap walk\n",
-			TXT_SLERROR_HEAP_WALK);
+			SL_ERROR_HEAP_WALK);
 
-	memcpy_fromio(&base, txt + TXTCR_HEAP_BASE, sizeof(u64));
-	memcpy_fromio(&size, txt + TXTCR_HEAP_SIZE, sizeof(u64));
+	memcpy_fromio(&base, txt + TXT_CR_HEAP_BASE, sizeof(u64));
+	memcpy_fromio(&size, txt + TXT_CR_HEAP_SIZE, sizeof(u64));
 
 	/* Iterate over heap tables looking for table of "type" */
 	for (i = 0; i < type; i++) {
@@ -98,7 +98,7 @@ static void __init *txt_early_get_heap_table(void __iomem *txt, u32 type, u32 by
 		if (!heap)
 			slaunch_txt_reset(txt,
 				"Error early_memremap of heap for heap walk\n",
-				TXT_SLERROR_HEAP_WALK);
+				SL_ERROR_HEAP_WALK);
 
 		offset = *((u64 *)heap);
 
@@ -109,7 +109,7 @@ static void __init *txt_early_get_heap_table(void __iomem *txt, u32 type, u32 by
 		if (!offset)
 			slaunch_txt_reset(txt,
 				"Error invalid 0 offset in heap walk\n",
-				TXT_SLERROR_HEAP_ZERO_OFFSET);
+				SL_ERROR_HEAP_ZERO_OFFSET);
 
 		early_memunmap(heap, sizeof(u64));
 	}
@@ -120,7 +120,7 @@ static void __init *txt_early_get_heap_table(void __iomem *txt, u32 type, u32 by
 	if (!heap)
 		slaunch_txt_reset(txt,
 				  "Error early_memremap of heap section\n",
-				  TXT_SLERROR_HEAP_MAP);
+				  SL_ERROR_HEAP_MAP);
 
 	return heap;
 }
@@ -152,7 +152,7 @@ static void __init slaunch_verify_pmrs(void __iomem *txt)
 	 */
 	if (os_sinit_data->vtd_pmr_hi_base != 0x0ULL) {
 		if (os_sinit_data->vtd_pmr_hi_base != 0x100000000ULL) {
-			err = TXT_SLERROR_HI_PMR_BASE;
+			err = SL_ERROR_HI_PMR_BASE;
 			errmsg =  "Error hi PMR base\n";
 			goto out;
 		}
@@ -160,7 +160,7 @@ static void __init slaunch_verify_pmrs(void __iomem *txt)
 		if (last_pfn << PAGE_SHIFT >
 		    os_sinit_data->vtd_pmr_hi_base +
 		    os_sinit_data->vtd_pmr_hi_size) {
-			err = TXT_SLERROR_HI_PMR_SIZE;
+			err = SL_ERROR_HI_PMR_SIZE;
 			errmsg = "Error hi PMR size\n";
 			goto out;
 		}
@@ -168,7 +168,7 @@ static void __init slaunch_verify_pmrs(void __iomem *txt)
 
 	/* Lo PMR base should always be 0 */
 	if (os_sinit_data->vtd_pmr_lo_base != 0x0ULL) {
-		err = TXT_SLERROR_LO_PMR_BASE;
+		err = SL_ERROR_LO_PMR_BASE;
 		errmsg = "Error lo PMR base\n";
 		goto out;
 	}
@@ -179,7 +179,7 @@ static void __init slaunch_verify_pmrs(void __iomem *txt)
 	 */
 	if ((__pa_symbol(_end) < 0x100000000ULL) &&
 	    (__pa_symbol(_end) > os_sinit_data->vtd_pmr_lo_size)) {
-		err = TXT_SLERROR_LO_PMR_MLE;
+		err = SL_ERROR_LO_PMR_MLE;
 		errmsg = "Error lo PMR does not cover MLE kernel\n";
 		goto out;
 	}
@@ -187,7 +187,7 @@ static void __init slaunch_verify_pmrs(void __iomem *txt)
 	/* Check that the AP wake block is protected by the lo PMR. */
 	if (ap_wake_info.ap_wake_block + PAGE_SIZE >
 	    os_sinit_data->vtd_pmr_lo_size) {
-		err = TXT_SLERROR_LO_PMR_MLE;
+		err = SL_ERROR_LO_PMR_MLE;
 		errmsg = "Error lo PMR does not cover AP wake block\n";
 	}
 
@@ -234,12 +234,12 @@ static void __init slaunch_txt_reserve(void __iomem *txt)
 	size = TXT_PUB_CONFIG_REGS_BASE - TXT_PRIV_CONFIG_REGS_BASE;
 	updated += slaunch_txt_reserve_range(base, size);
 
-	memcpy_fromio(&base, txt + TXTCR_HEAP_BASE, sizeof(u64));
-	memcpy_fromio(&size, txt + TXTCR_HEAP_SIZE, sizeof(u64));
+	memcpy_fromio(&base, txt + TXT_CR_HEAP_BASE, sizeof(u64));
+	memcpy_fromio(&size, txt + TXT_CR_HEAP_SIZE, sizeof(u64));
 	updated += slaunch_txt_reserve_range(base, size);
 
-	memcpy_fromio(&base, txt + TXTCR_SINIT_BASE, sizeof(u64));
-	memcpy_fromio(&size, txt + TXTCR_SINIT_SIZE, sizeof(u64));
+	memcpy_fromio(&base, txt + TXT_CR_SINIT_BASE, sizeof(u64));
+	memcpy_fromio(&size, txt + TXT_CR_SINIT_SIZE, sizeof(u64));
 	updated += slaunch_txt_reserve_range(base, size);
 
 	field_offset = offsetof(struct txt_sinit_mle_data,
@@ -306,12 +306,12 @@ static void __init slaunch_copy_dmar_table(void __iomem *txt)
 	if (!dmar_size || !dmar_offset)
 		slaunch_txt_reset(txt,
 				  "Error invalid DMAR table values\n",
-				  TXT_SLERROR_HEAP_INVALID_DMAR);
+				  SL_ERROR_HEAP_INVALID_DMAR);
 
 	if (unlikely(dmar_size > PAGE_SIZE))
 		slaunch_txt_reset(txt,
 				  "Error DMAR too big to store\n",
-				  TXT_SLERROR_HEAP_DMAR_SIZE);
+				  SL_ERROR_HEAP_DMAR_SIZE);
 
 
 	dmar = txt_early_get_heap_table(txt, TXT_SINIT_MLE_DATA_TABLE,
@@ -319,7 +319,7 @@ static void __init slaunch_copy_dmar_table(void __iomem *txt)
 	if (!dmar)
 		slaunch_txt_reset(txt,
 				  "Error early_ioremap of DMAR\n",
-				  TXT_SLERROR_HEAP_DMAR_MAP);
+				  SL_ERROR_HEAP_DMAR_MAP);
 
 	memcpy(&txt_dmar[0], dmar + dmar_offset - 8, dmar_size);
 
@@ -343,7 +343,7 @@ static void __init slaunch_fetch_ap_wake_block(void __iomem *txt)
 	ap_wake_info.ap_wake_block = os_mle_data->ap_wake_block;
 
 	jmp_offset = ((u8 *)&os_mle_data->mle_scratch)
-			+ SL_MLE_SCRATCH_AP_JMP_OFFSET;
+			+ SL_SCRATCH_AP_JMP_OFFSET;
 	ap_wake_info.ap_jmp_offset = *((u32 *)jmp_offset);
 
 	early_memunmap(os_mle_data, field_offset);
@@ -368,7 +368,7 @@ static void __init slaunch_setup_intel(void)
 		panic("Error early_ioremap of TXT pub registers\n");
 	}
 
-	memcpy_fromio(&val, txt + TXTCR_STS, sizeof(u64));
+	memcpy_fromio(&val, txt + TXT_CR_STS, sizeof(u64));
 	early_iounmap(txt, TXT_NR_CONFIG_PAGES * PAGE_SIZE);
 
 	/* Was SENTER done? */
@@ -392,7 +392,7 @@ static void __init slaunch_setup_intel(void)
 	 * TXT measured launch happened properly and the private space is
 	 * available.
 	 */
-	memcpy_fromio(&val, txt + TXTCR_DIDVID, sizeof(u64));
+	memcpy_fromio(&val, txt + TXT_CR_DIDVID, sizeof(u64));
 	if ((u16)(val & 0xffff) != 0x8086) {
 		/*
 		 * Can't do a proper TXT reset since it appears something is
@@ -412,11 +412,11 @@ static void __init slaunch_setup_intel(void)
 
 	/* On Intel, have to handle TPM localities via TXT */
 	val = 0x1ULL;
-	memcpy_toio(txt + TXTCR_CMD_SECRETS, &val, sizeof(u64));
-	memcpy_fromio(&val, txt + TXTCR_E2STS, sizeof(u64));
+	memcpy_toio(txt + TXT_CR_CMD_SECRETS, &val, sizeof(u64));
+	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(u64));
 	val = 0x1ULL;
-	memcpy_toio(txt + TXTCR_CMD_OPEN_LOCALITY1, &val, sizeof(u64));
-	memcpy_fromio(&val, txt + TXTCR_E2STS, sizeof(u64));
+	memcpy_toio(txt + TXT_CR_CMD_OPEN_LOCALITY1, &val, sizeof(u64));
+	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(u64));
 
 	slaunch_fetch_ap_wake_block(txt);
 
