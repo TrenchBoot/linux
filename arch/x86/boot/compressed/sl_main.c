@@ -68,11 +68,11 @@ static void sl_txt_write(u32 reg, u64 val)
 static void sl_txt_reset(u64 error)
 {
 	/* Reading the E2STS register acts as a barrier for TXT registers */
-	sl_txt_write(TXTCR_ERRORCODE, error);
-	sl_txt_read(TXTCR_E2STS);
-	sl_txt_write(TXTCR_CMD_UNLOCK_MEM_CONFIG, 1);
-	sl_txt_read(TXTCR_E2STS);
-	sl_txt_write(TXTCR_CMD_RESET, 1);
+	sl_txt_write(TXT_CR_ERRORCODE, error);
+	sl_txt_read(TXT_CR_E2STS);
+	sl_txt_write(TXT_CR_CMD_UNLOCK_MEM_CONFIG, 1);
+	sl_txt_read(TXT_CR_E2STS);
+	sl_txt_write(TXT_CR_CMD_RESET, 1);
 	for ( ; ; )
 		__asm__ __volatile__ ("pause");
 }
@@ -98,26 +98,26 @@ static void sl_txt_validate_msrs(struct txt_os_mle_data *os_mle_data)
 	vcnt = (u32)(mtrr_caps & CAPS_VARIABLE_MTRR_COUNT_MASK);
 
 	if (saved_bsp_mtrrs->mtrr_vcnt > vcnt)
-		sl_txt_reset(TXT_SLERROR_MTRR_INV_VCNT);
+		sl_txt_reset(SL_ERROR_MTRR_INV_VCNT);
 	if (saved_bsp_mtrrs->mtrr_vcnt > TXT_MAX_VARIABLE_MTRRS)
-		sl_txt_reset(TXT_SLERROR_MTRR_INV_VCNT);
+		sl_txt_reset(SL_ERROR_MTRR_INV_VCNT);
 
 	mtrr_def_type = sl_rdmsr(MSR_MTRRdefType);
 	if (saved_bsp_mtrrs->default_mem_type != mtrr_def_type)
-		sl_txt_reset(TXT_SLERROR_MTRR_INV_DEF_TYPE);
+		sl_txt_reset(SL_ERROR_MTRR_INV_DEF_TYPE);
 
 	for (i = 0; i < saved_bsp_mtrrs->mtrr_vcnt; i++) {
 		mtrr_var = sl_rdmsr(MTRRphysBase_MSR(i));
 		if (saved_bsp_mtrrs->mtrr_pair[i].mtrr_physbase != mtrr_var)
-			sl_txt_reset(TXT_SLERROR_MTRR_INV_BASE);
+			sl_txt_reset(SL_ERROR_MTRR_INV_BASE);
 		mtrr_var = sl_rdmsr(MTRRphysMask_MSR(i));
 		if (saved_bsp_mtrrs->mtrr_pair[i].mtrr_physmask != mtrr_var)
-			sl_txt_reset(TXT_SLERROR_MTRR_INV_MASK);
+			sl_txt_reset(SL_ERROR_MTRR_INV_MASK);
 	}
 
 	misc_en_msr = sl_rdmsr(MSR_IA32_MISC_ENABLE);
 	if (os_mle_data->saved_misc_enable_msr != misc_en_msr)
-		sl_txt_reset(TXT_SLERROR_MSR_INV_MISC_EN);
+		sl_txt_reset(SL_ERROR_MSR_INV_MISC_EN);
 }
 
 static void sl_find_event_log(struct tpm *tpm)
@@ -126,7 +126,7 @@ static void sl_find_event_log(struct tpm *tpm)
 	void *os_sinit_data;
 	void *txt_heap;
 
-	txt_heap = (void *)sl_txt_read(TXTCR_HEAP_BASE);
+	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
 
 	os_mle_data = txt_os_mle_data_start(txt_heap);
 	evtlog_base = (void *)&os_mle_data->event_log_buffer[0];
@@ -144,7 +144,7 @@ static void sl_find_event_log(struct tpm *tpm)
 	log20_elem = tpm20_find_log2_1_element(os_sinit_data);
 
 	if (!log20_elem)
-		sl_txt_reset(TXT_SLERROR_TPM_INVALID_LOG20);
+		sl_txt_reset(SL_ERROR_TPM_INVALID_LOG20);
 }
 
 static void sl_tpm12_log_event(u32 pcr, u8 *digest,
@@ -166,7 +166,7 @@ static void sl_tpm12_log_event(u32 pcr, u8 *digest,
 	total_size = sizeof(struct tpm12_pcr_event) + event_size;
 
 	if (tpm12_log_event(evtlog_base, total_size, pcr_event))
-		sl_txt_reset(TXT_SLERROR_TPM_LOGGING_FAILED);
+		sl_txt_reset(SL_ERROR_TPM_LOGGING_FAILED);
 }
 
 static void sl_tpm20_log_event(u32 pcr, u8 *digest, u16 algo,
@@ -218,7 +218,7 @@ static void sl_tpm20_log_event(u32 pcr, u8 *digest, u16 algo,
 		sizeof(struct tpm20_pcr_event_tail) + event_size;
 
 	if (tpm20_log_event(log20_elem, evtlog_base, total_size, &log_buf[0]))
-		sl_txt_reset(TXT_SLERROR_TPM_LOGGING_FAILED);
+		sl_txt_reset(SL_ERROR_TPM_LOGGING_FAILED);
 }
 
 void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 length,
@@ -245,7 +245,7 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 length,
 			return;
 		}
 		else
-			sl_txt_reset(TXT_SLERROR_TPM_EXTEND);
+			sl_txt_reset(SL_ERROR_TPM_EXTEND);
 #endif
 #ifdef CONFIG_SECURE_LAUNCH_SHA512
 		struct sha512_state sctx = {0};
@@ -263,7 +263,7 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 length,
 			return;
 		}
 		else
-			sl_txt_reset(TXT_SLERROR_TPM_EXTEND);
+			sl_txt_reset(SL_ERROR_TPM_EXTEND);
 #endif
 	}
 
@@ -273,7 +273,7 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 length,
 	early_sha1_final(&sctx, &sha1_hash[0]);
 	ret = tpm_extend_pcr(tpm, pcr, TPM_HASH_ALG_SHA1, &sha1_hash[0]);
 	if (ret)
-		sl_txt_reset(TXT_SLERROR_TPM_EXTEND);
+		sl_txt_reset(SL_ERROR_TPM_EXTEND);
 
 	if (tpm->family == TPM20)
 		sl_tpm20_log_event(pcr, &sha1_hash[0], TPM_HASH_ALG_SHA1,
@@ -308,13 +308,13 @@ void sl_main(u8 *bootparams)
 	 */
 	tpm = enable_tpm();
 	if (!tpm)
-		sl_txt_reset(TXT_SLERROR_TPM_INIT);
+		sl_txt_reset(SL_ERROR_TPM_INIT);
 
 	/* Locate the TPM event log. */
 	sl_find_event_log(tpm);
 
 	if (tpm_request_locality(tpm, 2) == TPM_NO_LOCALITY)
-		sl_txt_reset(TXT_SLERROR_TPM_GET_LOC);
+		sl_txt_reset(SL_ERROR_TPM_GET_LOC);
 
 	/* Measure the zero page/boot params */
 	sl_tpm_extend_pcr(tpm, SL_CONFIG_PCR18, bootparams, PAGE_SIZE,
@@ -369,7 +369,7 @@ void sl_main(u8 *bootparams)
 	 * Some extra work to do on Intel, have to measure the OS-MLE
 	 * heap area.
 	 */
-	txt_heap = (void *)sl_txt_read(TXTCR_HEAP_BASE);
+	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
 	os_mle_data = txt_os_mle_data_start(txt_heap);
 
 	/*

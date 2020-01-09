@@ -110,12 +110,12 @@ ENTRY(sl_stub)
 
 .Lnmi_enabled:
 	/* Clear the TXT error registers for a clean start of day */
-	movl	$0, (TXT_PRIV_CONFIG_REGS_BASE + TXTCR_ERRORCODE)
-	movl	$0xffffffff, (TXT_PRIV_CONFIG_REGS_BASE + TXTCR_ESTS)
+	movl	$0, (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_ERRORCODE)
+	movl	$0xffffffff, (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_ESTS)
 
 	/* On Intel, the zero page address is passed in the TXT heap */
 	/* Read physical base of heap into EAX */
-	movl	(TXT_PRIV_CONFIG_REGS_BASE + TXTCR_HEAP_BASE), %eax
+	movl	(TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_HEAP_BASE), %eax
 	/* Read the size of the BIOS data into ECX (in first 8 bytes */
 	movl	(%eax), %ecx
 	/* Skip over BIOS data and size of OS to MLE */
@@ -129,14 +129,14 @@ ENTRY(sl_stub)
 	movl	SL_zero_page_addr(%eax), %esi
 
 	/* Save ebp so the APs can find their way home */
-	movl	%ebp, (SL_mle_scratch + SL_MLE_SCRATCH_AP_EBP)(%eax)
+	movl	%ebp, (SL_mle_scratch + SL_SCRATCH_AP_EBP)(%eax)
 
 	/* Fetch the AP wake code block address from the heap */
 	movl	SL_ap_wake_block(%eax), %edi
 	movl	%edi, sl_txt_ap_wake_block(%ebp)
 
 	/* Store the offset in the AP wake block to the jmp address */
-	movl	$(sl_ap_jmp_offset - sl_txt_ap_wake), (SL_mle_scratch + SL_MLE_SCRATCH_AP_JMP_OFFSET)(%eax)
+	movl	$(sl_ap_jmp_offset - sl_txt_ap_wake), (SL_mle_scratch + SL_SCRATCH_AP_JMP_OFFSET)(%eax)
 
 	/* %eax still is the base of the OS-MLE block, save it */
 	pushl	%eax
@@ -192,14 +192,14 @@ ENTRY(sl_txt_ap_entry)
 	 */
 
 	/* Read physical base of heap into EAX */
-	movl	(TXT_PRIV_CONFIG_REGS_BASE + TXTCR_HEAP_BASE), %eax
+	movl	(TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_HEAP_BASE), %eax
 	/* Read the size of the BIOS data into ECX (in first 8 bytes */
 	movl	(%eax), %ecx
 	/* Skip over BIOS data and size of OS to MLE */
 	leal	8(%eax, %ecx), %eax
 
 	/* Saved ebp from the BSP and stash OS-MLE pointer */
-	movl	(SL_mle_scratch + SL_MLE_SCRATCH_AP_EBP)(%eax), %ebp
+	movl	(SL_mle_scratch + SL_SCRATCH_AP_EBP)(%eax), %ebp
 	movl	%eax, %edi
 
 	/* Lock and get our stack index */
@@ -395,10 +395,10 @@ ENTRY(sl_txt_wake_aps)
 	leal	sl_smx_rlp_mle_join(%ebp), %edx
 	movl	%eax, SL_rlp_gdt_base(%edx)
 	movl	%ecx, SL_rlp_entry_point(%edx)
-	movl	%edx, (TXT_PRIV_CONFIG_REGS_BASE + TXTCR_MLE_JOIN)
+	movl	%edx, (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_MLE_JOIN)
 
 	/* Another TXT heap walk to find various values needed to wake APs */
-	movl	(TXT_PRIV_CONFIG_REGS_BASE + TXTCR_HEAP_BASE), %eax
+	movl	(TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_HEAP_BASE), %eax
 	/* At BIOS data size, find the number of logical processors */
 	movl	(SL_num_logical_procs + 8)(%eax), %edx
 	/* Skip over BIOS data */
@@ -476,11 +476,11 @@ ENTRY(sl_txt_int_ipi_wake)
 ENDPROC(sl_txt_int_ipi_wake)
 
 ENTRY(sl_txt_int_reset)
-	movl	$(TXT_SLERROR_INV_AP_INTERRUPT), (TXT_PRIV_CONFIG_REGS_BASE + TXTCR_ERRORCODE)
-	movl	(TXT_PRIV_CONFIG_REGS_BASE + TXTCR_E2STS), %eax
-	movl	$1, (TXT_PRIV_CONFIG_REGS_BASE + TXTCR_CMD_UNLOCK_MEM_CONFIG)
-	movl	(TXT_PRIV_CONFIG_REGS_BASE + TXTCR_E2STS), %eax
-	movl	$1, (TXT_PRIV_CONFIG_REGS_BASE + TXTCR_CMD_RESET)
+	movl	$(SL_ERROR_INV_AP_INTERRUPT), (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_ERRORCODE)
+	movl	(TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_E2STS), %eax
+	movl	$1, (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_CMD_UNLOCK_MEM_CONFIG)
+	movl	(TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_E2STS), %eax
+	movl	$1, (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_CMD_RESET)
 1:
 	pause
 	jmp 	1b
