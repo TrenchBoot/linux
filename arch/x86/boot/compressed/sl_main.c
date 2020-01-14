@@ -9,6 +9,7 @@
 #include <asm/segment.h>
 #include <asm/boot.h>
 #include <asm/msr.h>
+#include <asm/io.h>
 #include <asm/mtrr.h>
 #include <asm/processor-flags.h>
 #include <asm/asm-offsets.h>
@@ -43,26 +44,12 @@ extern u32 sl_cpu_type;
 
 static u64 sl_txt_read(u32 reg)
 {
-	void *addr = (void *)(u64)(TXT_PRIV_CONFIG_REGS_BASE + reg);
-	u64 val;
-
-	barrier();
-	val = *(u64 *)(addr);
-	/* Memory barrier for MMIO read as done in readb() */
-	rmb();
-
-	return val;
+	return readq((void *)(u64)(TXT_PRIV_CONFIG_REGS_BASE + reg));
 }
 
 static void sl_txt_write(u32 reg, u64 val)
 {
-	void *addr = (void *)(u64)(TXT_PRIV_CONFIG_REGS_BASE + reg);
-
-	barrier();
-	*(u64 *)(addr) = val;
-	/* Memory barrier for MMIO read as done in readb() */
-	wmb();
-	barrier();
+	writeq(val, (void *)(u64)(TXT_PRIV_CONFIG_REGS_BASE + reg));
 }
 
 static void sl_txt_reset(u64 error)
@@ -73,8 +60,7 @@ static void sl_txt_reset(u64 error)
 	sl_txt_write(TXT_CR_CMD_UNLOCK_MEM_CONFIG, 1);
 	sl_txt_read(TXT_CR_E2STS);
 	sl_txt_write(TXT_CR_CMD_RESET, 1);
-	for ( ; ; )
-		__asm__ __volatile__ ("pause");
+	__asm__ __volatile__ ("hlt");
 }
 
 static u64 sl_rdmsr(u32 reg)
@@ -225,15 +211,14 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 length,
 		       const char *desc)
 {
 	struct sha1_state sctx = {0};
-	u8 sha1_hash[SHA1_DIGEST_SIZE];
+	u8 sha1_hash[SHA1_DIGEST_SIZE] = {0};
 	int ret;
 
 	if (tpm->family == TPM20) {
 #ifdef CONFIG_SECURE_LAUNCH_SHA256
 		struct sha256_state sctx = {0};
-		u8 sha256_hash[SHA256_DIGEST_SIZE];
+		u8 sha256_hash[SHA256_DIGEST_SIZE] = {0};
 
-		memset(&sha256_hash[0], 0, SHA256_DIGEST_SIZE);
 		sha256_init(&sctx);
 		sha256_update(&sctx, data, length);
 		sha256_final(&sctx, &sha256_hash[0]);
@@ -249,9 +234,8 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 length,
 #endif
 #ifdef CONFIG_SECURE_LAUNCH_SHA512
 		struct sha512_state sctx = {0};
-		u8 sha512_hash[SHA512_DIGEST_SIZE];
+		u8 sha512_hash[SHA512_DIGEST_SIZE] = (0);
 
-		memset(&sha512_hash[0], 0, SHA512_DIGEST_SIZE);
 		sha512_init(&sctx);
 		sha512_update(&sctx, data, length);
 		sha512_final(&sctx, &sha512_hash[0]);
@@ -267,7 +251,6 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 length,
 #endif
 	}
 
-	memset(&sha1_hash[0], 0, SHA1_DIGEST_SIZE);
 	early_sha1_init(&sctx);
 	early_sha1_update(&sctx, data, length);
 	early_sha1_final(&sctx, &sha1_hash[0]);
