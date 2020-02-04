@@ -244,11 +244,6 @@ s8 tis_request_locality(u8 l)
 
 u8 tis_init(struct tpm *t)
 {
-	u8 i;
-
-	for (i = 0; i <= TPM_MAX_LOCALITY; i++)
-		tpm_write8(ACCESS_RELINQUISH_LOCALITY, ACCESS(i));
-
 	locality = TPM_NO_LOCALITY;
 
 	if (tis_request_locality(0) != 0)
