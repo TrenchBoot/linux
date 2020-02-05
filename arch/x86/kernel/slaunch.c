@@ -63,14 +63,17 @@ static void __init slaunch_txt_reset(void __iomem *txt,
 
 	printk(KERN_ERR PREFIX "%s", msg);
 
+	/*
+	 * This performs a TXT reset with a sticky error code. The reads of
+	 * TXT_CR_E2STS act as barriers.
+	 */
 	memcpy_toio(txt + TXT_CR_ERRORCODE, &error, sizeof(u64));
 	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(u64));
 	memcpy_toio(txt + TXT_CR_CMD_UNLOCK_MEM_CONFIG, &one, sizeof(u64));
 	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(u64));
 	memcpy_toio(txt + TXT_CR_CMD_RESET, &one, sizeof(u64));
 
-	for ( ; ; )
-		__asm__ __volatile__ ("pause");
+	asm volatile ("hlt");
 }
 
 /*
