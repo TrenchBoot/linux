@@ -634,8 +634,8 @@ __exitcall(slaunch_exit);
 
 static inline void txt_getsec_sexit(void)
 {
-	__asm__ __volatile__ (".byte 0x0f,0x37\n"
-			      : : "a" (SMX_X86_GETSEC_SEXIT));
+	asm volatile (".byte 0x0f,0x37\n"
+		      : : "a" (SMX_X86_GETSEC_SEXIT));
 }
 
 void slaunch_sexit(void)
@@ -694,5 +694,5 @@ void slaunch_sexit(void)
 	/* Do the SEXIT SMX operation */
 	txt_getsec_sexit();
 
-	pr_info("TXT SEXIT complete.");
+	pr_emerg("TXT SEXIT complete.");
 }
