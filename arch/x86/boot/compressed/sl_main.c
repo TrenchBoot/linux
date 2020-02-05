@@ -60,14 +60,14 @@ static void sl_txt_reset(u64 error)
 	sl_txt_write(TXT_CR_CMD_UNLOCK_MEM_CONFIG, 1);
 	sl_txt_read(TXT_CR_E2STS);
 	sl_txt_write(TXT_CR_CMD_RESET, 1);
-	__asm__ __volatile__ ("hlt");
+	asm volatile ("hlt");
 }
 
 static u64 sl_rdmsr(u32 reg)
 {
 	u64 lo, hi;
 
-	__asm__ __volatile__ ("rdmsr"  : "=a" (lo), "=d" (hi) : "c" (reg));
+	asm volatile ("rdmsr"  : "=a" (lo), "=d" (hi) : "c" (reg));
 
 	return (hi << 32) | lo;
 }
