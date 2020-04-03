@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2019 Apertus Solutions, LLC
+ * Copyright (c) 2020 Apertus Solutions, LLC
  *
  * Author(s):
  *      Daniel P. Smith <dpsmith@apertussolutions.com>
@@ -15,7 +15,7 @@
 
 #include "tpm2.h"
 
-u16 tpm2_null_auth_size(void);
-u16 tpm2_null_auth(struct tpms_auth_cmd *a);
+u32 tpm2_null_auth_size(void);
+u8 *tpm2_null_auth(struct tpmbuff *b);
 
 #endif

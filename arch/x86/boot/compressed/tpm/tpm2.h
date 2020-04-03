@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2019 Apertus Solutions, LLC
+ * Copyright (c) 2020 Apertus Solutions, LLC
  *
  * Author(s):
  *      Daniel P. Smith <dpsmith@apertussolutions.com>
@@ -69,7 +69,7 @@ struct tpm2_cmd {
 	struct tpm_header *header;
 	u32 *handles;			/* TPM Handles array	*/
 	u32 *auth_size;			/* Size of Auth Area	*/
-	struct tpms_auth_cmd *auth;	/* Authorization Area	*/
+	u8 *auth;			/* Authorization Area	*/
 	u8 *params;			/* Parameters		*/
 	u8 *raw;			/* internal raw buffer	*/
 };

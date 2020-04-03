@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2019 Apertus Solutions, LLC
+ * Copyright (c) 2020 Apertus Solutions, LLC
  *
  * Author(s):
  *      Daniel P. Smith <dpsmith@apertussolutions.com>
@@ -8,6 +8,7 @@
  */
 
 #include <linux/types.h>
+#include <linux/const.h>
 #include <linux/string.h>
 #include <linux/errno.h>
 #include <asm/byteorder.h>
@@ -22,6 +23,9 @@
 static int tpm2_alloc_cmd(struct tpmbuff *b, struct tpm2_cmd *c, u16 tag,
 		u32 code)
 {
+	/* ensure buffer is free for use */
+	tpmb_free(b);
+
 	c->header = (struct tpm_header *)tpmb_reserve(b);
 	if (!c->header)
 		return -ENOMEM;
@@ -80,9 +84,13 @@ int tpm2_extend_pcr(struct tpm *t, u32 pcr,
 {
 	struct tpmbuff *b = t->buff;
 	struct tpm2_cmd cmd;
-	u8 *ptr;
 	u16 size;
 	int ret = 0;
+
+	if (b == NULL) {
+		ret = -EINVAL;
+		goto out;
+	}
 
 	ret = tpm2_alloc_cmd(b, &cmd, TPM_ST_SESSIONS, TPM_CC_PCR_EXTEND);
 	if (ret < 0)
@@ -102,13 +110,13 @@ int tpm2_extend_pcr(struct tpm *t, u32 pcr,
 		goto free;
 	}
 
-	cmd.auth = (struct tpms_auth_cmd *)tpmb_put(b, tpm2_null_auth_size());
+	cmd.auth = tpm2_null_auth(b);
 	if (cmd.auth == NULL) {
 		ret = -ENOMEM;
 		goto free;
 	}
 
-	*cmd.auth_size = cpu_to_be32(tpm2_null_auth(cmd.auth));
+	*cmd.auth_size = cpu_to_be32(tpm2_null_auth_size());
 
 	size = convert_digest_list(digests);
 	if (size == 0) {
@@ -124,24 +132,11 @@ int tpm2_extend_pcr(struct tpm *t, u32 pcr,
 
 	memcpy(cmd.params, digests, size);
 
-	cmd.header->size = cpu_to_be16(tpmb_size(b));
+	cmd.header->size = cpu_to_be32(tpmb_size(b));
 
-	switch (t->intf) {
-	case TPM_DEVNODE:
-		/* Not implemented yet */
-		ret = -EBADRQC;
-		break;
-	case TPM_TIS:
-		ret = tis_send(b);
-		break;
-	case TPM_CRB:
-		ret = crb_send(b);
-		break;
-	case TPM_UEFI:
-		/* Not implemented yet */
-		ret = -EBADRQC;
-		break;
-	}
+	size = t->ops.send(b);
+	if (tpmb_size(b) != size)
+		ret = -EAGAIN;
 
 free:
 	tpmb_free(b);
