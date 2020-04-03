@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2019 Oracle and/or its affiliates. All rights reserved.
+ * Secure Launch early measurement and validation routines.
+ *
+ * Copyright (c) 2020, Oracle and/or its affiliates.
  */
 
 #include <linux/init.h>
@@ -29,6 +31,8 @@
 #include "tpm/tpm2_constants.h"
 #include "tpm/tpm.h"
 
+#define CAPS_VARIABLE_MTRR_COUNT_MASK	0xff
+
 #define SL_MAX_EVENT_DATA	64
 #define SL_TPM12_LOG_SIZE	(sizeof(struct tpm12_pcr_event) + \
 				SL_MAX_EVENT_DATA)
@@ -54,7 +58,7 @@ static void sl_txt_write(u32 reg, u64 val)
 	writeq(val, (void *)(u64)(TXT_PRIV_CONFIG_REGS_BASE + reg));
 }
 
-static void sl_txt_reset(u64 error)
+static void __noreturn sl_txt_reset(u64 error)
 {
 	/* Reading the E2STS register acts as a barrier for TXT registers */
 	sl_txt_write(TXT_CR_ERRORCODE, error);
@@ -62,21 +66,29 @@ static void sl_txt_reset(u64 error)
 	sl_txt_write(TXT_CR_CMD_UNLOCK_MEM_CONFIG, 1);
 	sl_txt_read(TXT_CR_E2STS);
 	sl_txt_write(TXT_CR_CMD_RESET, 1);
-	asm volatile ("hlt");
+
+	for ( ; ; )
+		asm volatile ("hlt");
+
+	unreachable();
 }
 
 static u64 sl_rdmsr(u32 reg)
 {
 	u64 lo, hi;
 
-	asm volatile ("rdmsr"  : "=a" (lo), "=d" (hi) : "c" (reg));
+	asm volatile ("rdmsr" : "=a" (lo), "=d" (hi) : "c" (reg));
 
 	return (hi << 32) | lo;
 }
 
+/*
+ * Some MSRs are modified by the pre-launch code including the MTRRs.
+ * The early MLE code has to restore these values. This code validates
+ * the values after they are measured.
+ */
 static void sl_txt_validate_msrs(struct txt_os_mle_data *os_mle_data)
 {
-#define CAPS_VARIABLE_MTRR_COUNT_MASK   0xff
 	u64 mtrr_caps, mtrr_def_type, mtrr_var, misc_en_msr;
 	u32 vcnt, i;
 	struct txt_mtrr_state *saved_bsp_mtrrs =
@@ -87,7 +99,7 @@ static void sl_txt_validate_msrs(struct txt_os_mle_data *os_mle_data)
 
 	if (saved_bsp_mtrrs->mtrr_vcnt > vcnt)
 		sl_txt_reset(SL_ERROR_MTRR_INV_VCNT);
-	if (saved_bsp_mtrrs->mtrr_vcnt > TXT_MAX_VARIABLE_MTRRS)
+	if (saved_bsp_mtrrs->mtrr_vcnt > TXT_OS_MLE_MAX_VARIABLE_MTRRS)
 		sl_txt_reset(SL_ERROR_MTRR_INV_VCNT);
 
 	mtrr_def_type = sl_rdmsr(MSR_MTRRdefType);
@@ -117,7 +129,7 @@ static void sl_find_event_log(struct tpm *tpm)
 	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
 
 	os_mle_data = txt_os_mle_data_start(txt_heap);
-	evtlog_base = (void *)&os_mle_data->event_log_buffer[0];
+	evtlog_base = (void *)os_mle_data->evtlog_addr;
 
 	if (tpm->family != TPM20)
 		return;
@@ -140,7 +152,7 @@ static void sl_tpm12_log_event(u32 pcr, u8 *digest,
 {
 	struct tpm12_pcr_event *pcr_event;
 	u32 total_size;
-	u8 log_buf[SL_TPM12_LOG_SIZE];
+	u8 log_buf[SL_TPM12_LOG_SIZE] = {0};
 
 	memset(log_buf, 0, SL_TPM12_LOG_SIZE);
 	pcr_event = (struct tpm12_pcr_event *)log_buf;
@@ -166,7 +178,7 @@ static void sl_tpm20_log_event(u32 pcr, u8 *digest, u16 algo,
 	struct tpm20_pcr_event_tail *tail;
 	u8 *dptr;
 	u32 total_size;
-	u8 log_buf[SL_TPM20_LOG_SIZE];
+	u8 log_buf[SL_TPM20_LOG_SIZE] = {0};
 
 	memset(log_buf, 0, SL_TPM20_LOG_SIZE);
 	head = (struct tpm20_pcr_event_head *)log_buf;
@@ -272,10 +284,11 @@ void sl_main(u8 *bootparams)
 	struct boot_params *bp;
 	struct setup_data *data;
 	struct txt_os_mle_data *os_mle_data;
+	struct txt_os_mle_data os_mle_tmp = {0};
 	const char *signature;
 	unsigned long mmap = 0;
 	void *txt_heap;
-	u32 data_count, os_mle_len;
+	u32 data_count;
 
 	/*
 	 * Currently only Intel TXT is supported for Secure Launch. Testing
@@ -353,18 +366,16 @@ void sl_main(u8 *bootparams)
 				  "Measured initramfs into PCR17");
 
 	/*
-	 * Some extra work to do on Intel, have to measure the OS-MLE
-	 * heap area.
-	 */
+	* Some extra work to do on Intel, have to measure the OS-MLE
+	* heap area.
+	*/
 	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
 	os_mle_data = txt_os_mle_data_start(txt_heap);
 
-	/*
-	 * Measure OS-MLE data up to the MLE scratch field. The MLE scratch
-	 * field and the TPM logging should not be measured.
-	 */
+	/* Measure OS-MLE data up to the MLE scratch field. */
 	os_mle_len = offsetof(struct txt_os_mle_data, mle_scratch);
-	sl_tpm_extend_pcr(tpm, SL_CONFIG_PCR18, (u8 *)os_mle_data, os_mle_len,
+	sl_tpm_extend_pcr(tpm, SL_CONFIG_PCR18, (u8 *)os_mle_data,
+			  os_mle_len,
 			  "Measured TXT OS-MLE data into PCR18");
 
 	/*

@@ -260,7 +260,7 @@ SYM_FUNC_START(sl_stub_entry)
 	 * find the beginning of where we are loaded, sub off from the
 	 * beginning.
 	 */
-	leal	(startup_32 - sl_stub_entry)(%ebx), %ebp
+	leal	(startup_32 - sl_stub_entry)(%ebx), %ebx
 
 	/* More room to work in sl_stub in the text section */
 	jmp	sl_stub
@@ -552,8 +552,10 @@ SYM_FUNC_START_LOCAL_NOALIGN(.Lrelocated)
 	 *
 	 * Several boot params get used before we get a chance to measure
 	 * them in this call. This is a known issue and we currently don't
-	 * have a solution. One solution might be to set them in the really
-	 * early sl stub asm code but that might not work well.
+	 * have a solution. The scratch field doesn't matter and loadflags
+	 * have KEEP_SEGMENTS set by the stub code. There is no obvious way
+	 * to do anything about the use of kernel_alignment or init_size
+	 * though these seem low risk.
 	 */
 	pushq	%rsi
 	movq	%rsi, %rdi
