@@ -124,7 +124,7 @@ int tpm2_extend_pcr(struct tpm *t, u32 pcr,
 
 	memcpy(cmd.params, digests, size);
 
-	cmd.header->size = cpu_to_be16(tpmb_size(b));
+	cmd.header->size = cpu_to_be32(tpmb_size(b));
 
 	switch (t->intf) {
 	case TPM_DEVNODE:
@@ -132,10 +132,14 @@ int tpm2_extend_pcr(struct tpm *t, u32 pcr,
 		ret = -EBADRQC;
 		break;
 	case TPM_TIS:
-		ret = tis_send(b);
+		size = tis_send(b);
+		if (tpmb_size(b) != size)
+			ret = -EAGAIN;
 		break;
 	case TPM_CRB:
-		ret = crb_send(b);
+		size = crb_send(b);
+		if (tpmb_size(b) != size)
+			ret = -EAGAIN;
 		break;
 	case TPM_UEFI:
 		/* Not implemented yet */
