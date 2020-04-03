@@ -18,7 +18,11 @@ kernel_info:
 	.long	SETUP_TYPE_MAX
 
 	/* Offset to the MLE header structure */
+#ifdef CONFIG_SECURE_LAUNCH
 	.long	mle_header
+#else
+	.long	0
+#endif
 
 kernel_info_var_len_data:
 	/* Empty for time being... */
