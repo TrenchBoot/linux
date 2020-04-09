@@ -18,7 +18,7 @@
 #include <asm/efi.h>
 #include <linux/slaunch.h>
 #ifdef CONFIG_SECURE_LAUNCH_SHA256
-#include <linux/sha256.h>
+#include <config/crypto/sha256.h>
 #endif
 #ifdef CONFIG_SECURE_LAUNCH_SHA512
 #include <linux/sha512.h>
