@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2019 Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2019 Apertus Solutions, LLC
+ * Secure Launch late validation/setup, securityfs exposure and
+ * finalization support.
+ *
+ * Copyright (c) 2020, Oracle and/or its affiliates.
+ * Copyright (c) 2020 Apertus Solutions, LLC
  *
  * Author(s):
  *     Daniel P. Smith <dpsmith@apertussolutions.com>
  *
  */
+
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/fs.h>
 #include <linux/init.h>
@@ -29,10 +34,11 @@
 #include <asm/setup.h>
 #include <linux/slaunch.h>
 
-#define PREFIX	"SLAUNCH: "
-
 static u32 sl_flags;
 static struct sl_ap_wake_info ap_wake_info;
+static u64 evtlog_addr;
+static u32 evtlog_size;
+static u64 vtd_pmr_lo_size;
 
 /* This should be plenty of room */
 static u8 txt_dmar[PAGE_SIZE] __aligned(16);
@@ -57,8 +63,8 @@ struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table_header *dmar)
 	return (struct acpi_table_header *)(&txt_dmar[0]);
 }
 
-static void __init slaunch_txt_reset(void __iomem *txt,
-				     const char *msg, u64 error)
+static void __init __noreturn slaunch_txt_reset(void __iomem *txt,
+						const char *msg, u64 error)
 {
 	u64 one = 1, val;
 
@@ -70,11 +76,16 @@ static void __init slaunch_txt_reset(void __iomem *txt,
 	 */
 	memcpy_toio(txt + TXT_CR_ERRORCODE, &error, sizeof(u64));
 	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(u64));
+	memcpy_toio(txt + TXT_CR_CMD_NO_SECRETS, &one, sizeof(u64));
+	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(u64));
 	memcpy_toio(txt + TXT_CR_CMD_UNLOCK_MEM_CONFIG, &one, sizeof(u64));
 	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(u64));
 	memcpy_toio(txt + TXT_CR_CMD_RESET, &one, sizeof(u64));
 
-	asm volatile ("hlt");
+	for ( ; ; )
+		asm volatile ("hlt");
+
+	unreachable();
 }
 
 /*
@@ -140,13 +151,16 @@ static void __init *txt_early_get_heap_table(void __iomem *txt, u32 type,
 static void __init slaunch_verify_pmrs(void __iomem *txt)
 {
 	struct txt_os_sinit_data *os_sinit_data;
-	unsigned long last_pfn;
+	unsigned long last_pfn, initrd_extent;
 	u32 field_offset, err = 0;
 	const char *errmsg = "";
 
 	field_offset = offsetof(struct txt_os_sinit_data, lcp_po_base);
 	os_sinit_data = txt_early_get_heap_table(txt, TXT_OS_SINIT_DATA_TABLE,
 						 field_offset);
+
+	/* Save a copy */
+	vtd_pmr_lo_size = os_sinit_data->vtd_pmr_lo_size;
 
 	last_pfn = e820__end_of_ram_pfn();
 
@@ -180,7 +194,8 @@ static void __init slaunch_verify_pmrs(void __iomem *txt)
 
 	/*
 	 * Check that if the kernel was loaded below 4G, that it is protected
-	 * by the lo PMR.
+	 * by the lo PMR. Note this is the decompressed kernel. The ACM would
+	 * have ensured the compressed kernel (the MLE image) was protected.
 	 */
 	if ((__pa_symbol(_end) < 0x100000000ULL) &&
 	    (__pa_symbol(_end) > os_sinit_data->vtd_pmr_lo_size)) {
@@ -196,6 +211,22 @@ static void __init slaunch_verify_pmrs(void __iomem *txt)
 		errmsg = "Error lo PMR does not cover AP wake block\n";
 	}
 
+	/*
+	 * If an external initrd is present and loaded below 4G, check
+	 * that it is protected by the lo PMR.
+	 */
+	if (boot_params.hdr.ramdisk_image != 0 &&
+	    boot_params.hdr.ramdisk_size != 0) {
+		initrd_extent = boot_params.hdr.ramdisk_image +
+				boot_params.hdr.ramdisk_size;
+		if ((initrd_extent < 0x100000000ULL) &&
+		    (initrd_extent > os_sinit_data->vtd_pmr_lo_size)) {
+			err = SL_ERROR_LO_PMR_INITRD;
+			errmsg = "Error lo PMR does not cover external initrd\n";
+			goto out;
+		}
+	}
+
 out:
 	early_memunmap(os_sinit_data, field_offset);
 
@@ -203,49 +234,52 @@ out:
 		slaunch_txt_reset(txt, errmsg, err);
 }
 
-static int __init slaunch_txt_reserve_range(u64 base, u64 size)
+static void __init slaunch_txt_reserve_range(u64 base, u64 size)
 {
 	int type;
 
 	type = e820__get_entry_type(base, base + size - 1);
 	if (type == E820_TYPE_RAM) {
-		e820__range_update(base, size, E820_TYPE_RAM,
-				   E820_TYPE_RESERVED);
-		return 1;
+		pr_info("memblock reserve base: %llx size: %llx\n", base, size);
+		memblock_reserve(base, size);
 	}
-
-	return 0;
 }
 
 /*
- * For Intel, certain reqions of memory must be marked as reserved in the e820
- * memory map if they are not already. This includes the TXT HEAP, the ACM area,
- * the TXT private register bank. Normally these are properly reserved by
- * firmware but if it was not done, do it now.
+ * For Intel, certain regions of memory must be marked as reserved by putting
+ * them on the memblock reserved list if they are not already e820 reserved.
+ * This includes:
+ *  - The TXT HEAP
+ *  - The ACM area
+ *  - The TXT private register bank
+ *  - The MDR list sent to the MLE by the ACM (see TXT specification)
+ *  (Normally the above are properly reserved by firmware but if it was not
+ *  done, reserve them now)
+ *  - The AP wake block
+ *  - TPM log external to the TXT heap
  *
- * Also the Memory Descriptor Ranges that are passed to the MLE (see TXT
- * specification) may need to be reserved depeding on their type.
+ * Also if the low PMR doesn't cover all memory < 4G, any RAM regions above
+ * the low PMR must be reservered too.
  */
 static void __init slaunch_txt_reserve(void __iomem *txt)
 {
 	struct txt_sinit_memory_descriptor_record *mdr;
 	struct txt_sinit_mle_data *sinit_mle_data;
 	void *mdrs;
-	u64 base, size;
+	u64 base, size, heap_base, heap_size;
 	u32 field_offset, mdrnum, mdroffset, mdrslen, i;
-	int updated = 0;
 
 	base = TXT_PRIV_CONFIG_REGS_BASE;
 	size = TXT_PUB_CONFIG_REGS_BASE - TXT_PRIV_CONFIG_REGS_BASE;
-	updated += slaunch_txt_reserve_range(base, size);
+	slaunch_txt_reserve_range(base, size);
 
-	memcpy_fromio(&base, txt + TXT_CR_HEAP_BASE, sizeof(u64));
-	memcpy_fromio(&size, txt + TXT_CR_HEAP_SIZE, sizeof(u64));
-	updated += slaunch_txt_reserve_range(base, size);
+	memcpy_fromio(&heap_base, txt + TXT_CR_HEAP_BASE, sizeof(u64));
+	memcpy_fromio(&heap_size, txt + TXT_CR_HEAP_SIZE, sizeof(u64));
+	slaunch_txt_reserve_range(heap_base, heap_size);
 
 	memcpy_fromio(&base, txt + TXT_CR_SINIT_BASE, sizeof(u64));
 	memcpy_fromio(&size, txt + TXT_CR_SINIT_SIZE, sizeof(u64));
-	updated += slaunch_txt_reserve_range(base, size);
+	slaunch_txt_reserve_range(base, size);
 
 	field_offset = offsetof(struct txt_sinit_mle_data,
 				sinit_vtd_dmar_table_size);
@@ -258,7 +292,7 @@ static void __init slaunch_txt_reserve(void __iomem *txt)
 	early_memunmap(sinit_mle_data, field_offset);
 
 	if (!mdrnum)
-		goto out;
+		goto nomdr;
 
 	mdrslen = (mdrnum * sizeof(struct txt_sinit_memory_descriptor_record));
 
@@ -271,17 +305,23 @@ static void __init slaunch_txt_reserve(void __iomem *txt)
 	for (i = 0; i < mdrnum; i++, mdr++) {
 		/* Spec says some entries can have length 0, ignore them */
 		if (mdr->type > 0 && mdr->length > 0)
-			updated += slaunch_txt_reserve_range(mdr->address,
-							     mdr->length);
+			slaunch_txt_reserve_range(mdr->address, mdr->length);
 	}
 
 	early_memunmap(mdrs, mdroffset + mdrslen - 8);
 
-out:
-	if (updated) {
-		e820__update_table(e820_table);
-		pr_info("TXT altered physical RAM map:\n");
-		e820__print_table("TXT-reserve");
+nomdr:
+	slaunch_txt_reserve_range(ap_wake_info.ap_wake_block,
+				  ap_wake_info.ap_wake_block_size);
+
+	if (evtlog_addr < heap_base || evtlog_addr > (heap_base + heap_size))
+		slaunch_txt_reserve_range(evtlog_addr, evtlog_size);
+
+	for (i = 0; i < e820_table->nr_entries; i++) {
+		base = e820_table->entries[i].addr;
+		size = e820_table->entries[i].size;
+		if ((base > vtd_pmr_lo_size) && (base < 0x100000000ULL))
+			slaunch_txt_reserve_range(base, size);
 	}
 }
 
@@ -334,24 +374,28 @@ static void __init slaunch_copy_dmar_table(void __iomem *txt)
 /*
  * The location of the safe AP wake code block is stored in the TXT heap.
  * Fetch it here in the early init code for later use in SMP startup.
+ *
+ * Also get the TPM event log values that may have to be put on the
+ * memblock reserve list later.
  */
-static void __init slaunch_fetch_ap_wake_block(void __iomem *txt)
+static void __init slaunch_fetch_os_mle_fields(void __iomem *txt)
 {
 	struct txt_os_mle_data *os_mle_data;
 	u8 *jmp_offset;
-	u32 field_offset;
 
-	field_offset = offsetof(struct txt_os_mle_data, event_log_buffer);
 	os_mle_data = txt_early_get_heap_table(txt, TXT_OS_MLE_DATA_TABLE,
-					       field_offset);
+					       sizeof(struct txt_os_mle_data));
 
 	ap_wake_info.ap_wake_block = os_mle_data->ap_wake_block;
+	ap_wake_info.ap_wake_block_size = os_mle_data->ap_wake_block_size;
 
-	jmp_offset = ((u8 *)&os_mle_data->mle_scratch)
-			+ SL_SCRATCH_AP_JMP_OFFSET;
+	jmp_offset = os_mle_data->mle_scratch + SL_SCRATCH_AP_JMP_OFFSET;
 	ap_wake_info.ap_jmp_offset = *((u32 *)jmp_offset);
 
-	early_memunmap(os_mle_data, field_offset);
+	evtlog_addr = os_mle_data->evtlog_addr;
+	evtlog_size = os_mle_data->evtlog_size;
+
+	early_memunmap(os_mle_data, sizeof(struct txt_os_mle_data));
 }
 
 /*
@@ -423,7 +467,7 @@ static void __init slaunch_setup_intel(void)
 	memcpy_toio(txt + TXT_CR_CMD_OPEN_LOCALITY1, &val, sizeof(u64));
 	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(u64));
 
-	slaunch_fetch_ap_wake_block(txt);
+	slaunch_fetch_os_mle_fields(txt);
 
 	slaunch_verify_pmrs(txt);
 
