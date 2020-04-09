@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2019 Apertus Solutions, LLC
+ * Copyright (c) 2020 Apertus Solutions, LLC
  *
  * Author(s):
  *      Daniel P. Smith <dpsmith@apertussolutions.com>
@@ -13,10 +13,8 @@
 #define TPM_NO_LOCALITY		0xFF
 
 enum tpm_hw_intf {
-	TPM_DEVNODE,
 	TPM_TIS,
-	TPM_CRB,
-	TPM_UEFI
+	TPM_CRB
 };
 
 enum tpm_family {
@@ -26,10 +24,18 @@ enum tpm_family {
 
 struct tpmbuff;
 
+struct tpm_hw_ops {
+	u8 (*request_locality)(u8 l);
+	void (*relinquish_locality)(void);
+	size_t (*send)(struct tpmbuff *buf);
+	size_t (*recv)(enum tpm_family family, struct tpmbuff *buf);
+};
+
 struct tpm {
 	u32 vendor;
 	enum tpm_family family;
 	enum tpm_hw_intf intf;
+	struct tpm_hw_ops ops;
 	struct tpmbuff *buff;
 };
 

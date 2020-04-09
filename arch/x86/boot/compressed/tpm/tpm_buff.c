@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2019 Apertus Solutions, LLC
+ * Copyright (c) 2020 Apertus Solutions, LLC
  *
  * Author(s):
  *      Daniel P. Smith <dpsmith@apertussolutions.com>
@@ -8,6 +8,7 @@
  */
 
 #include <linux/types.h>
+#include <linux/string.h>
 #include "tpm.h"
 #include "tpmbuff.h"
 #include "tpm_common.h"
@@ -79,9 +80,6 @@ struct tpmbuff *alloc_tpmbuff(enum tpm_hw_intf intf, u8 locality)
 	struct tpmbuff *b = &tpm_buff;
 
 	switch (intf) {
-	case TPM_DEVNODE:
-		/* TODO: need implementation */
-		goto err;
 	case TPM_TIS:
 		if (b->head)
 			goto reset;
@@ -90,15 +88,12 @@ struct tpmbuff *alloc_tpmbuff(enum tpm_hw_intf intf, u8 locality)
 		b->truesize = STATIC_TIS_BUFFER_SIZE;
 		break;
 	case TPM_CRB:
-		b->head = (u8 *)(u64)(TPM_MMIO_BASE + (locality << 12)
+		b->head = (u8 *)(uintptr_t)(TPM_MMIO_BASE + (locality << 12)
 			       + TPM_CRB_DATA_BUFFER_OFFSET);
 		b->truesize = TPM_CRB_DATA_BUFFER_SIZE;
 		break;
-	case TPM_UEFI:
-		/* Not implemented yet */
-		goto err;
 	default:
-		goto err;
+		return NULL;
 	}
 
 reset:
@@ -109,25 +104,16 @@ reset:
 	b->end = b->head + (b->truesize - 1);
 
 	return b;
-
-err:
-	return NULL;
 }
 
 void free_tpmbuff(struct tpmbuff *b, enum tpm_hw_intf intf)
 {
 	switch (intf) {
-	case TPM_DEVNODE:
-		/* Not implemented yet */
-		break;
 	case TPM_TIS:
 		b->head = NULL;
 		break;
 	case TPM_CRB:
 		b->head = NULL;
-		break;
-	case TPM_UEFI:
-		/* Not implemented yet */
 		break;
 	default:
 		break;
