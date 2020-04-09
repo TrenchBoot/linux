@@ -84,6 +84,11 @@ int tpm2_extend_pcr(struct tpm *t, u32 pcr,
 	u16 size;
 	int ret = 0;
 
+	if (b == NULL) {
+		ret = -EINVAL;
+		goto out;
+	}
+
 	ret = tpm2_alloc_cmd(b, &cmd, TPM_ST_SESSIONS, TPM_CC_PCR_EXTEND);
 	if (ret < 0)
 		goto out;

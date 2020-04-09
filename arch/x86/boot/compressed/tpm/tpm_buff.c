@@ -8,6 +8,7 @@
  */
 
 #include <linux/types.h>
+#include <linux/string.h>
 #include "tpm.h"
 #include "tpmbuff.h"
 #include "tpm_common.h"

@@ -29,6 +29,11 @@ int tpm1_pcr_extend(struct tpm *t, struct tpm_digest *d)
 	struct tpm_extend_resp *resp;
 	size_t bytes, size;
 
+	if (b == NULL) {
+		ret = -EINVAL;
+		goto out;
+	}
+
 	if (!tpmb_reserve(b)) {
 		ret = -ENOMEM;
 		goto out;
