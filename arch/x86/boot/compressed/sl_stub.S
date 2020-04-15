@@ -92,7 +92,7 @@ SYM_FUNC_START(sl_stub)
 	xorl	%eax, %eax
 	cpuid
 	cmpl	$(INTEL_CPUID_MFGID_EBX), %ebx
-	jnz	.Ldo_unknown_cpu
+	jnz	.Ldo_amd
 	cmpl	$(INTEL_CPUID_MFGID_EDX), %edx
 	jnz	.Ldo_unknown_cpu
 	cmpl	$(INTEL_CPUID_MFGID_ECX), %ecx
@@ -168,8 +168,24 @@ SYM_FUNC_START(sl_stub)
 	jmp	.Lcpu_setup_done
 
 .Ldo_unknown_cpu:
-	/* AMD is not yet supported */
+	/* Neither Intel nor AMD */
 	ud2
+
+.Ldo_amd:
+	cmpl	$(AMD_CPUID_MFGID_EBX), %ebx
+	jnz	.Ldo_unknown_cpu
+	cmpl	$(AMD_CPUID_MFGID_EDX), %edx
+	jnz	.Ldo_unknown_cpu
+	cmpl	$(AMD_CPUID_MFGID_ECX), %ecx
+	jnz	.Ldo_unknown_cpu
+
+	/* Know it is AMD */
+	movl	$(SL_CPU_AMD), sl_cpu_type(%ebp)
+
+	/*
+	 * Enable global interrupts including SMI and NMI (GIF).
+	 */
+	stgi
 
 	/* On AMD %esi is set up by the Landing Zone, just go on */
 
