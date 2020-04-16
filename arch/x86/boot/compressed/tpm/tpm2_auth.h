@@ -15,7 +15,7 @@
 
 #include "tpm2.h"
 
-u16 tpm2_null_auth_size(void);
-u16 tpm2_null_auth(struct tpms_auth_cmd *a);
+u32 tpm2_null_auth_size(void);
+u8 *tpm2_null_auth(struct tpmbuff *b);
 
 #endif
