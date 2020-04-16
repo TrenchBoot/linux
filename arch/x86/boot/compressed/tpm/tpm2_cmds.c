@@ -80,7 +80,6 @@ int tpm2_extend_pcr(struct tpm *t, u32 pcr,
 {
 	struct tpmbuff *b = t->buff;
 	struct tpm2_cmd cmd;
-	u8 *ptr;
 	u16 size;
 	int ret = 0;
 
@@ -107,13 +106,13 @@ int tpm2_extend_pcr(struct tpm *t, u32 pcr,
 		goto free;
 	}
 
-	cmd.auth = (struct tpms_auth_cmd *)tpmb_put(b, tpm2_null_auth_size());
+	cmd.auth = tpm2_null_auth(b);
 	if (cmd.auth == NULL) {
 		ret = -ENOMEM;
 		goto free;
 	}
 
-	*cmd.auth_size = cpu_to_be32(tpm2_null_auth(cmd.auth));
+	*cmd.auth_size = cpu_to_be32(tpm2_null_auth_size());
 
 	size = convert_digest_list(digests);
 	if (size == 0) {
