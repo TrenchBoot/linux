@@ -26,8 +26,7 @@ int tpm1_pcr_extend(struct tpm *t, struct tpm_digest *d)
 	struct tpmbuff *b = t->buff;
 	struct tpm_header *hdr;
 	struct tpm_extend_cmd *cmd;
-	struct tpm_extend_resp *resp;
-	size_t bytes, size;
+	size_t size;
 
 	if (b == NULL) {
 		ret = -EINVAL;
