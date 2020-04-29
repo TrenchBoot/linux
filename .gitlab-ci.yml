@@ -1,0 +1,28 @@
+stages:
+  - build
+
+build:
+  stage: build
+  image: debian:stable-20200414
+  tags:
+    - local
+    - build
+  before_script:
+    - apt-get update && apt-get install -y build-essential bc bison flex libelf-dev libssl-dev
+  script:
+    - make securelaunch_defconfig
+    - make -j8
+  artifacts:
+    paths:
+      - arch/x86/boot/bzImage
+
+build_nixpkg:
+  stage: build
+  variables:
+    NIXPKG: "linux"
+    LINUX_COMMIT: "$CI_COMMIT_SHA"
+    LINUX_TAG: "$CI_COMMIT_REF_NAME"
+  trigger:
+    project: trenchboot1/3mdeb/nixos-trenchboot-configs
+    branch: master
+    strategy: depend
