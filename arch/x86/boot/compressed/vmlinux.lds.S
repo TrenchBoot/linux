@@ -76,5 +76,5 @@ SECTIONS
 }
 
 #ifdef CONFIG_SECURE_LAUNCH
-ASSERT((sl_txt_ap_wake_end - sl_txt_ap_wake_begin) <= PAGE_SIZE, "SL AP wake code bigger than PAGE_SIZE");
+ASSERT((sl_txt_ap_wake_end - sl_txt_ap_wake_begin) <= 4*PAGE_SIZE, "SL AP wake code bigger than 4 pages");
 #endif
