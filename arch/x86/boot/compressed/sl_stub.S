@@ -240,15 +240,17 @@ SYM_FUNC_START(sl_txt_ap_entry)
 	/* Unlock */
 	movl	$0, sl_txt_spin_lock(%ebp)
 
-	/* Load our AP stack */
+	/* Location of the relocated AP wake block */
+	movl	sl_txt_ap_wake_block(%ebp), %ecx
+
+	/* Load our reloc AP stack */
 	movl	$(TXT_BOOT_STACK_SIZE), %edx
 	mull	%edx
-	leal	sl_stacks_end(%ebp), %esp
+	leal	(sl_stacks_end - sl_txt_ap_wake_begin)(%ecx), %esp
 	subl	%eax, %esp
 
 	/* Load reloc GDT, set segment regs and lret to __SL32_CS */
-	movl	sl_txt_ap_wake_block(%ebp), %eax
-	lgdt	(sl_ap_gdt_desc - sl_txt_ap_wake_begin)(%eax)
+	lgdt	(sl_ap_gdt_desc - sl_txt_ap_wake_begin)(%ecx)
 
 	movl	$(__SL32_DS), %eax
 	movw	%ax, %ds
@@ -264,8 +266,7 @@ SYM_FUNC_START(sl_txt_ap_entry)
 
 .Lsl_ap_cs:
 	/* Load the relocated AP IDT */
-	movl	sl_txt_ap_wake_block(%ebp), %eax
-	lidt	(sl_ap_idt_desc - sl_txt_ap_wake_begin)(%eax)
+	lidt	(sl_ap_idt_desc - sl_txt_ap_wake_begin)(%ecx)
 
 	/* Fixup MTRRs and misc enable MSR on APs too */
 	call	sl_txt_load_regs
@@ -536,6 +537,12 @@ sl_ap_gdt:
 	.quad	0x00cf92000000ffff	/* __SL32_DS */
 sl_ap_gdt_end:
 
+	/* Small stacks for BSP and APs to work with */
+	.balign 4
+sl_stacks:
+	.fill (TXT_MAX_CPUS * TXT_BOOT_STACK_SIZE), 1, 0
+sl_stacks_end:
+
 /* This is the end of the relocated AP wake code block */
 	.global sl_txt_ap_wake_end
 sl_txt_ap_wake_end:
@@ -576,9 +583,3 @@ sl_txt_cpu_count:
 
 sl_txt_ap_wake_block:
 	.long	0x00000000
-
-	/* Small stacks for BSP and APs to work with */
-	.balign 4
-sl_stacks:
-	.fill (TXT_MAX_CPUS * TXT_BOOT_STACK_SIZE), 1, 0
-sl_stacks_end:
