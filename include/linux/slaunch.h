@@ -135,12 +135,14 @@
 #define SL_ERROR_LO_PMR_BASE		0xc0008016
 #define SL_ERROR_LO_PMR_MLE		0xc0008017
 #define SL_ERROR_HEAP_ZERO_OFFSET	0xc0008018
+#define SL_ERROR_WAKE_BLOCK_TOO_SMALL	0xc0008019
 
 /*
  * Secure Launch Defined Limits
  */
 #define TXT_MAX_CPUS		512
 #define TXT_BOOT_STACK_SIZE	24
+#define TXT_WAKE_BLOCK_SIZE	0x4000
 
 /*
  * Secure Launch event log entry type. The TXT specification defines the
@@ -226,7 +228,7 @@ struct txt_os_mle_data {
 	u64 saved_misc_enable_msr;
 	struct txt_mtrr_state saved_bsp_mtrrs;
 	u64 ap_wake_block;
-	/* These two fields should always be last */
+	u64 ap_wake_block_size;
 	u64 mle_scratch;
 	u8 event_log_buffer[TXT_MAX_EVENT_LOG_SIZE];
 } __packed;
