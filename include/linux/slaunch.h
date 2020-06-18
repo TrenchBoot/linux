@@ -1,4 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Main Secure Launch header file.
+ *
+ * Copyright (c) 2020, Oracle and/or its affiliates.
+ */
+
 #ifndef _LINUX_SLAUNCH_H
 #define _LINUX_SLAUNCH_H
 
@@ -66,12 +72,14 @@
 #define TXT_CR_CMD_RESET		0x0038
 #define TXT_CR_CMD_CLOSE_PRIVATE	0x0048
 #define TXT_CR_DIDVID			0x0110
+#define TXT_CR_VER_EMIF			0x0200
 #define TXT_CR_CMD_UNLOCK_MEM_CONFIG	0x0218
 #define TXT_CR_SINIT_BASE		0x0270
 #define TXT_CR_SINIT_SIZE		0x0278
 #define TXT_CR_MLE_JOIN			0x0290
 #define TXT_CR_HEAP_BASE		0x0300
 #define TXT_CR_HEAP_SIZE		0x0308
+#define TXT_CR_SCRATCHPAD		0x0378
 #define TXT_CR_CMD_OPEN_LOCALITY1	0x0380
 #define TXT_CR_CMD_CLOSE_LOCALITY1	0x0388
 #define TXT_CR_CMD_OPEN_LOCALITY2	0x0390
@@ -93,9 +101,8 @@
 /*
  * OS/MLE Secure Launch Specific Definitions
  */
-#define TXT_MAX_EVENT_LOG_SIZE		(5*4*1024)   /* 4k*5 */
-#define TXT_MAX_VARIABLE_MTRRS		32
 #define TXT_OS_MLE_STRUCT_VERSION	1
+#define TXT_OS_MLE_MAX_VARIABLE_MTRRS	32
 
 /*
  * TXT Heap Table Enumeration
@@ -134,7 +141,9 @@
 #define SL_ERROR_HI_PMR_SIZE		0xc0008015
 #define SL_ERROR_LO_PMR_BASE		0xc0008016
 #define SL_ERROR_LO_PMR_MLE		0xc0008017
-#define SL_ERROR_HEAP_ZERO_OFFSET	0xc0008018
+#define SL_ERROR_LO_PMR_INITRD		0xc0008018
+#define SL_ERROR_HEAP_ZERO_OFFSET	0xc0008019
+#define SL_ERROR_WAKE_BLOCK_TOO_SMALL	0xc000801a
 
 /*
  * Secure Launch Defined Limits
@@ -158,16 +167,20 @@
 /*
  * MLE scratch area offsets
  */
-#define SL_SCRATCH_AP_EBP		0
+#define SL_SCRATCH_AP_EBX		0
 #define SL_SCRATCH_AP_JMP_OFFSET	4
+#define SL_SCRATCH_AP_PAUSE		8
 
 #ifndef __ASSEMBLY__
+
+#include <linux/io.h>
 
 /*
  * Secure Launch AP wakeup information fetched in SMP boot code.
  */
 struct sl_ap_wake_info {
-	u64 ap_wake_block;
+	u32 ap_wake_block;
+	u32 ap_wake_block_size;
 	u32 ap_jmp_offset;
 };
 
@@ -213,7 +226,7 @@ struct txt_mtrr_pair {
 struct txt_mtrr_state {
 	u64 default_mem_type;
 	u64 mtrr_vcnt;
-	struct txt_mtrr_pair mtrr_pair[TXT_MAX_VARIABLE_MTRRS];
+	struct txt_mtrr_pair mtrr_pair[TXT_OS_MLE_MAX_VARIABLE_MTRRS];
 } __packed;
 
 /*
@@ -221,14 +234,14 @@ struct txt_mtrr_state {
  */
 struct txt_os_mle_data {
 	u32 version;
-	u32 zero_page_addr;
-	u8 msb_key_hash[20];
+	u32 boot_params_addr;
 	u64 saved_misc_enable_msr;
 	struct txt_mtrr_state saved_bsp_mtrrs;
-	u64 ap_wake_block;
-	/* These two fields should always be last */
-	u64 mle_scratch;
-	u8 event_log_buffer[TXT_MAX_EVENT_LOG_SIZE];
+	u32 ap_wake_block;
+	u32 ap_wake_block_size;
+	u64 evtlog_addr;
+	u32 evtlog_size;
+	u8 mle_scratch[64];
 } __packed;
 
 /*
@@ -368,10 +381,28 @@ struct tpm20_pcr_event_tail {
 	/* Event[EventSize]; */
 } __packed;
 
-#include <linux/io.h>
-
 /*
- * Functions to extract data from the Intel TXT Heap Memory
+ * Functions to extract data from the Intel TXT Heap Memory. The layout
+ * of the heap is as follows:
+ *  +----------------------------+
+ *  | Size Bios Data table (u64) |
+ *  +----------------------------+
+ *  | Bios Data table            |
+ *  +----------------------------+
+ *  | Size OS MLE table (u64)    |
+ *  +----------------------------+
+ *  | OS MLE table               |
+ *  +--------------------------- +
+ *  | Size OS SINIT table (u64)  |
+ *  +----------------------------+
+ *  | OS SINIT table             |
+ *  +----------------------------+
+ *  | Size SINIT MLE table (u64) |
+ *  +----------------------------+
+ *  | SINIT MLE table            |
+ *  +----------------------------+
+ *
+ *  NOTE: the table size fields include the 8 byte size field itself.
  */
 static inline u64 txt_bios_data_size(void *heap)
 {
@@ -497,7 +528,7 @@ extern void slaunch_setup(void);
 extern u32 slaunch_get_flags(void);
 extern struct sl_ap_wake_info *slaunch_get_ap_wake_info(void);
 extern struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table_header *dmar);
-extern void slaunch_sexit(void);
+extern void slaunch_finalize(int do_sexit);
 
 #endif /* !__ASSEMBLY */
 
@@ -506,7 +537,7 @@ extern void slaunch_sexit(void);
 #define slaunch_setup()			do { } while (0)
 #define slaunch_get_flags()		0
 #define slaunch_get_dmar_table(d)	(d)
-#define slaunch_sexit()			do { } while (0)
+#define slaunch_finalize(d)		do { } while (0)
 
 #endif /* !CONFIG_SECURE_LAUNCH */
 
