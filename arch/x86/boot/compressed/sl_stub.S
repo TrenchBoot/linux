@@ -33,6 +33,21 @@
 	.byte 	0x0f, 0x37	/* GETSEC opcode */
 .endm
 
+.macro TXT_RESET error
+	/*
+	 * Set a sticky error value and reset. Note the movs to %eax act as
+	 * TXT register barriers.
+	 */
+	movl	\error, (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_ERRORCODE)
+	movl	(TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_E2STS), %eax
+	movl	$1, (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_CMD_NO_SECRETS)
+	movl	(TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_E2STS), %eax
+	movl	$1, (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_CMD_UNLOCK_MEM_CONFIG)
+	movl	(TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_E2STS), %eax
+	movl	$1, (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_CMD_RESET)
+	hlt
+.endm
+
 	/*
 	 * The MLE Header per the TXT Specification, section 2.1
 	 * MLE capabilities, see table 2.
@@ -128,8 +143,14 @@ SYM_FUNC_START(sl_stub)
 	/* Skip over BIOS data and size of OS to MLE data section */
 	leal	8(%eax, %ecx), %eax
 
-	/* Get the zero page address from the heap.
-	 *
+	/* Check that the AP wake block is big enough */
+	cmpl	$(TXT_WAKE_BLOCK_SIZE), SL_ap_wake_block_size(%eax)
+	jae	.Lwake_block_ok
+	TXT_RESET $(SL_ERROR_WAKE_BLOCK_TOO_SMALL)
+
+.Lwake_block_ok:
+	/*
+	 * Get the zero page address from the heap.
 	 * Note %esi and %ebp MUST be preserved across calls and
 	 * operations.
 	 */
@@ -498,14 +519,7 @@ SYM_FUNC_START(sl_txt_int_ipi_wake)
 SYM_FUNC_END(sl_txt_int_ipi_wake)
 
 SYM_FUNC_START(sl_txt_int_reset)
-	/* Set a sticky error value and reset */
-	movl	$(SL_ERROR_INV_AP_INTERRUPT), (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_ERRORCODE)
-	/* The movs to %eax act as TXT register barriers */
-	movl	(TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_E2STS), %eax
-	movl	$1, (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_CMD_UNLOCK_MEM_CONFIG)
-	movl	(TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_E2STS), %eax
-	movl	$1, (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_CMD_RESET)
-	hlt
+	TXT_RESET $(SL_ERROR_INV_AP_INTERRUPT)
 SYM_FUNC_END(sl_txt_int_reset)
 
 	.balign 16
