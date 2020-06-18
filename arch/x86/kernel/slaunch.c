@@ -70,6 +70,8 @@ static void __init slaunch_txt_reset(void __iomem *txt,
 	 */
 	memcpy_toio(txt + TXT_CR_ERRORCODE, &error, sizeof(u64));
 	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(u64));
+	memcpy_toio(txt + TXT_CR_CMD_NO_SECRETS, &one, sizeof(u64));
+	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(u64));
 	memcpy_toio(txt + TXT_CR_CMD_UNLOCK_MEM_CONFIG, &one, sizeof(u64));
 	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(u64));
 	memcpy_toio(txt + TXT_CR_CMD_RESET, &one, sizeof(u64));
