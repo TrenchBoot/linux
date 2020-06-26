@@ -162,6 +162,7 @@
  */
 #define SL_SCRATCH_AP_EBP		0
 #define SL_SCRATCH_AP_JMP_OFFSET	4
+#define SL_SCRATCH_AP_PAUSE		8
 
 #ifndef __ASSEMBLY__
 
@@ -169,7 +170,7 @@
  * Secure Launch AP wakeup information fetched in SMP boot code.
  */
 struct sl_ap_wake_info {
-	u64 ap_wake_block;
+	u32 ap_wake_block;
 	u32 ap_jmp_offset;
 };
 
@@ -224,12 +225,12 @@ struct txt_mtrr_state {
 struct txt_os_mle_data {
 	u32 version;
 	u32 zero_page_addr;
-	u8 msb_key_hash[20];
+	u8 msb_key_hash[64];
 	u64 saved_misc_enable_msr;
 	struct txt_mtrr_state saved_bsp_mtrrs;
-	u64 ap_wake_block;
-	u64 ap_wake_block_size;
-	u64 mle_scratch;
+	u32 ap_wake_block;
+	u32 ap_wake_block_size;
+	u8 mle_scratch[16];
 	u8 event_log_buffer[TXT_MAX_EVENT_LOG_SIZE];
 } __packed;
 
