@@ -349,8 +349,7 @@ static void __init slaunch_fetch_ap_wake_block(void __iomem *txt)
 
 	ap_wake_info.ap_wake_block = os_mle_data->ap_wake_block;
 
-	jmp_offset = ((u8 *)&os_mle_data->mle_scratch)
-			+ SL_SCRATCH_AP_JMP_OFFSET;
+	jmp_offset = os_mle_data->mle_scratch + SL_SCRATCH_AP_JMP_OFFSET;
 	ap_wake_info.ap_jmp_offset = *((u32 *)jmp_offset);
 
 	early_memunmap(os_mle_data, field_offset);
