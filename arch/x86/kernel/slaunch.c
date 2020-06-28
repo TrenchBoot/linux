@@ -454,21 +454,25 @@ void __init slaunch_setup(void)
  */
 struct memfile {
 	char *name;
-	void __iomem *addr;
+	void *addr;
 	size_t size;
 };
 
 static struct memfile sl_evtlog = {"eventlog", 0, 0};
-static void __iomem *txt_heap;
 static struct txt_heap_event_log_pointer2_1_element __iomem *evtlog20;
-
-static DEFINE_MUTEX(sl_evt_write_mutex);
+static DEFINE_MUTEX(sl_evt_log_mutex);
 
 static ssize_t sl_evtlog_read(struct file *file, char __user *buf,
 			      size_t count, loff_t *pos)
 {
-	return simple_read_from_buffer(buf, count, pos,
-		sl_evtlog.addr, sl_evtlog.size);
+	ssize_t size;
+
+	mutex_lock(&sl_evt_log_mutex);
+	size = simple_read_from_buffer(buf, count, pos, sl_evtlog.addr,
+				       sl_evtlog.size);
+	mutex_unlock(&sl_evt_log_mutex);
+
+	return size;
 }
 
 static ssize_t sl_evtlog_write(struct file *file, const char __user *buf,
@@ -488,13 +492,13 @@ static ssize_t sl_evtlog_write(struct file *file, const char __user *buf,
 		goto out;
 	}
 
-	mutex_lock(&sl_evt_write_mutex);
+	mutex_lock(&sl_evt_log_mutex);
 	if (evtlog20)
 		result = tpm20_log_event(evtlog20, sl_evtlog.addr,
 					 datalen, data);
 	else
 		result = tpm12_log_event(sl_evtlog.addr, datalen, data);
-	mutex_unlock(&sl_evt_write_mutex);
+	mutex_unlock(&sl_evt_log_mutex);
 
 	kfree(data);
 out:
@@ -554,19 +558,18 @@ static void slaunch_teardown_securityfs(void)
 		securityfs_remove(fs_entries[i]);
 
 	if (sl_flags & SL_FLAG_ARCH_TXT) {
-		if (txt_heap) {
-			memunmap(txt_heap);
-			txt_heap = NULL;
+		if (sl_evtlog.addr) {
+			memunmap(sl_evtlog.addr);
+			sl_evtlog.addr = NULL;
 		}
+		sl_evtlog.size = 0;
 	}
-
-	sl_evtlog.addr = 0;
-	sl_evtlog.size = 0;
 }
 
 static void slaunch_intel_evtlog(void)
 {
 	void __iomem *config;
+	void *txt_heap;
 	struct txt_os_mle_data *params;
 	void *os_sinit_data;
 	u64 base, size;
@@ -591,13 +594,18 @@ static void slaunch_intel_evtlog(void)
 
 	params = (struct txt_os_mle_data *)txt_os_mle_data_start(txt_heap);
 
-	sl_evtlog.size = TXT_MAX_EVENT_LOG_SIZE;
-	sl_evtlog.addr = (void __iomem *)&params->event_log_buffer[0];
+	sl_evtlog.size = params->evtlog_size;
+	sl_evtlog.addr = memremap(params->evtlog_addr, params->evtlog_size,
+				  MEMREMAP_WB);
+	if (!sl_evtlog.addr) {
+		pr_err("Error failed to memremap TPM event log\n");
+		goto out;
+	}
 
 	/* Determine if this is TPM 1.2 or 2.0 event log */
 	if (memcmp(sl_evtlog.addr + sizeof(struct tpm12_pcr_event),
 		    TPM20_EVTLOG_SIGNATURE, sizeof(TPM20_EVTLOG_SIGNATURE)))
-		return; /* looks like it is not 2.0 */
+		goto out; /* looks like it is not 2.0 */
 
 	/* For TPM 2.0 logs, the extended heap element must be located */
 	os_sinit_data = txt_os_sinit_data_start(txt_heap);
@@ -610,6 +618,9 @@ static void slaunch_intel_evtlog(void)
 	 */
 	if (!evtlog20)
 		pr_err("Error failed to find TPM20 event log element\n");
+
+out:
+	memunmap(txt_heap);
 }
 
 static int __init slaunch_late_init(void)
