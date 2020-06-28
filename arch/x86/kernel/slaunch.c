@@ -341,18 +341,16 @@ static void __init slaunch_fetch_ap_wake_block(void __iomem *txt)
 {
 	struct txt_os_mle_data *os_mle_data;
 	u8 *jmp_offset;
-	u32 field_offset;
 
-	field_offset = offsetof(struct txt_os_mle_data, event_log_buffer);
 	os_mle_data = txt_early_get_heap_table(txt, TXT_OS_MLE_DATA_TABLE,
-					       field_offset);
+					       sizeof(struct txt_os_mle_data));
 
 	ap_wake_info.ap_wake_block = os_mle_data->ap_wake_block;
 
 	jmp_offset = os_mle_data->mle_scratch + SL_SCRATCH_AP_JMP_OFFSET;
 	ap_wake_info.ap_jmp_offset = *((u32 *)jmp_offset);
 
-	early_memunmap(os_mle_data, field_offset);
+	early_memunmap(os_mle_data, sizeof(struct txt_os_mle_data));
 }
 
 /*
