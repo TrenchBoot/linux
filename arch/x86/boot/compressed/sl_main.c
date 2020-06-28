@@ -126,7 +126,7 @@ static void sl_find_event_log(struct tpm *tpm)
 	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
 
 	os_mle_data = txt_os_mle_data_start(txt_heap);
-	evtlog_base = (void *)&os_mle_data->event_log_buffer[0];
+	evtlog_base = (void *)os_mle_data->evtlog_addr;
 
 	if (tpm->family != TPM20)
 		return;
@@ -394,19 +394,16 @@ void sl_main(u8 *bootparams)
 		txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
 		os_mle_data = txt_os_mle_data_start(txt_heap);
 
-		/*
-		* Measure OS-MLE data up to the MLE scratch field. The MLE
-		* scratch field and the TPM logging should not be measured.
-		*/
+		/* Measure OS-MLE data up to the MLE scratch field. */
 		os_mle_len = offsetof(struct txt_os_mle_data, mle_scratch);
 		sl_tpm_extend_pcr(tpm, SL_CONFIG_PCR18, (u8 *)os_mle_data,
 				  os_mle_len,
 				  "Measured TXT OS-MLE data into PCR18");
 
 		/*
-		* Now that the OS-MLE data is measured, ensure the MTRR and
-		* misc enable MSRs are what we expect.
-		*/
+		 * Now that the OS-MLE data is measured, ensure the MTRR and
+		 * misc enable MSRs are what we expect.
+		 */
 		sl_txt_validate_msrs(os_mle_data);
 	}
 
