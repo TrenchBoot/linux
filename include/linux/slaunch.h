@@ -93,7 +93,6 @@
 /*
  * OS/MLE Secure Launch Specific Definitions
  */
-#define TXT_MAX_EVENT_LOG_SIZE		(5*4*1024)   /* 4k*5 */
 #define TXT_MAX_VARIABLE_MTRRS		32
 #define TXT_OS_MLE_STRUCT_VERSION	1
 
@@ -230,8 +229,9 @@ struct txt_os_mle_data {
 	struct txt_mtrr_state saved_bsp_mtrrs;
 	u32 ap_wake_block;
 	u32 ap_wake_block_size;
+	u64 evtlog_addr;
+	u32 evtlog_size;
 	u8 mle_scratch[16];
-	u8 event_log_buffer[TXT_MAX_EVENT_LOG_SIZE];
 } __packed;
 
 /*
