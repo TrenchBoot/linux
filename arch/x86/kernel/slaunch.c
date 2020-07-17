@@ -142,7 +142,7 @@ static void __init *txt_early_get_heap_table(void __iomem *txt, u32 type,
 static void __init slaunch_verify_pmrs(void __iomem *txt)
 {
 	struct txt_os_sinit_data *os_sinit_data;
-	unsigned long last_pfn;
+	unsigned long last_pfn, initrd_extent;
 	u32 field_offset, err = 0;
 	const char *errmsg = "";
 
@@ -182,7 +182,8 @@ static void __init slaunch_verify_pmrs(void __iomem *txt)
 
 	/*
 	 * Check that if the kernel was loaded below 4G, that it is protected
-	 * by the lo PMR.
+	 * by the lo PMR. Note this is the decompressed kernel. The ACM would
+	 * have ensured the compressed kernel (the MLE image) was protected.
 	 */
 	if ((__pa_symbol(_end) < 0x100000000ULL) &&
 	    (__pa_symbol(_end) > os_sinit_data->vtd_pmr_lo_size)) {
@@ -196,6 +197,22 @@ static void __init slaunch_verify_pmrs(void __iomem *txt)
 	    os_sinit_data->vtd_pmr_lo_size) {
 		err = SL_ERROR_LO_PMR_MLE;
 		errmsg = "Error lo PMR does not cover AP wake block\n";
+	}
+
+	/*
+	 * If an external initrd is present and loaded below 4G, check
+	 * that it is protected by the lo PMR.
+	 */
+	if (boot_params.hdr.ramdisk_image != 0 &&
+	    boot_params.hdr.ramdisk_size != 0) {
+		initrd_extent = boot_params.hdr.ramdisk_image +
+				boot_params.hdr.ramdisk_size;
+		if ((initrd_extent < 0x100000000ULL) &&
+		    (initrd_extent > os_sinit_data->vtd_pmr_lo_size)) {
+			err = SL_ERROR_LO_PMR_INITRD;
+			errmsg = "Error lo PMR does not cover external initrd\n";
+			goto out;
+		}
 	}
 
 out:
