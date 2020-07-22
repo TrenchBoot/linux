@@ -494,6 +494,21 @@ static inline int tpm20_log_event(struct txt_heap_event_log_pointer2_1_element *
 	return 0;
 }
 
+struct sl_header {
+	u16 lz_offset;
+	u16 lz_length;
+} __packed;
+
+struct lz_header {
+	u8  uuid[16]; /* 78 f1 26 8e 04 92 11 e9  83 2a c8 5b 76 c4 cc 02 */
+	u32 slaunch_loader_size;
+	u32 zero_page_addr;
+	u32 event_log_addr;
+	u32 event_log_size;
+	u8  msb_key_hash[20];
+	u8 lz_hashes[];
+} __packed;
+
 /*
  * External functions
  */
