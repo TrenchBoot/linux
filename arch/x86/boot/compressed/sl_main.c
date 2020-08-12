@@ -286,7 +286,6 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 length,
 			sl_tpm20_log_event(pcr, &sha256_hash[0],
 					   TPM_ALG_SHA256,
 					   (const u8 *)desc, strlen(desc));
-			return;
 		} else {
 			if (sl_cpu_type == SL_CPU_INTEL)
 				sl_txt_reset(SL_ERROR_TPM_EXTEND);
@@ -306,7 +305,6 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 length,
 			sl_tpm20_log_event(pcr, &sha512_hash[0],
 					   TPM_ALG_SHA512,
 					   (const u8 *)desc, strlen(desc));
-			return;
 		} else {
 			if (sl_cpu_type == SL_CPU_INTEL)
 				sl_txt_reset(SL_ERROR_TPM_EXTEND);
