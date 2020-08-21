@@ -173,6 +173,7 @@
  */
 struct sl_ap_wake_info {
 	u32 ap_wake_block;
+	u32 ap_wake_block_size;
 	u32 ap_jmp_offset;
 };
 
