@@ -1175,7 +1175,8 @@ int kernel_kexec(void)
 		pr_emerg("Starting new kernel\n");
 		machine_shutdown();
 
-		slaunch_sexit();
+		/* Finalize TXT registers and do SEXIT */
+		slaunch_finalize(1);
 	}
 
 	machine_kexec(kexec_image);
