@@ -779,13 +779,13 @@ late_initcall(slaunch_late_init);
 
 __exitcall(slaunch_exit);
 
-static inline void txt_getsec_sexit(void)
+static inline void smx_getsec_sexit(void)
 {
 	asm volatile (".byte 0x0f,0x37\n"
 		      : : "a" (SMX_X86_GETSEC_SEXIT));
 }
 
-void slaunch_sexit(void)
+void slaunch_finalize(int do_sexit)
 {
 	void __iomem *config;
 	u64 one = 1, val;
@@ -793,15 +793,10 @@ void slaunch_sexit(void)
 	if (!(slaunch_get_flags() & (SL_FLAG_ACTIVE|SL_FLAG_ARCH_TXT)))
 		return;
 
-	if (smp_processor_id() != 0) {
-		pr_err("Error TXT SEXIT must be called on CPU 0\n");
-		return;
-	}
-
 	config = ioremap(TXT_PRIV_CONFIG_REGS_BASE, TXT_NR_CONFIG_PAGES *
 			 PAGE_SIZE);
 	if (!config) {
-		pr_err("Error SEXIT failed to ioremap TXT private reqs\n");
+		pr_emerg("Error SEXIT failed to ioremap TXT private reqs\n");
 		return;
 	}
 
@@ -829,17 +824,27 @@ void slaunch_sexit(void)
 	config = ioremap(TXT_PUB_CONFIG_REGS_BASE, TXT_NR_CONFIG_PAGES *
 			 PAGE_SIZE);
 	if (!config) {
-		pr_err("Error SEXIT failed to ioremap TXT public reqs\n");
+		pr_emerg("Error SEXIT failed to ioremap TXT public reqs\n");
 		return;
 	}
 
 	memcpy_fromio(&val, config + TXT_CR_E2STS, sizeof(u64));
 
+	pr_emerg("TXT clear secrets bit and unlock memory complete.");
+
+	if (!do_sexit)
+		return;
+
+	if (smp_processor_id() != 0) {
+		pr_emerg("Error TXT SEXIT must be called on CPU 0\n");
+		return;
+	}
+
 	/* Disable SMX mode */
 	cr4_set_bits(X86_CR4_SMXE);
 
 	/* Do the SEXIT SMX operation */
-	txt_getsec_sexit();
+	smx_getsec_sexit();
 
 	pr_emerg("TXT SEXIT complete.");
 }
