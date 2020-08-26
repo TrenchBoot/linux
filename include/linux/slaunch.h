@@ -504,7 +504,7 @@ extern void slaunch_setup(void);
 extern u32 slaunch_get_flags(void);
 extern struct sl_ap_wake_info *slaunch_get_ap_wake_info(void);
 extern struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table_header *dmar);
-extern void slaunch_sexit(void);
+extern void slaunch_finalize(int do_sexit);
 
 #endif /* !__ASSEMBLY */
 
@@ -513,7 +513,7 @@ extern void slaunch_sexit(void);
 #define slaunch_setup()			do { } while (0)
 #define slaunch_get_flags()		0
 #define slaunch_get_dmar_table(d)	(d)
-#define slaunch_sexit()			do { } while (0)
+#define slaunch_finalize(d)		do { } while (0)
 
 #endif /* !CONFIG_SECURE_LAUNCH */
 
