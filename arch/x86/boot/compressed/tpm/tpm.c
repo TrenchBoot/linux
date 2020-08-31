@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Apertus Solutions, LLC
+ * Copyright (c) 2020 Apertus Solutions, LLC
  *
  * Author(s):
  *      Daniel P. Smith <dpsmith@apertussolutions.com>
