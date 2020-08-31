@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Copyright (c) 2020, Oracle and/or its affiliates.
+ */
+
 #ifndef BOOT_COMPRESSED_EARLY_SHA1_H
 #define BOOT_COMPRESSED_EARLY_SHA1_H
-
-/*
- * Copyright (c) 2019 Oracle and/or its affiliates. All rights reserved.
- */
 
 #include <crypto/sha.h>
 
