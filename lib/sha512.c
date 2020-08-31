@@ -4,7 +4,7 @@
  * Copyright (c) Andrew McDonald <andrew@mcdonald.org.uk>
  * Copyright (c) 2003 Kyle McMartin <kyle@debian.org>
  * Copyright (C) 2015 Linaro Ltd <ard.biesheuvel@linaro.org>
- * Copyright (C) 2019 Apertus Solutions, LLC <dpsmith@apertussolutions.com>
+ * Copyright (C) 2020 Apertus Solutions, LLC <dpsmith@apertussolutions.com>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
