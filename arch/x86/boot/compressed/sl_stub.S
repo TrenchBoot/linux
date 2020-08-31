@@ -1,7 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
 /*
- * Copyright (c) 2019 Oracle and/or its affiliates. All rights reserved.
+ * Secure Launch protected mode entry point.
+ *
+ * Copyright (c) 2020, Oracle and/or its affiliates.
  */
 	.code32
 	.text
