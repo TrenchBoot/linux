@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2019 Apertus Solutions, LLC
+ * Copyright (c) 2020 Apertus Solutions, LLC
  *
  * Author(s):
  *      Daniel P. Smith <dpsmith@apertussolutions.com>
@@ -7,6 +8,7 @@
  */
 
 #include <linux/types.h>
+#include <linux/const.h>
 #include <linux/string.h>
 #include <linux/errno.h>
 #include "tpm.h"
@@ -51,48 +53,24 @@ struct tpm *enable_tpm(void)
 	find_interface_and_family(t);
 
 	switch (t->intf) {
-	case TPM_DEVNODE:
-		/* Not implemented yet */
-		break;
 	case TPM_TIS:
 		if (!tis_init(t))
-			goto err;
+			return NULL;
 		break;
 	case TPM_CRB:
 		if (!crb_init(t))
-			goto err;
-		break;
-	case TPM_UEFI:
-		/* Not implemented yet */
+			return NULL;
 		break;
 	}
 
-	/* TODO: ACPI TPM discovery */
-
 	return t;
-
-err:
-	return NULL;
 }
 
 u8 tpm_request_locality(struct tpm *t, u8 l)
 {
 	u8 ret = TPM_NO_LOCALITY;
 
-	switch (t->intf) {
-	case TPM_DEVNODE:
-		/* Not implemented yet */
-		break;
-	case TPM_TIS:
-		ret = tis_request_locality(l);
-		break;
-	case TPM_CRB:
-		ret = crb_request_locality(l);
-		break;
-	case TPM_UEFI:
-		/* Not implemented yet */
-		break;
-	}
+	ret = t->ops.request_locality(l);
 
 	if (ret < TPM_MAX_LOCALITY)
 		t->buff = alloc_tpmbuff(t->intf, ret);
@@ -102,20 +80,7 @@ u8 tpm_request_locality(struct tpm *t, u8 l)
 
 void tpm_relinquish_locality(struct tpm *t)
 {
-	switch (t->intf) {
-	case TPM_DEVNODE:
-		/* Not implemented yet */
-		break;
-	case TPM_TIS:
-		tis_relinquish_locality();
-		break;
-	case TPM_CRB:
-		crb_relinquish_locality();
-		break;
-	case TPM_UEFI:
-		/* Not implemented yet */
-		break;
-	}
+	t->ops.relinquish_locality();
 
 	free_tpmbuff(t->buff, t->intf);
 }
@@ -126,18 +91,14 @@ int tpm_extend_pcr(struct tpm *t, u32 pcr, u16 algo,
 {
 	int ret = 0;
 
-	if (t->buff == NULL) {
-		ret = -EINVAL;
-		goto out;
-	}
+	if (t->buff == NULL)
+		return -EINVAL;
 
 	if (t->family == TPM12) {
 		struct tpm_digest d;
 
-		if (algo != TPM_ALG_SHA1) {
-			ret = -EINVAL;
-			goto out;
-		}
+		if (algo != TPM_ALG_SHA1)
+			return -EINVAL;
 
 		d.pcr = pcr;
 		memcpy((void *)d.digest.sha1.digest,
@@ -150,37 +111,31 @@ int tpm_extend_pcr(struct tpm *t, u32 pcr, u16 algo,
 
 		d = (struct tpml_digest_values *) buf;
 		d->count = 1;
+		d->digests->alg = algo;
 		switch (algo) {
 		case TPM_ALG_SHA1:
-			d->digests->alg = TPM_ALG_SHA1;
 			memcpy(d->digests->digest, digest, SHA1_SIZE);
 			break;
 		case TPM_ALG_SHA256:
-			d->digests->alg = TPM_ALG_SHA256;
 			memcpy(d->digests->digest, digest, SHA256_SIZE);
 			break;
 		case TPM_ALG_SHA384:
-			d->digests->alg = TPM_ALG_SHA384;
 			memcpy(d->digests->digest, digest, SHA384_SIZE);
 			break;
 		case TPM_ALG_SHA512:
-			d->digests->alg = TPM_ALG_SHA512;
 			memcpy(d->digests->digest, digest, SHA512_SIZE);
 			break;
 		case TPM_ALG_SM3_256:
-			d->digests->alg = TPM_ALG_SM3_256;
 			memcpy(d->digests->digest, digest, SM3256_SIZE);
 			break;
 		default:
-			ret = -EINVAL;
-			goto out;
+			return -EINVAL;
 		}
 
 		ret = tpm2_extend_pcr(t, pcr, d);
-	} else {
+	} else
 		ret = -EINVAL;
-	}
-out:
+
 	return ret;
 }
 
