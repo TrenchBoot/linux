@@ -1,4 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Main Secure Launch header file.
+ *
+ * Copyright (c) 2020, Oracle and/or its affiliates.
+ */
+
 #ifndef _LINUX_SLAUNCH_H
 #define _LINUX_SLAUNCH_H
 
