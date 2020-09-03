@@ -101,8 +101,8 @@
 /*
  * OS/MLE Secure Launch Specific Definitions
  */
-#define TXT_MAX_VARIABLE_MTRRS		32
 #define TXT_OS_MLE_STRUCT_VERSION	1
+#define TXT_OS_MLE_MAX_VARIABLE_MTRRS	32
 
 /*
  * TXT Heap Table Enumeration
@@ -225,7 +225,7 @@ struct txt_mtrr_pair {
 struct txt_mtrr_state {
 	u64 default_mem_type;
 	u64 mtrr_vcnt;
-	struct txt_mtrr_pair mtrr_pair[TXT_MAX_VARIABLE_MTRRS];
+	struct txt_mtrr_pair mtrr_pair[TXT_OS_MLE_MAX_VARIABLE_MTRRS];
 } __packed;
 
 /*
@@ -233,7 +233,7 @@ struct txt_mtrr_state {
  */
 struct txt_os_mle_data {
 	u32 version;
-	u32 zero_page_addr;
+	u32 boot_params_addr;
 	u8 msb_key_hash[64];
 	u64 saved_misc_enable_msr;
 	struct txt_mtrr_state saved_bsp_mtrrs;
@@ -384,7 +384,27 @@ struct tpm20_pcr_event_tail {
 #include <linux/io.h>
 
 /*
- * Functions to extract data from the Intel TXT Heap Memory
+ * Functions to extract data from the Intel TXT Heap Memory. The layout
+ * of the heap is as follows:
+ *  +----------------------------+
+ *  | Size Bios Data table (u64) |
+ *  +----------------------------+
+ *  | Bios Data table            |
+ *  +----------------------------+
+ *  | Size OS MLE table (u64)    |
+ *  +----------------------------+
+ *  | OS MLE table               |
+ *  +--------------------------- +
+ *  | Size OS SINIT table (u64)  |
+ *  +----------------------------+
+ *  | OS SINIT table             |
+ *  +----------------------------+
+ *  | Size SINIT MLE table (u64) |
+ *  +----------------------------+
+ *  | SINIT MLE table            |
+ *  +----------------------------+
+ *
+ *  NOTE: the table size fields include the 8 byte size field itself.
  */
 static inline u64 txt_bios_data_size(void *heap)
 {
