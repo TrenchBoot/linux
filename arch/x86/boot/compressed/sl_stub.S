@@ -74,7 +74,9 @@ SYM_DATA_END(mle_header)
 SYM_FUNC_START(sl_stub)
 	/*
 	 * On entry, %ebp has the base address from head_64.S
-	 * and only %cs is known good
+	 * and the code segment is known good. The data and stack
+	 * segments are fine too so we can get to our stack before
+	 * loading the GDT.
 	 */
 	cli
 	cld
@@ -228,11 +230,10 @@ SYM_FUNC_END(sl_stub)
 SYM_FUNC_START(sl_txt_ap_entry)
 	cli
 	cld
-
 	/*
-	 * The code segment is known good. The data segments are
-	 * fine too so we can get to our stack before loading the
-	 * GDT.
+	 * The code segment is known good. The data and stack
+	 * segments are fine too so we can get to our stack before
+	 * loading the GDT.
 	 *
 	 * First order of business is to find where we are and
 	 * save it in ebp.
@@ -254,6 +255,7 @@ SYM_FUNC_START(sl_txt_ap_entry)
 .Lspin:
 	xorl	%eax, %eax
 	lock cmpxchgl	%ecx, sl_txt_spin_lock(%ebp)
+	pause
 	jnz	.Lspin
 
 	/* Increment the stack index and use the next value inside lock */

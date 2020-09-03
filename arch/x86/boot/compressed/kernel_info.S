@@ -15,7 +15,7 @@ kernel_info:
 	.long	kernel_info_end - kernel_info
 
 	/* Maximal allowed type for setup_data and setup_indirect structs. */
-	.long	SETUP_TYPE_MAX
+	.long   SETUP_TYPE_MAX
 
 	/* Offset to the MLE header structure */
 #ifdef CONFIG_SECURE_LAUNCH
