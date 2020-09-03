@@ -31,6 +31,8 @@
 #include "tpm/tpm2_constants.h"
 #include "tpm/tpm.h"
 
+#define CAPS_VARIABLE_MTRR_COUNT_MASK	0xff
+
 #define SL_MAX_EVENT_DATA	64
 #define SL_TPM12_LOG_SIZE	(sizeof(struct tpm12_pcr_event) + \
 				SL_MAX_EVENT_DATA)
@@ -84,7 +86,6 @@ static u64 sl_rdmsr(u32 reg)
 
 static void sl_txt_validate_msrs(struct txt_os_mle_data *os_mle_data)
 {
-#define CAPS_VARIABLE_MTRR_COUNT_MASK   0xff
 	u64 mtrr_caps, mtrr_def_type, mtrr_var, misc_en_msr;
 	u32 vcnt, i;
 	struct txt_mtrr_state *saved_bsp_mtrrs =
@@ -151,12 +152,11 @@ static void sl_tpm12_log_event(u32 pcr, u8 *digest,
 {
 	struct tpm12_pcr_event *pcr_event;
 	u32 total_size;
-	u8 log_buf[SL_TPM12_LOG_SIZE];
+	u8 log_buf[SL_TPM12_LOG_SIZE] = {0};
 
 	if (sl_cpu_type == SL_CPU_AMD)
 		return;
 
-	memset(log_buf, 0, SL_TPM12_LOG_SIZE);
 	pcr_event = (struct tpm12_pcr_event *)log_buf;
 	pcr_event->pcr_index = pcr;
 	pcr_event->type = TXT_EVTYPE_SLAUNCH;
@@ -180,12 +180,11 @@ static void sl_tpm20_log_event(u32 pcr, u8 *digest, u16 algo,
 	struct tpm20_pcr_event_tail *tail;
 	u8 *dptr;
 	u32 total_size;
-	u8 log_buf[SL_TPM20_LOG_SIZE];
+	u8 log_buf[SL_TPM20_LOG_SIZE] = {0};
 
 	if (sl_cpu_type == SL_CPU_AMD)
 		return;
 
-	memset(log_buf, 0, SL_TPM20_LOG_SIZE);
 	head = (struct tpm20_pcr_event_head *)log_buf;
 	head->pcr_index = pcr;
 	head->event_type = TXT_EVTYPE_SLAUNCH;
