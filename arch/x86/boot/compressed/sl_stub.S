@@ -156,7 +156,7 @@ SYM_FUNC_START(sl_stub)
 	 * Note %esi and %ebp MUST be preserved across calls and
 	 * operations.
 	 */
-	movl	SL_zero_page_addr(%eax), %esi
+	movl	SL_boot_params_addr(%eax), %esi
 
 	/* Save ebp so the APs can find their way home */
 	movl	%ebp, (SL_mle_scratch + SL_SCRATCH_AP_EBP)(%eax)

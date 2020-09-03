@@ -95,7 +95,7 @@ static void sl_txt_validate_msrs(struct txt_os_mle_data *os_mle_data)
 
 	if (saved_bsp_mtrrs->mtrr_vcnt > vcnt)
 		sl_txt_reset(SL_ERROR_MTRR_INV_VCNT);
-	if (saved_bsp_mtrrs->mtrr_vcnt > TXT_MAX_VARIABLE_MTRRS)
+	if (saved_bsp_mtrrs->mtrr_vcnt > TXT_OS_MLE_MAX_VARIABLE_MTRRS)
 		sl_txt_reset(SL_ERROR_MTRR_INV_VCNT);
 
 	mtrr_def_type = sl_rdmsr(MSR_MTRRdefType);
