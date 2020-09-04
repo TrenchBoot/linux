@@ -147,9 +147,20 @@ static void sl_find_event_log(struct tpm *tpm)
 
 	if (sl_cpu_type == SL_CPU_AMD) {
 		struct sl_header *sl_hdr = sl_lz_base;
-		struct lz_header *lz_hdr = sl_lz_base + sl_hdr->lz_length;
+		struct lz_tag_tags_size *t = sl_lz_base + sl_hdr->bootloader_data_offset;
+		struct lz_tag_evtlog *t_log = (struct lz_tag_evtlog *)t;
+		void *end = (void *)t + t->size;
 
-		evtlog_base = (void *)(uintptr_t)lz_hdr->event_log_addr;
+		while ((void *)t_log < end
+		       && t_log->hdr.type != LZ_TAG_EVENT_LOG
+		       && t_log->hdr.type != LZ_TAG_END) {
+			t_log = (void *)t_log + t_log->hdr.len;
+		}
+
+		if (t_log->hdr.type != LZ_TAG_EVENT_LOG)
+			return;
+
+		evtlog_base = (void *)(uintptr_t)t_log->address;
 
 		if (tpm->family == TPM12) {
 			evtlog_base += sizeof(struct tpm12_pcr_event)
