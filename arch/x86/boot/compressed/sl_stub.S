@@ -74,7 +74,7 @@ SYM_DATA_END(mle_header)
 SYM_FUNC_START(sl_stub)
 	/*
 	 * On entry, %ebp has the base address from head_64.S
-	 * and only %cs is known good
+	 * and only %cs is known good. For AMD, %edx holds the LZ base.
 	 */
 	cli
 	cld
@@ -102,6 +102,12 @@ SYM_FUNC_START(sl_stub)
 	lret
 
 .Lsl_cs:
+	/*
+	 * Save LZ base before CPUID instruction overwrites it.
+	 * Performs cast from u32 to 64b void* for simpler use later.
+	 */
+	movl	%edx, sl_lz_base(%ebp)
+
 	/* Assume unknown CPU start */
 	xorl	%edi, %edi
 
@@ -587,6 +593,10 @@ sl_smx_rlp_mle_join:
 SYM_DATA_START(sl_cpu_type)
 	.long	0x00000000
 SYM_DATA_END(sl_cpu_type)
+
+SYM_DATA_START(sl_lz_base)
+	.quad	0x0000000000000000
+SYM_DATA_END(sl_lz_base)
 
 sl_txt_spin_lock:
 	.long	0x00000000

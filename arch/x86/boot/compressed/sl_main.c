@@ -45,6 +45,7 @@ static void *evtlog_base;
 static struct txt_heap_event_log_pointer2_1_element *log20_elem;
 
 extern u32 sl_cpu_type;
+extern void *sl_lz_base;
 
 static u64 sl_txt_read(u32 reg)
 {
@@ -116,14 +117,64 @@ static void sl_txt_validate_msrs(struct txt_os_mle_data *os_mle_data)
 		sl_txt_reset(SL_ERROR_MSR_INV_MISC_EN);
 }
 
+/*
+ * In order to simplify adding new entries and to minimize the number of
+ * differences between AMD and Intel, the event logs have actually two headers,
+ * both for TPM 1.2 and 2.0.
+ *
+ * For TPM 1.2 this is TCG_PCClientSpecIDEventStruct [1] with Intel's own
+ * TXT-specific header embedded inside its 'vendorInfo' field. The offset to
+ * this field is added to the base address in AMD path, making the code for
+ * adding new events the same for both vendors.
+ *
+ * TPM 2.0 in TXT uses HEAP_EVENT_LOG_POINTER_ELEMENT2_1 structure, which is
+ * normally constructed on the TXT stack [2]. For AMD, this structure is put
+ * inside TCG_EfiSpecIdEvent [3], also in 'vendorInfo' field. The actual offset
+ * to this field depends on number of hash algorithms supported by the event
+ * log.
+ *
+ * [1] https://www.trustedcomputinggroup.org/wp-content/uploads/TCG_PCClientImplementation_1-21_1_00.pdf
+ * [2] http://www.intel.com/content/dam/www/public/us/en/documents/guides/intel-txt-software-development-guide.pdf
+ * [3] https://trustedcomputinggroup.org/wp-content/uploads/TCG_PCClientSpecPlat_TPM_2p0_1p04_pub.pdf
+ */
+#define TCG_PCClientSpecIDEventStruct_SIZE	25
+#define TCG_EfiSpecIdEvent_SIZE(n)			((n) * 4 + 29)
+#define HASH_COUNT(base)					(*((u32 *)(base) + 6))
+
 static void sl_find_event_log(struct tpm *tpm)
 {
 	struct txt_os_mle_data *os_mle_data;
 	void *os_sinit_data;
 	void *txt_heap;
 
-	if (sl_cpu_type == SL_CPU_AMD)
+	if (sl_cpu_type == SL_CPU_AMD) {
+		struct sl_header *sl_hdr = sl_lz_base;
+		struct lz_tag_tags_size *t = sl_lz_base + sl_hdr->bootloader_data_offset;
+		struct lz_tag_evtlog *t_log = (struct lz_tag_evtlog *)t;
+		void *end = (void *)t + t->size;
+
+		while ((void *)t_log < end
+		       && t_log->hdr.type != LZ_TAG_EVENT_LOG
+		       && t_log->hdr.type != LZ_TAG_END) {
+			t_log = (void *)t_log + t_log->hdr.len;
+		}
+
+		if (t_log->hdr.type != LZ_TAG_EVENT_LOG)
+			return;
+
+		evtlog_base = (void *)(uintptr_t)t_log->address;
+
+		if (tpm->family == TPM12) {
+			evtlog_base += sizeof(struct tpm12_pcr_event)
+				+ TCG_PCClientSpecIDEventStruct_SIZE;
+		} else if (tpm->family == TPM20) {
+			log20_elem = evtlog_base + sizeof(struct tpm12_pcr_event)
+				+ TCG_EfiSpecIdEvent_SIZE(
+				   HASH_COUNT(evtlog_base + sizeof(struct tpm12_pcr_event)));
+		}
+
 		return;
+	}
 
 	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
 
@@ -153,9 +204,6 @@ static void sl_tpm12_log_event(u32 pcr, u8 *digest,
 	u32 total_size;
 	u8 log_buf[SL_TPM12_LOG_SIZE];
 
-	if (sl_cpu_type == SL_CPU_AMD)
-		return;
-
 	memset(log_buf, 0, SL_TPM12_LOG_SIZE);
 	pcr_event = (struct tpm12_pcr_event *)log_buf;
 	pcr_event->pcr_index = pcr;
@@ -167,8 +215,12 @@ static void sl_tpm12_log_event(u32 pcr, u8 *digest,
 
 	total_size = sizeof(struct tpm12_pcr_event) + event_size;
 
-	if (tpm12_log_event(evtlog_base, total_size, pcr_event))
-		sl_txt_reset(SL_ERROR_TPM_LOGGING_FAILED);
+	if (tpm12_log_event(evtlog_base, total_size, pcr_event)) {
+		if (sl_cpu_type == SL_CPU_INTEL)
+			sl_txt_reset(SL_ERROR_TPM_LOGGING_FAILED);
+		else
+			sl_skinit_reset();
+	}
 }
 
 static void sl_tpm20_log_event(u32 pcr, u8 *digest, u16 algo,
@@ -181,9 +233,6 @@ static void sl_tpm20_log_event(u32 pcr, u8 *digest, u16 algo,
 	u8 *dptr;
 	u32 total_size;
 	u8 log_buf[SL_TPM20_LOG_SIZE];
-
-	if (sl_cpu_type == SL_CPU_AMD)
-		return;
 
 	memset(log_buf, 0, SL_TPM20_LOG_SIZE);
 	head = (struct tpm20_pcr_event_head *)log_buf;
@@ -222,8 +271,12 @@ static void sl_tpm20_log_event(u32 pcr, u8 *digest, u16 algo,
 	total_size = (u32)((u8 *)tail - (u8 *)head) +
 		sizeof(struct tpm20_pcr_event_tail) + event_size;
 
-	if (tpm20_log_event(log20_elem, evtlog_base, total_size, &log_buf[0]))
-		sl_txt_reset(SL_ERROR_TPM_LOGGING_FAILED);
+	if (tpm20_log_event(log20_elem, evtlog_base, total_size, &log_buf[0])) {
+		if (sl_cpu_type == SL_CPU_INTEL)
+			sl_txt_reset(SL_ERROR_TPM_LOGGING_FAILED);
+		else
+			sl_skinit_reset();
+	}
 }
 
 void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 length,
@@ -246,7 +299,6 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 length,
 			sl_tpm20_log_event(pcr, &sha256_hash[0],
 					   TPM_ALG_SHA256,
 					   (const u8 *)desc, strlen(desc));
-			return;
 		} else {
 			if (sl_cpu_type == SL_CPU_INTEL)
 				sl_txt_reset(SL_ERROR_TPM_EXTEND);
@@ -266,7 +318,6 @@ void sl_tpm_extend_pcr(struct tpm *tpm, u32 pcr, const u8 *data, u32 length,
 			sl_tpm20_log_event(pcr, &sha512_hash[0],
 					   TPM_ALG_SHA512,
 					   (const u8 *)desc, strlen(desc));
-			return;
 		} else {
 			if (sl_cpu_type == SL_CPU_INTEL)
 				sl_txt_reset(SL_ERROR_TPM_EXTEND);

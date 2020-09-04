@@ -503,6 +503,64 @@ static inline int tpm20_log_event(struct txt_heap_event_log_pointer2_1_element *
 	return 0;
 }
 
+struct sl_header {
+	u16 lz_entry_point;
+	u16 bootloader_data_offset;
+	u16 lz_info_offset;
+} __packed;
+
+#define LZ_TAG_CLASS_MASK	0xF0
+
+/* Tags with no particular class */
+#define LZ_TAG_NO_CLASS		0x00
+#define LZ_TAG_END		0x00
+#define LZ_TAG_UNAWARE_OS	0x01
+#define LZ_TAG_TAGS_SIZE	0x0F	/* Always first */
+
+/* Tags specifying kernel type */
+#define LZ_TAG_BOOT_CLASS	0x10
+#define LZ_TAG_BOOT_LINUX	0x10
+#define LZ_TAG_BOOT_MB2		0x11
+
+/* Tags specific to TPM event log */
+#define LZ_TAG_EVENT_LOG_CLASS	0x20
+#define LZ_TAG_EVENT_LOG	0x20
+#define LZ_TAG_LZ_HASH		0x21
+
+struct lz_tag_hdr {
+	u8 type;
+	u8 len;
+} __packed;
+
+struct lz_tag_tags_size {
+	struct lz_tag_hdr hdr;
+	u16 size;
+} __packed;
+
+struct lz_tag_boot_linux {
+	struct lz_tag_hdr hdr;
+	u32 zero_page;
+} __packed;
+
+struct lz_tag_boot_mb2 {
+	struct lz_tag_hdr hdr;
+	u32 mbi;
+	u32 kernel_entry;
+	u32 kernel_size;
+} __packed;
+
+struct lz_tag_evtlog {
+	struct lz_tag_hdr hdr;
+	u32 address;
+	u32 size;
+} __packed;
+
+struct lz_tag_hash {
+	struct lz_tag_hdr hdr;
+	u16 algo_id;
+	u8 digest[];
+} __packed;
+
 /*
  * External functions
  */
