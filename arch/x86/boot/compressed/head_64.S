@@ -260,7 +260,7 @@ SYM_FUNC_START(sl_stub_entry)
 	 * find the beginning of where we are loaded, sub off from the
 	 * beginning.
 	 */
-	leal	(startup_32 - sl_stub_entry)(%ebx), %ebp
+	leal	(startup_32 - sl_stub_entry)(%ebx), %ebx
 
 	/* More room to work in sl_stub in the text section */
 	jmp	sl_stub

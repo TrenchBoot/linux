@@ -30,9 +30,11 @@
 #define IDT_VECTOR_HI_BITS	6
 
 .macro GETSEC leaf
-	xorl	%ebx, %ebx
+	pushl	%ebx
+	xorl	%ebx, %ebx	/* Must be zero for SMCTRL */
 	movl	\leaf, %eax	/* Leaf function */
 	.byte 	0x0f, 0x37	/* GETSEC opcode */
+	popl	%ebx
 .endm
 
 .macro TXT_RESET error
@@ -73,23 +75,15 @@ SYM_DATA_END(mle_header)
 	.code32
 SYM_FUNC_START(sl_stub)
 	/*
-	 * On entry, %ebp has the base address from head_64.S
-	 * and the code segment is known good. The data and stack
-	 * segments are fine too so we can get to our stack before
-	 * loading the GDT.
+	 * On entry, %ebx has the base address from head_64.S
+	 * and only %cs and %ds segments are known good.
 	 */
 	cli
 	cld
 
-	/*
-	 * Take the first stack for the BSP. The AP stacks are only used
-	 * on Intel.
-	 */
-	leal	sl_stacks_end(%ebp), %esp
-
 	/* Load GDT, set segment regs and lret to __SL32_CS */
-	addl	%ebp, (sl_gdt_desc + 2)(%ebp)
-	lgdt	sl_gdt_desc(%ebp)
+	addl	%ebx, (sl_gdt_desc + 2)(%ebx)
+	lgdt	sl_gdt_desc(%ebx)
 
 	movl	$(__SL32_DS), %eax
 	movw	%ax, %ds
@@ -98,12 +92,21 @@ SYM_FUNC_START(sl_stub)
 	movw	%ax, %gs
 	movw	%ax, %ss
 
-	leal	.Lsl_cs(%ebp), %eax
+	/*
+	 * Now that %ss us known good, take the first stack for the BSP. The
+	 * AP stacks are only used on Intel.
+	 */
+	leal	sl_stacks_end(%ebx), %esp
+
+	leal	.Lsl_cs(%ebx), %eax
 	pushl	$(__SL32_CS)
 	pushl	%eax
 	lret
 
 .Lsl_cs:
+	/* Save our base pointer reg */
+	pushl	%ebx
+
 	/* Assume unknown CPU start */
 	xorl	%edi, %edi
 
@@ -118,17 +121,19 @@ SYM_FUNC_START(sl_stub)
 	jnz	.Ldo_unknown_cpu
 	movl	$(SL_CPU_INTEL), %edi
 
+	popl	%ebx
+
 	/* Know it is Intel */
-	movl	$(SL_CPU_INTEL), sl_cpu_type(%ebp)
+	movl	$(SL_CPU_INTEL), sl_cpu_type(%ebx)
 
 	/* Increment CPU count for BSP */
-	incl	sl_txt_cpu_count(%ebp)
+	incl	sl_txt_cpu_count(%ebx)
 
 	/* Enable SMI with GETSEC[SMCTRL] */
 	GETSEC	$(SMX_X86_GETSEC_SMCTRL)
 
 	/* IRET-to-self can be used to enable NMIs which SENTER disabled */
-	leal	.Lnmi_enabled(%ebp), %eax
+	leal	.Lnmi_enabled(%ebx), %eax
 	pushfl
 	pushl	$(__SL32_CS)
 	pushl	%eax
@@ -154,18 +159,17 @@ SYM_FUNC_START(sl_stub)
 
 .Lwake_block_ok:
 	/*
-	 * Get the zero page address from the heap.
-	 * Note %esi and %ebp MUST be preserved across calls and
-	 * operations.
+	 * Get the boot params address from the heap. Note %esi and %ebx MUST
+	 * be preserved across calls and operations.
 	 */
 	movl	SL_boot_params_addr(%eax), %esi
 
-	/* Save ebp so the APs can find their way home */
-	movl	%ebp, (SL_mle_scratch + SL_SCRATCH_AP_EBP)(%eax)
+	/* Save %ebx so the APs can find their way home */
+	movl	%ebx, (SL_mle_scratch + SL_SCRATCH_AP_EBX)(%eax)
 
 	/* Fetch the AP wake code block address from the heap */
 	movl	SL_ap_wake_block(%eax), %edi
-	movl	%edi, sl_txt_ap_wake_block(%ebp)
+	movl	%edi, sl_txt_ap_wake_block(%ebx)
 
 	/* Store the offset in the AP wake block to the jmp address */
 	movl	$(sl_ap_jmp_offset - sl_txt_ap_wake_begin), \
@@ -175,9 +179,7 @@ SYM_FUNC_START(sl_stub)
 	pushl	%eax
 
 	/* Relocate the AP wake code to the safe block */
-	pushl	%esi
 	call	sl_txt_reloc_ap_wake
-	popl	%esi
 
 	/*
 	 * Wake up all APs and wait for them to halt. This should be done
@@ -186,14 +188,17 @@ SYM_FUNC_START(sl_stub)
 	 */
 	call	sl_txt_wake_aps
 
-	/* Pop OS-MLE base address for call to load MTRRs/MISC MSR */
+	/*
+	 * Pop OS-MLE base address (was in %eax above) for call to load
+	 * MTRRs/MISC MSR
+	 */
 	popl	%edi
 	call	sl_txt_load_regs
 
 	jmp	.Lcpu_setup_done
 
 .Ldo_unknown_cpu:
-	/* Neither Intel nor AMD */
+	/* Non-Intel CPUs are not yet supported */
 	ud2
 
 .Ldo_amd:
@@ -231,12 +236,9 @@ SYM_FUNC_START(sl_txt_ap_entry)
 	cli
 	cld
 	/*
-	 * The code segment is known good. The data and stack
-	 * segments are fine too so we can get to our stack before
-	 * loading the GDT.
-	 *
+	 * The %cs and %ds segments are known good after waking the AP.
 	 * First order of business is to find where we are and
-	 * save it in ebp.
+	 * save it in %ebx.
 	 */
 
 	/* Read physical base of heap into EAX */
@@ -246,27 +248,38 @@ SYM_FUNC_START(sl_txt_ap_entry)
 	/* Skip over BIOS data and size of OS to MLE data section */
 	leal	8(%eax, %ecx), %eax
 
-	/* Saved ebp from the BSP and stash OS-MLE pointer */
-	movl	(SL_mle_scratch + SL_SCRATCH_AP_EBP)(%eax), %ebp
+	/* Saved %ebx from the BSP and stash OS-MLE pointer */
+	movl	(SL_mle_scratch + SL_SCRATCH_AP_EBX)(%eax), %ebx
+	/* Save OS-MLE base in %edi for call to sl_txt_load_regs */
 	movl	%eax, %edi
 
 	/* Lock and get our stack index */
 	movl	$1, %ecx
 .Lspin:
 	xorl	%eax, %eax
-	lock cmpxchgl	%ecx, sl_txt_spin_lock(%ebp)
+	lock cmpxchgl	%ecx, sl_txt_spin_lock(%ebx)
 	pause
 	jnz	.Lspin
 
 	/* Increment the stack index and use the next value inside lock */
-	incl	sl_txt_stack_index(%ebp)
-	movl	sl_txt_stack_index(%ebp), %eax
+	incl	sl_txt_stack_index(%ebx)
+	movl	sl_txt_stack_index(%ebx), %eax
 
 	/* Unlock */
-	movl	$0, sl_txt_spin_lock(%ebp)
+	movl	$0, sl_txt_spin_lock(%ebx)
 
 	/* Location of the relocated AP wake block */
-	movl	sl_txt_ap_wake_block(%ebp), %ecx
+	movl	sl_txt_ap_wake_block(%ebx), %ecx
+
+	/* Load reloc GDT, set segment regs and lret to __SL32_CS */
+	lgdt	(sl_ap_gdt_desc - sl_txt_ap_wake_begin)(%ecx)
+
+	movl	$(__SL32_DS), %edx
+	movw	%dx, %ds
+	movw	%dx, %es
+	movw	%dx, %fs
+	movw	%dx, %gs
+	movw	%dx, %ss
 
 	/* Load our reloc AP stack */
 	movl	$(TXT_BOOT_STACK_SIZE), %edx
@@ -274,17 +287,8 @@ SYM_FUNC_START(sl_txt_ap_entry)
 	leal	(sl_stacks_end - sl_txt_ap_wake_begin)(%ecx), %esp
 	subl	%eax, %esp
 
-	/* Load reloc GDT, set segment regs and lret to __SL32_CS */
-	lgdt	(sl_ap_gdt_desc - sl_txt_ap_wake_begin)(%ecx)
-
-	movl	$(__SL32_DS), %eax
-	movw	%ax, %ds
-	movw	%ax, %es
-	movw	%ax, %fs
-	movw	%ax, %gs
-	movw	%ax, %ss
-
-	leal	.Lsl_ap_cs(%ebp), %eax
+	/* Switch to AP code segment */
+	leal	.Lsl_ap_cs(%ebx), %eax
 	pushl	$(__SL32_CS)
 	pushl	%eax
 	lret
@@ -300,7 +304,7 @@ SYM_FUNC_START(sl_txt_ap_entry)
 	GETSEC $(SMX_X86_GETSEC_SMCTRL)
 
 	/* IRET-to-self can be used to enable NMIs which SENTER disabled */
-	leal	.Lnmi_enabled_ap(%ebp), %eax
+	leal	.Lnmi_enabled_ap(%ebx), %eax
 	pushfl
 	pushl	$(__SL32_CS)
 	pushl	%eax
@@ -317,35 +321,38 @@ SYM_FUNC_START(sl_txt_ap_entry)
 	 * Basically done, increment the CPU count and jump off to the AP
 	 * wake block to wait.
 	 */
-	lock incl	sl_txt_cpu_count(%ebp)
+	lock incl	sl_txt_cpu_count(%ebx)
 
-	movl	sl_txt_ap_wake_block(%ebp), %eax
+	movl	sl_txt_ap_wake_block(%ebx), %eax
 	jmp	*%eax
 SYM_FUNC_END(sl_txt_ap_entry)
 
 SYM_FUNC_START(sl_txt_reloc_ap_wake)
-	movl	sl_txt_ap_wake_block(%ebp), %edi
+	/* Save boot params register */
+	pushl	%esi
+
+	movl	sl_txt_ap_wake_block(%ebx), %edi
 
 	/* Fixup AP IDT and GDT descriptor before relocating */
-	addl	%edi, (sl_ap_idt_desc + 2)(%ebp)
-	addl	%edi, (sl_ap_gdt_desc + 2)(%ebp)
+	addl	%edi, (sl_ap_idt_desc + 2)(%ebx)
+	addl	%edi, (sl_ap_gdt_desc + 2)(%ebx)
 
 	/*
 	 * Copy the AP wake code and AP GDT/IDT to the protected wake block
 	 * provided by the loader. Destination already in %edi.
 	 */
 	movl	$(sl_txt_ap_wake_end - sl_txt_ap_wake_begin), %ecx
-	leal	sl_txt_ap_wake_begin(%ebp), %esi
+	leal	sl_txt_ap_wake_begin(%ebx), %esi
 	rep movsb
 
 	/* Setup the IDT for the APs to use in the relocation block */
-	movl	sl_txt_ap_wake_block(%ebp), %ecx
+	movl	sl_txt_ap_wake_block(%ebx), %ecx
 	addl	$(sl_ap_idt - sl_txt_ap_wake_begin), %ecx
 	xorl	%edx, %edx
 
 	/* Form the default reset vector relocation address */
-	movl	sl_txt_ap_wake_block(%ebp), %ebx
-	addl	$(sl_txt_int_reset - sl_txt_ap_wake_begin), %ebx
+	movl	sl_txt_ap_wake_block(%ebx), %esi
+	addl	$(sl_txt_int_reset - sl_txt_ap_wake_begin), %esi
 
 1:
 	cmpw	$(NR_VECTORS), %dx
@@ -355,7 +362,7 @@ SYM_FUNC_START(sl_txt_reloc_ap_wake)
 	jz	2f
 
 	/* Load all other fixed vectors with reset handler */
-	movl	%ebx, %eax
+	movl	%esi, %eax
 	movw	%ax, (IDT_VECTOR_LO_BITS)(%ecx)
 	shrl	$16, %eax
 	movw	%ax, (IDT_VECTOR_HI_BITS)(%ecx)
@@ -363,7 +370,7 @@ SYM_FUNC_START(sl_txt_reloc_ap_wake)
 
 2:
 	/* Load single wake NMI IPI vector at the relocation address */
-	movl	sl_txt_ap_wake_block(%ebp), %eax
+	movl	sl_txt_ap_wake_block(%ebx), %eax
 	addl	$(sl_txt_int_ipi_wake - sl_txt_ap_wake_begin), %eax
 	movw	%ax, (IDT_VECTOR_LO_BITS)(%ecx)
 	shrl	$16, %eax
@@ -375,11 +382,14 @@ SYM_FUNC_START(sl_txt_reloc_ap_wake)
 	jmp	1b
 
 .Lap_idt_done:
+	popl	%esi
 	ret
-
 SYM_FUNC_END(sl_txt_reloc_ap_wake)
 
 SYM_FUNC_START(sl_txt_load_regs)
+	/* Save base pointer register */
+	pushl	%ebx
+
 	/*
 	 * On Intel, the original variable MTRRs and Misc Enable MSR are
 	 * restored on the BSP at early boot. Each AP will also restore
@@ -432,14 +442,18 @@ SYM_FUNC_START(sl_txt_load_regs)
 	movl	$(MSR_IA32_MISC_ENABLE), %ecx
 	wrmsr
 
+	popl	%ebx
 	ret
 SYM_FUNC_END(sl_txt_load_regs)
 
 SYM_FUNC_START(sl_txt_wake_aps)
+	/* Save boot params register */
+	pushl	%esi
+
 	/* First setup the MLE join structure and load it into TXT reg */
-	leal	sl_gdt(%ebp), %eax
-	leal	sl_txt_ap_entry(%ebp), %ecx
-	leal	sl_smx_rlp_mle_join(%ebp), %edx
+	leal	sl_gdt(%ebx), %eax
+	leal	sl_txt_ap_entry(%ebx), %ecx
+	leal	sl_smx_rlp_mle_join(%ebx), %edx
 	movl	%eax, SL_rlp_gdt_base(%edx)
 	movl	%ecx, SL_rlp_entry_point(%edx)
 	movl	%edx, (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_MLE_JOIN)
@@ -455,15 +469,15 @@ SYM_FUNC_START(sl_txt_wake_aps)
 	movl	(%eax), %ecx
 	addl	%ecx, %eax
 	/* At OS-SNIT size, get capabilities to know how to wake up the APs */
-	movl	(SL_capabilities + 8)(%eax), %ebx
+	movl	(SL_capabilities + 8)(%eax), %esi
 	/* Skip over OS to SNIT */
 	movl	(%eax), %ecx
 	addl	%ecx, %eax
-	/* At SNIT-MLE size, get the AP wake MONITOR address */
+	/* At SINIT-MLE size, get the AP wake MONITOR address */
 	movl	(SL_rlp_wakeup_addr + 8)(%eax), %edi
 
 	/* Determine how to wake up the APs */
-	testl	$(1 << TXT_SINIT_MLE_CAP_WAKE_MONITOR), %ebx
+	testl	$(1 << TXT_SINIT_MLE_CAP_WAKE_MONITOR), %esi
 	jz	.Lwake_getsec
 
 	/* Wake using MWAIT MONITOR */
@@ -482,9 +496,10 @@ SYM_FUNC_START(sl_txt_wake_aps)
 	 */
 1:
 	pause
-	cmpl	sl_txt_cpu_count(%ebp), %edx
+	cmpl	sl_txt_cpu_count(%ebx), %edx
 	jne	1b
 
+	popl	%esi
 	ret
 SYM_FUNC_END(sl_txt_wake_aps)
 
@@ -497,11 +512,11 @@ sl_txt_ap_wake_begin:
 	 * and protected in the memory map by the prelaunch code. Leave all
 	 * other interrupts masked since we do not expect anything but an NMI.
 	 */
-	xorl	%ebx, %ebx
+	xorl	%edx, %edx
 
 1:
 	hlt
-	testl	%ebx, %ebx
+	testl	%edx, %edx
 	jz	1b
 
 	/*
@@ -516,7 +531,7 @@ sl_ap_jmp_offset:
 	.word	__SL32_CS
 
 SYM_FUNC_START(sl_txt_int_ipi_wake)
-	movl	$1, %ebx
+	movl	$1, %edx
 
 	/* NMI context, just IRET */
 	iret
