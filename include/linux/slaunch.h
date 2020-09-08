@@ -168,7 +168,7 @@
 /*
  * MLE scratch area offsets
  */
-#define SL_SCRATCH_AP_EBP		0
+#define SL_SCRATCH_AP_EBX		0
 #define SL_SCRATCH_AP_JMP_OFFSET	4
 #define SL_SCRATCH_AP_PAUSE		8
 
