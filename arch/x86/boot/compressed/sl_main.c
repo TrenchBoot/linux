@@ -58,7 +58,7 @@ static void sl_txt_write(u32 reg, u64 val)
 	writeq(val, (void *)(u64)(TXT_PRIV_CONFIG_REGS_BASE + reg));
 }
 
-static void sl_txt_reset(u64 error)
+static void __noreturn sl_txt_reset(u64 error)
 {
 	/* Reading the E2STS register acts as a barrier for TXT registers */
 	sl_txt_write(TXT_CR_ERRORCODE, error);
@@ -66,7 +66,11 @@ static void sl_txt_reset(u64 error)
 	sl_txt_write(TXT_CR_CMD_UNLOCK_MEM_CONFIG, 1);
 	sl_txt_read(TXT_CR_E2STS);
 	sl_txt_write(TXT_CR_CMD_RESET, 1);
-	asm volatile ("hlt");
+
+	for ( ; ; )
+		asm volatile ("hlt");
+
+	unreachable();
 }
 
 static void sl_skinit_reset(void)
@@ -79,11 +83,16 @@ static u64 sl_rdmsr(u32 reg)
 {
 	u64 lo, hi;
 
-	asm volatile ("rdmsr"  : "=a" (lo), "=d" (hi) : "c" (reg));
+	asm volatile ("rdmsr" : "=a" (lo), "=d" (hi) : "c" (reg));
 
 	return (hi << 32) | lo;
 }
 
+/*
+ * Some MSRs are modified by the pre-launch code including the MTRRs.
+ * The early MLE code has to restore these values. This code validates
+ * the values after they are measured.
+ */
 static void sl_txt_validate_msrs(struct txt_os_mle_data *os_mle_data)
 {
 	u64 mtrr_caps, mtrr_def_type, mtrr_var, misc_en_msr;
@@ -300,10 +309,11 @@ void sl_main(u8 *bootparams)
 	struct boot_params *bp;
 	struct setup_data *data;
 	struct txt_os_mle_data *os_mle_data;
+	struct txt_os_mle_data os_mle_tmp = {0};
 	const char *signature;
 	unsigned long mmap = 0;
 	void *txt_heap;
-	u32 data_count, os_mle_len;
+	u32 data_count;
 
 	/*
 	 * Testing this value indicates that the kernel was booted successfully
@@ -389,16 +399,19 @@ void sl_main(u8 *bootparams)
 
 	if (sl_cpu_type == SL_CPU_INTEL) {
 		/*
-		* Some extra work to do on Intel, have to measure the OS-MLE
-		* heap area.
-		*/
+		 * Some extra work to do on Intel, have to measure the OS-MLE
+		 * heap area.
+		 */
 		txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
 		os_mle_data = txt_os_mle_data_start(txt_heap);
 
-		/* Measure OS-MLE data up to the MLE scratch field. */
-		os_mle_len = offsetof(struct txt_os_mle_data, mle_scratch);
-		sl_tpm_extend_pcr(tpm, SL_CONFIG_PCR18, (u8 *)os_mle_data,
-				  os_mle_len,
+		/* Measure only portions of OS-MLE data, not addresses/sizes etc. */
+		os_mle_tmp.version = os_mle_data->version;
+		os_mle_tmp.saved_misc_enable_msr = os_mle_data->saved_misc_enable_msr;
+		os_mle_tmp.saved_bsp_mtrrs = os_mle_data->saved_bsp_mtrrs;
+
+		sl_tpm_extend_pcr(tpm, SL_CONFIG_PCR18, (u8 *)&os_mle_tmp,
+				  sizeof(struct txt_os_mle_data),
 				  "Measured TXT OS-MLE data into PCR18");
 
 		/*
