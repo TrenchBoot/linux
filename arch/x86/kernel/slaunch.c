@@ -63,8 +63,8 @@ struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table_header *dmar)
 	return (struct acpi_table_header *)(&txt_dmar[0]);
 }
 
-static void __init slaunch_txt_reset(void __iomem *txt,
-				     const char *msg, u64 error)
+static void __init __noreturn slaunch_txt_reset(void __iomem *txt,
+						const char *msg, u64 error)
 {
 	u64 one = 1, val;
 
@@ -82,7 +82,10 @@ static void __init slaunch_txt_reset(void __iomem *txt,
 	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(u64));
 	memcpy_toio(txt + TXT_CR_CMD_RESET, &one, sizeof(u64));
 
-	asm volatile ("hlt");
+	for ( ; ; )
+		asm volatile ("hlt");
+
+	unreachable();
 }
 
 /*
