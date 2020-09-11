@@ -150,7 +150,6 @@
  */
 #define TXT_MAX_CPUS		512
 #define TXT_BOOT_STACK_SIZE	24
-#define TXT_WAKE_BLOCK_SIZE	0x4000
 
 /*
  * Secure Launch event log entry type. The TXT specification defines the
@@ -173,6 +172,8 @@
 #define SL_SCRATCH_AP_PAUSE		8
 
 #ifndef __ASSEMBLY__
+
+#include <linux/io.h>
 
 /*
  * Secure Launch AP wakeup information fetched in SMP boot code.
@@ -234,14 +235,13 @@ struct txt_mtrr_state {
 struct txt_os_mle_data {
 	u32 version;
 	u32 boot_params_addr;
-	u8 msb_key_hash[64];
 	u64 saved_misc_enable_msr;
 	struct txt_mtrr_state saved_bsp_mtrrs;
 	u32 ap_wake_block;
 	u32 ap_wake_block_size;
 	u64 evtlog_addr;
 	u32 evtlog_size;
-	u8 mle_scratch[16];
+	u8 mle_scratch[64];
 } __packed;
 
 /*
@@ -380,8 +380,6 @@ struct tpm20_pcr_event_tail {
 	u32 event_size;
 	/* Event[EventSize]; */
 } __packed;
-
-#include <linux/io.h>
 
 /*
  * Functions to extract data from the Intel TXT Heap Memory. The layout
