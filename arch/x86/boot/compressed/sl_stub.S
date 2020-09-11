@@ -29,6 +29,10 @@
 #define IDT_VECTOR_LO_BITS	0
 #define IDT_VECTOR_HI_BITS	6
 
+/*
+ * The GETSEC op code is open coded because older versions of
+ * GCC do not support the getsec mnemonic.
+ */
 .macro GETSEC leaf
 	pushl	%ebx
 	xorl	%ebx, %ebx	/* Must be zero for SMCTRL */
@@ -49,12 +53,18 @@
 	movl	$1, (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_CMD_UNLOCK_MEM_CONFIG)
 	movl	(TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_E2STS), %eax
 	movl	$1, (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_CMD_RESET)
+1:
 	hlt
+	jmp	1b
 .endm
 
 	/*
 	 * The MLE Header per the TXT Specification, section 2.1
-	 * MLE capabilities, see table 2.
+	 * MLE capabilities, see table 4. Capabilities set:
+	 * bit 0: Support for GETSEC[WAKEUP] for RLP wakeup
+	 * bit 1: Support for RLP wakeup using MONITOR address
+	 * bit 5: TPM 1.2 family: Details/authorities PCR usage support
+	 * bit 9: Supported format of TPM 2.0 event log - TCG compliant
 	 */
 SYM_DATA_START(mle_header)
 	.long	0x9082ac5a    /* UUID0 */
@@ -68,8 +78,8 @@ SYM_DATA_START(mle_header)
 	.long	0x00000000    /* Offset within binary of first byte of MLE */
 	.long	0x00000000    /* Offset within binary of last byte + 1 of MLE */
 	.long	0x00000223    /* Bit vector of MLE-supported capabilities */
-	.long	0x00000000    /* Starting linear address of command line */
-	.long	0x00000000    /* Ending linear address of command line */
+	.long	0x00000000    /* Starting linear address of command line (unused) */
+	.long	0x00000000    /* Ending linear address of command line (unused) */
 SYM_DATA_END(mle_header)
 
 	.code32
@@ -107,9 +117,6 @@ SYM_FUNC_START(sl_stub)
 	/* Save our base pointer reg */
 	pushl	%ebx
 
-	/* Assume unknown CPU start */
-	xorl	%edi, %edi
-
 	/* Now see if it is GenuineIntel. CPUID 0 returns the manufacturer */
 	xorl	%eax, %eax
 	cpuid
@@ -119,7 +126,6 @@ SYM_FUNC_START(sl_stub)
 	jnz	.Ldo_unknown_cpu
 	cmpl	$(INTEL_CPUID_MFGID_ECX), %ecx
 	jnz	.Ldo_unknown_cpu
-	movl	$(SL_CPU_INTEL), %edi
 
 	popl	%ebx
 
@@ -153,7 +159,8 @@ SYM_FUNC_START(sl_stub)
 	leal	8(%eax, %ecx), %eax
 
 	/* Check that the AP wake block is big enough */
-	cmpl	$(TXT_WAKE_BLOCK_SIZE), SL_ap_wake_block_size(%eax)
+	cmpl	$(sl_txt_ap_wake_end - sl_txt_ap_wake_begin), \
+		SL_ap_wake_block_size(%eax)
 	jae	.Lwake_block_ok
 	TXT_RESET $(SL_ERROR_WAKE_BLOCK_TOO_SMALL)
 
@@ -182,9 +189,9 @@ SYM_FUNC_START(sl_stub)
 	call	sl_txt_reloc_ap_wake
 
 	/*
-	 * Wake up all APs and wait for them to halt. This should be done
-	 * before restoring the MTRRs so the ACM is still properly in WB
-	 * memory.
+	 * Wake up all APs that are blocked in the ACM and wait for them to
+	 * halt. This should be done before restoring the MTRRs so the ACM is
+	 * still properly in WB memory.
 	 */
 	call	sl_txt_wake_aps
 
@@ -499,10 +506,9 @@ SYM_FUNC_START(sl_txt_wake_aps)
 	 * block starting at sl_txt_ap_wake_begin. Wait for all of them to
 	 * halt.
 	 */
-1:
 	pause
 	cmpl	sl_txt_cpu_count(%ebx), %edx
-	jne	1b
+	jne	.Laps_awake
 
 	popl	%esi
 	ret
