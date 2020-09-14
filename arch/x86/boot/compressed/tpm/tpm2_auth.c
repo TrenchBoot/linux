@@ -32,9 +32,9 @@ u8 *tpm2_null_auth(struct tpmbuff *b)
 	memset(auth, 0, NULL_AUTH_SIZE);
 
 	/*
-	* The handle, the first element, is the
-	* only non-zero value in a NULL auth
-	*/
+	 * The handle, the first element, is the
+	 * only non-zero value in a NULL auth
+	 */
 	handle = (u32 *)auth;
 	*handle = cpu_to_be32(TPM_RS_PW);
 
