@@ -67,11 +67,11 @@ struct tpms_auth_resp {
 
 struct tpm2_cmd {
 	struct tpm_header *header;
-	u32 *handles;		/* TPM Handles array	*/
-	u32 *auth_size;		/* Size of Auth Area	*/
-	u8 *auth;		/* Authorization Area	*/
-	u8 *params;		/* Parameters		*/
-	u8 *raw;		/* internal raw buffer	*/
+	u32 *handles;			/* TPM Handles array	*/
+	u32 *auth_size;			/* Size of Auth Area	*/
+	u8 *auth;			/* Authorization Area	*/
+	u8 *params;			/* Parameters		*/
+	u8 *raw;			/* internal raw buffer	*/
 };
 
 struct tpm2_resp {
