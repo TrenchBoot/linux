@@ -130,7 +130,7 @@ size_t tis_send(struct tpmbuff *buf)
 static size_t recv_data(unsigned char *buf, size_t len)
 {
 	size_t size = 0;
-	u8 status, *bufptr;
+	u8 *bufptr;
 	u32 burstcnt = 0;
 
 	bufptr = (u8 *)buf;
@@ -150,7 +150,7 @@ static size_t recv_data(unsigned char *buf, size_t len)
 size_t tis_recv(enum tpm_family f, struct tpmbuff *buf)
 {
 	u32 expected;
-	u8 status, *buf_ptr;
+	u8 *buf_ptr;
 	struct tpm_header *hdr;
 
 	if (locality > TPM_MAX_LOCALITY)
