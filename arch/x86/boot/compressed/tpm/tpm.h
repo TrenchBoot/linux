@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (c) 2020 Apertus Solutions, LLC
  *
@@ -25,10 +25,10 @@ enum tpm_family {
 struct tpmbuff;
 
 struct tpm_hw_ops {
-	u8 (*request_locality)(u8);
+	u8 (*request_locality)(u8 l);
 	void (*relinquish_locality)(void);
-	size_t (*send)(struct tpmbuff *);
-	size_t (*recv)(enum tpm_family, struct tpmbuff *);
+	size_t (*send)(struct tpmbuff *buf);
+	size_t (*recv)(enum tpm_family family, struct tpmbuff *buf);
 };
 
 struct tpm {
