@@ -156,7 +156,7 @@ static u8 is_cmd_exec(void)
 	return 0;
 }
 
-static u8 cmd_ready(void)
+static s8 cmd_ready(void)
 {
 	struct tpm_crb_ctrl_req ctl_req;
 
@@ -231,30 +231,6 @@ void crb_relinquish_locality(void)
 	crb_relinquish_locality_internal(locality);
 }
 
-u8 crb_init(struct tpm *t)
-{
-	u8 i;
-	struct tpm_crb_intf_id_ext id;
-
-	for (i = 0; i <= TPM_MAX_LOCALITY; i++)
-		crb_relinquish_locality_internal(i);
-
-	if (crb_request_locality(0) == TPM_NO_LOCALITY)
-		return 0;
-
-	id.val = tpm_read32(REGISTER(0, TPM_CRB_INTF_ID + 4));
-	t->vendor = ((id.vid & 0x00FF) << 8) | ((id.vid & 0xFF00) >> 8);
-	if ((t->vendor & 0xFFFF) == 0xFFFF)
-		return 0;
-
-	/* have the tpm invalidate the buffer if left in completion state */
-	go_idle();
-	/* now move to ready state */
-	cmd_ready();
-
-	return 1;
-}
-
 /* assumes cancel will succeed */
 static void cancel_send(void)
 {
@@ -294,8 +270,35 @@ size_t crb_send(struct tpmbuff *buf)
 	return buf->len;
 }
 
-size_t crb_recv(struct tpmbuff *buf)
+size_t crb_recv(__attribute__((unused)) enum tpm_family family,
+		__attribute__((unused)) struct tpmbuff *buf)
 {
 	/* noop, currently send waits until execution is complete*/
 	return 0;
+}
+
+u8 crb_init(struct tpm *t)
+{
+	u8 i;
+	struct tpm_crb_intf_id_ext id;
+
+	if (crb_request_locality(0) == TPM_NO_LOCALITY)
+		return 0;
+
+	id.val = tpm_read32(REGISTER(0, TPM_CRB_INTF_ID + 4));
+	t->vendor = ((id.vid & 0x00FF) << 8) | ((id.vid & 0xFF00) >> 8);
+	if ((t->vendor & 0xFFFF) == 0xFFFF)
+		return 0;
+
+	/* have the tpm invalidate the buffer if left in completion state */
+	go_idle();
+	/* now move to ready state */
+	cmd_ready();
+
+	t->ops.request_locality = crb_request_locality;
+	t->ops.relinquish_locality = crb_relinquish_locality;
+	t->ops.send = crb_send;
+	t->ops.recv = crb_recv;
+
+	return 1;
 }

@@ -64,20 +64,6 @@ u8 tis_request_locality(u8 l)
 	return locality;
 }
 
-u8 tis_init(struct tpm *t)
-{
-	locality = TPM_NO_LOCALITY;
-
-	if (tis_request_locality(0) != 0)
-		return 0;
-
-	t->vendor = tpm_read32(DID_VID(0));
-	if ((t->vendor & 0xFFFF) == 0xFFFF)
-		return 0;
-
-	return 1;
-}
-
 size_t tis_send(struct tpmbuff *buf)
 {
 	u8 status, *buf_ptr;
@@ -154,7 +140,7 @@ size_t tis_recv(enum tpm_family f, struct tpmbuff *buf)
 	struct tpm_header *hdr;
 
 	if (locality > TPM_MAX_LOCALITY)
-		goto err;
+		return 0;
 
 	/* ensure that there is data available */
 	if (!tis_data_available(locality)) {
@@ -164,14 +150,14 @@ size_t tis_recv(enum tpm_family f, struct tpmbuff *buf)
 			tpm2_timeout_d();
 
 		if (!tis_data_available(locality))
-			goto err;
+			return 0;
 	}
 
 	/* read header */
 	hdr = (struct tpm_header *)buf->head;
 	expected = sizeof(struct tpm_header);
 	if (recv_data(buf->head, expected) < expected)
-		goto err;
+		return 0;
 
 	/* convert header */
 	hdr->tag = be16_to_cpu(hdr->tag);
@@ -180,33 +166,50 @@ size_t tis_recv(enum tpm_family f, struct tpmbuff *buf)
 
 	/* protect against integer underflow */
 	if (hdr->size <= expected)
-		goto err;
+		return 0;
 
 	/* hdr->size = header + data */
 	expected = hdr->size - expected;
 	buf_ptr = tpmb_put(buf, expected);
 	if (!buf_ptr)
-		goto err;
+		return 0;
 
 	/* read all data, except last byte */
 	if (recv_data(buf_ptr, expected - 1) < (expected - 1))
-		goto err;
+		return 0;
 
 	/* check for receive underflow */
 	if (!tis_data_available(locality))
-		goto err;
+		return 0;
 
 	/* read last byte */
 	if (recv_data(buf_ptr, 1) != 1)
-		goto err;
+		return 0;
 
 	/* make sure we read everything */
 	if (tis_data_available(locality))
-		goto err;
+		return 0;
 
 	tpm_write8(STS_COMMAND_READY, STS(locality));
 
 	return hdr->size;
-err:
-	return 0;
+}
+
+u8 tis_init(struct tpm *t)
+{
+	locality = TPM_NO_LOCALITY;
+
+	if (tis_request_locality(0) != 0)
+		return 0;
+
+	t->vendor = tpm_read32(DID_VID(0));
+	if ((t->vendor & 0xFFFF) == 0xFFFF)
+		return 0;
+
+	t->ops.request_locality = tis_request_locality;
+	t->ops.relinquish_locality = tis_relinquish_locality;
+	t->ops.send = tis_send;
+	t->ops.recv = tis_recv;
+
+	return 1;
 }
