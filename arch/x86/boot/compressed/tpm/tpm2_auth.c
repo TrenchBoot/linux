@@ -27,6 +27,7 @@ u8 *tpm2_null_auth(struct tpmbuff *b)
 {
 	u32 *handle;
 	u8 *auth = (u8 *)tpmb_put(b, NULL_AUTH_SIZE);
+
 	if (!auth)
 		return NULL;
 
