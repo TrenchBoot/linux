@@ -8,6 +8,7 @@
  */
 
 #include <linux/types.h>
+#include <linux/const.h>
 #include <linux/string.h>
 #include <linux/errno.h>
 #include <asm/byteorder.h>
@@ -22,6 +23,9 @@
 static int tpm2_alloc_cmd(struct tpmbuff *b, struct tpm2_cmd *c, u16 tag,
 		u32 code)
 {
+	/* ensure buffer is free for use */
+	tpmb_free(b);
+
 	c->header = (struct tpm_header *)tpmb_reserve(b);
 	if (!c->header)
 		return -ENOMEM;
@@ -130,26 +134,9 @@ int tpm2_extend_pcr(struct tpm *t, u32 pcr,
 
 	cmd.header->size = cpu_to_be32(tpmb_size(b));
 
-	switch (t->intf) {
-	case TPM_DEVNODE:
-		/* Not implemented yet */
-		ret = -EBADRQC;
-		break;
-	case TPM_TIS:
-		size = tis_send(b);
-		if (tpmb_size(b) != size)
-			ret = -EAGAIN;
-		break;
-	case TPM_CRB:
-		size = crb_send(b);
-		if (tpmb_size(b) != size)
-			ret = -EAGAIN;
-		break;
-	case TPM_UEFI:
-		/* Not implemented yet */
-		ret = -EBADRQC;
-		break;
-	}
+	size = t->ops.send(b);
+	if (tpmb_size(b) != size)
+		ret = -EAGAIN;
 
 free:
 	tpmb_free(b);

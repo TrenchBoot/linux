@@ -33,12 +33,15 @@ int tpm1_pcr_extend(struct tpm *t, struct tpm_digest *d)
 		goto out;
 	}
 
-	if (!tpmb_reserve(b)) {
+	/* ensure buffer is free for use */
+	tpmb_free(b);
+
+	hdr = (struct tpm_header *)tpmb_reserve(b);
+	if (!hdr) {
 		ret = -ENOMEM;
 		goto out;
 	}
 
-	hdr = (struct tpm_header *)b->head;
 
 	hdr->tag = cpu_to_be16(TPM_TAG_RQU_COMMAND);
 	hdr->code = cpu_to_be32(TPM_ORD_EXTEND);
@@ -55,68 +58,28 @@ int tpm1_pcr_extend(struct tpm *t, struct tpm_digest *d)
 
 	hdr->size = cpu_to_be32(tpmb_size(b));
 
-	switch (t->intf) {
-	case TPM_DEVNODE:
-		/* Not implemented yet */
-		ret = -EBADRQC;
-		break;
-	case TPM_TIS:
-		if (be32_to_cpu(hdr->size) != tis_send(b))
-			ret = -EAGAIN;
-		break;
-	case TPM_CRB:
-		/* Not valid for TPM 1.2 */
-		ret = -ENODEV;
-		break;
-	case TPM_UEFI:
-		/* Not implemented yet */
-		ret = -EBADRQC;
-		break;
-	}
-
-	if (ret)
+	if (be32_to_cpu(hdr->size) != t->ops.send(b)) {
+		ret = -EAGAIN;
 		goto free;
-
-	tpmb_free(b);
+	}
 
 	/* Reset buffer for receive */
-	if (!tpmb_reserve(b)) {
-		ret = -ENOMEM;
-		goto out;
-	}
+	tpmb_trim(b, tpmb_size(b));
 
 	hdr = (struct tpm_header *)b->head;
+	tpmb_put(b, sizeof(struct tpm_header));
 
 	/*
 	 * The extend receive operation returns a struct tpm_extend_resp
 	 * but the current implementation ignores the returned PCR value.
 	 */
 
-	switch (t->intf) {
-	case TPM_DEVNODE:
-		/* Not implemented yet */
-		ret = -EBADRQC;
-		break;
-	case TPM_TIS:
-		/* tis_recv() will increase the buffer size */
-		size = tis_recv(t->family, b);
-		if (tpmb_size(b) != size)
-			ret = -EAGAIN;
-		break;
-	case TPM_CRB:
-		/* Not valid for TPM 1.2 */
-		ret = -ENODEV;
-		break;
-	case TPM_UEFI:
-		/* Not implemented yet */
-		ret = -EBADRQC;
-		break;
+	/* recv() will increase the buffer size */
+	size = t->ops.recv(t->family, b);
+	if (tpmb_size(b) != size) {
+		ret = -EAGAIN;
+		goto free;
 	}
-
-	tpmb_free(b);
-
-	if (ret)
-		goto out;
 
 	/*
 	 * On return, the code field is used for the return code out. Though
@@ -129,7 +92,6 @@ int tpm1_pcr_extend(struct tpm *t, struct tpm_digest *d)
 	if (hdr->code != TPM_SUCCESS)
 		ret = -EAGAIN;
 
-	return ret;
 free:
 	tpmb_free(b);
 out:
