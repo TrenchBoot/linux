@@ -2019,7 +2019,6 @@ config SECURE_LAUNCH
 	default n
 	depends on X86_64
 	help
-	---help---
 	   The Secure Launch feature allows a kernel to be loaded
 	   directly through an Intel TXT measured launch. Intel TXT
 	   establishes a Dynamic Root of Trust for Measurement (DRTM)
@@ -2033,19 +2032,19 @@ choice
 
 config SECURE_LAUNCH_SHA1
 	bool "Secure Launch TPM1 SHA1"
-	---help---
+	help
 	   When using Secure Launch and TPM1 is present, use SHA1 hash
 	   algorithm for measurements.
 
 config SECURE_LAUNCH_SHA256
 	bool "Secure Launch TPM2 SHA256"
-	---help---
+	help
 	   When using Secure Launch and TPM2 is present, use SHA256 hash
 	   algorithm for measurements.
 
 config SECURE_LAUNCH_SHA512
 	bool "Secure Launch TPM2 SHA512"
-	---help---
+	help
 	   When using Secure Launch and TPM2 is present, use SHA512 hash
 	   algorithm for measurements.
 
