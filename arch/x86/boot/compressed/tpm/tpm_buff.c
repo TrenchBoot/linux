@@ -80,9 +80,6 @@ struct tpmbuff *alloc_tpmbuff(enum tpm_hw_intf intf, u8 locality)
 	struct tpmbuff *b = &tpm_buff;
 
 	switch (intf) {
-	case TPM_DEVNODE:
-		/* TODO: need implementation */
-		goto err;
 	case TPM_TIS:
 		if (b->head)
 			goto reset;
@@ -95,11 +92,8 @@ struct tpmbuff *alloc_tpmbuff(enum tpm_hw_intf intf, u8 locality)
 			       + TPM_CRB_DATA_BUFFER_OFFSET);
 		b->truesize = TPM_CRB_DATA_BUFFER_SIZE;
 		break;
-	case TPM_UEFI:
-		/* Not implemented yet */
-		goto err;
 	default:
-		goto err;
+		return NULL;
 	}
 
 reset:
@@ -110,25 +104,16 @@ reset:
 	b->end = b->head + (b->truesize - 1);
 
 	return b;
-
-err:
-	return NULL;
 }
 
 void free_tpmbuff(struct tpmbuff *b, enum tpm_hw_intf intf)
 {
 	switch (intf) {
-	case TPM_DEVNODE:
-		/* Not implemented yet */
-		break;
 	case TPM_TIS:
 		b->head = NULL;
 		break;
 	case TPM_CRB:
 		b->head = NULL;
-		break;
-	case TPM_UEFI:
-		/* Not implemented yet */
 		break;
 	default:
 		break;
