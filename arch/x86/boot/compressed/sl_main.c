@@ -46,6 +46,7 @@
 				SL_MAX_EVENT_DATA)
 
 static void *evtlog_base;
+static u32 evtlog_size;
 static struct txt_heap_event_log_pointer2_1_element *log20_elem;
 
 #ifndef CONFIG_SECURE_LAUNCH_ALT_PCR19
@@ -61,6 +62,7 @@ static u32 pcr_image = SL_ALT_IMAGE_PCR20;
 #endif
 
 extern u32 sl_cpu_type;
+extern u32 sl_mle_start;
 
 static u64 sl_txt_read(u32 reg)
 {
@@ -137,13 +139,14 @@ static void sl_txt_validate_msrs(struct txt_os_mle_data *os_mle_data)
 static void sl_find_event_log(struct tpm *tpm)
 {
 	struct txt_os_mle_data *os_mle_data;
-	void *os_sinit_data;
+	struct txt_os_sinit_data *os_sinit_data;
 	void *txt_heap;
 
 	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
 
 	os_mle_data = txt_os_mle_data_start(txt_heap);
 	evtlog_base = (void *)os_mle_data->evtlog_addr;
+	evtlog_size = os_mle_data->evtlog_size;
 
 	if (tpm->family != TPM20)
 		return;
@@ -154,11 +157,73 @@ static void sl_find_event_log(struct tpm *tpm)
 	 */
 	os_sinit_data = txt_os_sinit_data_start(txt_heap);
 
+	/*
+	 * Only support version 6 and later that properly handle the
+	 * list of ExtDataElements in the OS-SINIT structure.
+	 */
+	if (os_sinit_data->version < 6)
+		sl_txt_reset(SL_ERROR_OS_SINIT_BAD_VERSION);
+
 	/* Find the TPM2.0 logging extended heap element */
 	log20_elem = tpm20_find_log2_1_element(os_sinit_data);
 
 	if (!log20_elem)
 		sl_txt_reset(SL_ERROR_TPM_INVALID_LOG20);
+}
+
+static void sl_validate_event_log_buffer(void)
+{
+	void *mle_base = (void *)(u64)sl_mle_start;
+	void *mle_end;
+	struct txt_os_sinit_data *os_sinit_data;
+	void *txt_heap;
+	void *txt_heap_end;
+	void *evtlog_end;
+
+	if ((u64)evtlog_size > (LLONG_MAX - (u64)evtlog_base))
+		sl_txt_reset(SL_ERROR_INTEGER_OVERFLOW);
+	evtlog_end = evtlog_base + evtlog_size;
+
+	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
+	txt_heap_end = txt_heap + sl_txt_read(TXT_CR_HEAP_SIZE);
+	os_sinit_data = txt_os_sinit_data_start(txt_heap);
+
+	mle_end = mle_base + os_sinit_data->mle_size;
+
+	if ((evtlog_base >= mle_end) &&
+	    (evtlog_end > mle_end))
+		goto pmr_check; /* above */
+
+	if ((evtlog_end <= mle_base) &&
+	    (evtlog_base < mle_base))
+		goto pmr_check; /* below */
+
+	sl_txt_reset(SL_ERROR_MLE_BUFFER_OVERLAP);
+
+pmr_check:
+	/*
+	 * Have to restrict the event log to below 4G since there is
+	 * no easy way to validate the hi PMR values.
+	 */
+	if ((evtlog_end >= (void *)0x100000000ULL) ||
+	    (evtlog_base >= (void *)0x100000000ULL))
+		sl_txt_reset(SL_ERROR_REGION_ABOVE_4GB);
+
+	/*
+	 * The TXT heap is protected by the DPR. If the TPM event log is
+	 * inside the TXT heap, there is no need for a PMR check.
+	 */
+	if ((evtlog_base > txt_heap) &&
+	    (evtlog_end < txt_heap_end))
+		return;
+
+	if (evtlog_end > (void *)os_sinit_data->vtd_pmr_lo_size)
+		sl_txt_reset(SL_ERROR_BUFFER_BEYOND_PMR);
+
+	/*
+ 	 * Note that the late stub code validates that the hi PMR covers
+	 * all memory above 4G before the event log buffer is ever read.
+	 */
 }
 
 static void sl_tpm12_log_event(u32 pcr, u8 *digest,
@@ -320,6 +385,9 @@ void sl_main(u8 *bootparams)
 
 	/* Locate the TPM event log. */
 	sl_find_event_log(tpm);
+
+	/* Validate the location of the event log buffer before using it */
+	sl_validate_event_log_buffer();
 
 	/*
 	 * Locality 2 is being opened so that the DRTM PCRs can be updated,
