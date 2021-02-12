@@ -494,6 +494,19 @@ trampoline_return:
 	movq	%rbx, %rdi
 	call	.Ladjust_got
 
+#ifdef CONFIG_SECURE_LAUNCH
+	pushq	%rsi
+	pushq	%rbx
+
+	/* Ensure the relocation region coverd by a PMR */
+	movq	%rbx, %rdi
+	movq	$_bss, %rsi
+	callq	sl_check_region
+
+	popq	%rbx
+	popq	%rsi
+#endif
+
 /*
  * Copy the compressed kernel to the end of our buffer
  * where decompression in place becomes safe.
@@ -566,8 +579,15 @@ SYM_FUNC_START_LOCAL_NOALIGN(.Lrelocated)
 	 * though these seem low risk.
 	 */
 	pushq	%rsi
+
 	movq	%rsi, %rdi
 	callq	sl_main
+
+	/* Ensure the decompression location is coverd by a PMR */
+	movq	%rbp, %rdi
+	movq	$z_output_len, %rsi
+	callq	sl_check_region
+
 	popq	%rsi
 #endif
 
