@@ -41,6 +41,7 @@
 #include <linux/dma-direct.h>
 #include <linux/crash_dump.h>
 #include <linux/numa.h>
+#include <linux/slaunch.h>
 #include <asm/irq_remapping.h>
 #include <asm/cacheflush.h>
 #include <asm/iommu.h>
@@ -2877,6 +2878,10 @@ static bool device_is_rmrr_locked(struct device *dev)
  */
 static int device_def_domain_type(struct device *dev)
 {
+	/* Do not allow identity domain when Secure Launch is configured */
+	if (slaunch_get_flags() & SL_FLAG_ACTIVE)
+		return IOMMU_DOMAIN_DMA;
+
 	if (dev_is_pci(dev)) {
 		struct pci_dev *pdev = to_pci_dev(dev);
 
