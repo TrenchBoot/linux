@@ -2556,7 +2556,9 @@ void iommu_set_default_passthrough(bool cmd_line)
 	if (cmd_line)
 		iommu_set_cmd_line_dma_api();
 
-	iommu_def_domain_type = IOMMU_DOMAIN_IDENTITY;
+	/* Do not allow identity domain when Secure Launch is configured */
+	if (!IS_ENABLED(CONFIG_SECURE_LAUNCH))
+		iommu_def_domain_type = IOMMU_DOMAIN_IDENTITY;
 }
 
 void iommu_set_default_translated(bool cmd_line)
