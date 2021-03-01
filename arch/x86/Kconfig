@@ -1970,7 +1970,7 @@ config EFI_MIXED
 config SECURE_LAUNCH
 	bool "Secure Launch support"
 	default n
-	depends on X86_64
+	depends on X86_64 && X86_X2APIC && !RANDOMIZE_BASE
 	help
 	   The Secure Launch feature allows a kernel to be loaded
 	   directly through an Intel TXT measured launch. Intel TXT
