@@ -1,4 +1,5 @@
 stages:
+  - git-robot
   - build
 
 build:
@@ -7,6 +8,8 @@ build:
   tags:
     - local
     - build
+  except:
+    - debian
   before_script:
     - apt-get update && apt-get install -y build-essential bc bison flex libelf-dev libssl-dev
   script:
@@ -18,6 +21,8 @@ build:
 
 build_nixpkg:
   stage: build
+  except:
+    - debian
   variables:
     NIXPKG: "linux"
     LINUX_COMMIT: "$CI_COMMIT_SHA"
@@ -26,3 +31,41 @@ build_nixpkg:
     project: trenchboot1/3mdeb/nixos-trenchboot-configs
     branch: master
     strategy: depend
+
+git_pull:
+  image: debian:stable-20200414
+  stage: git-robot
+  tags:
+    - local
+  only:
+    - linux-sl-5.8-amd
+  before_script:
+    - echo "machine github.com
+              login 3mdeb-robot
+              password $GITHUB_PERSONAL_ACCESS_TOKEN" >> ~/.netrc
+    - apt update && apt install -y git
+    - git config --global user.email "robot@3mdeb.com"
+    - git config --global user.name "3mdeb-robot"
+  script:
+    - git clone https://github.com/3mdeb/linux.git -b debian
+    - cd linux
+    - git pull . origin/linux-sl-5.8-amd
+    - git push origin debian
+
+build_debian_pkg:
+  stage: build
+  image: debian:stable-20200414
+  tags:
+    - local
+  only:
+    - debian
+  before_script:
+    - ./.gitlab-ci/install-debian-build-deps.sh
+  script:
+    - make debian_defconfig
+    - make deb-pkg LOCALVERSION=-trenchboot KDEB_PKGVERSION=$(make kernelversion)-1 DEBEMAIL=debian@3mdeb.com DEBFULLNAME=debian
+    - mkdir artifacts && mv ../*.deb artifacts/
+    - ./.gitlab-ci/show-package-content.sh
+  artifacts:
+    paths:
+      - artifacts/*

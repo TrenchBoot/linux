@@ -152,3 +152,6 @@ x509.genkey
 
 # Clang's compilation database file
 /compile_commands.json
+
+# Do not ignore .gitlab-ci/ directory
+!.gitlab-ci/
