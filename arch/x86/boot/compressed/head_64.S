@@ -304,21 +304,6 @@ SYM_INNER_LABEL(efi32_pe_stub_entry, SYM_L_LOCAL)
 SYM_FUNC_END(efi32_stub_entry)
 #endif
 
-#ifdef CONFIG_SECURE_LAUNCH
-SYM_FUNC_START(sl_stub_entry)
-	/*
-	 * On entry, %ebx has the entry abs offset to sl_stub_entry. To
-	 * find the beginning of where we are loaded, sub off from the
-	 * beginning.
-	 */
-	leal	(startup_32 - sl_stub_entry)(%ebx), %ebx
-
-	/* More room to work in sl_stub in the text section */
-	jmp	sl_stub
-
-SYM_FUNC_END(sl_stub_entry)
-#endif
-
 	.code64
 	.org 0x200
 SYM_CODE_START(startup_64)
@@ -495,7 +480,7 @@ trampoline_return:
 
 	/* Ensure the relocation region coverd by a PMR */
 	movq	%rbx, %rdi
-	movq	$_bss, %rsi
+	movq	$(_bss - startup_32), %rsi
 	callq	sl_check_region
 
 	popq	%rbx
@@ -568,10 +553,10 @@ SYM_FUNC_START_LOCAL_NOALIGN(.Lrelocated)
 	 *
 	 * Several boot params get used before we get a chance to measure
 	 * them in this call. This is a known issue and we currently don't
-	 * have a solution. The scratch field doesn't matter and loadflags
-	 * have KEEP_SEGMENTS set by the stub code. There is no obvious way
-	 * to do anything about the use of kernel_alignment or init_size
-	 * though these seem low risk.
+	 * have a solution. The scratch field doesn't matter. There is no
+	 * obvious way to do anything about the use of kernel_alignment or
+	 * init_size though these seem low risk with all the PMR and overlap
+	 * checks in place.
 	 */
 	pushq	%rsi
 
@@ -580,7 +565,7 @@ SYM_FUNC_START_LOCAL_NOALIGN(.Lrelocated)
 
 	/* Ensure the decompression location is coverd by a PMR */
 	movq	%rbp, %rdi
-	movq	$z_output_len, %rsi
+	movq	output_len(%rip), %rsi
 	callq	sl_check_region
 
 	popq	%rsi

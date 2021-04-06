@@ -31,6 +31,12 @@
 #define IDT_VECTOR_HI_BITS	6
 
 /*
+ * See the comment in head_64.S for detailed informatoin on what this macro
+ * is used for.
+ */
+#define rva(X) ((X) - sl_stub_entry)
+
+/*
  * The GETSEC op code is open coded because older versions of
  * GCC do not support the getsec mnemonic.
  */
@@ -59,42 +65,21 @@
 	jmp	1b
 .endm
 
-	/*
-	 * The MLE Header per the TXT Specification, section 2.1
-	 * MLE capabilities, see table 4. Capabilities set:
-	 * bit 0: Support for GETSEC[WAKEUP] for RLP wakeup
-	 * bit 1: Support for RLP wakeup using MONITOR address
-	 * bit 5: TPM 1.2 family: Details/authorities PCR usage support
-	 * bit 9: Supported format of TPM 2.0 event log - TCG compliant
-	 */
-SYM_DATA_START(mle_header)
-	.long	0x9082ac5a    /* UUID0 */
-	.long	0x74a7476f    /* UUID1 */
-	.long	0xa2555c0f    /* UUID2 */
-	.long	0x42b651cb    /* UUID3 */
-	.long	0x00000034    /* MLE header size */
-	.long	0x00020002    /* MLE version 2.2 */
-	.long	sl_stub_entry /* Linear entry point of MLE (virt. address) */
-	.long	0x00000000    /* First valid page of MLE */
-	.long	0x00000000    /* Offset within binary of first byte of MLE */
-	.long	0x00000000    /* Offset within binary of last byte + 1 of MLE */
-	.long	0x00000223    /* Bit vector of MLE-supported capabilities */
-	.long	0x00000000    /* Starting linear address of command line (unused) */
-	.long	0x00000000    /* Ending linear address of command line (unused) */
-SYM_DATA_END(mle_header)
-
 	.code32
-SYM_FUNC_START(sl_stub)
-	/*
-	 * On entry, %ebx has the base address from head_64.S
-	 * and only %cs and %ds segments are known good.
-	 */
+SYM_FUNC_START(sl_stub_entry)
 	cli
 	cld
 
+	/*
+	 * On entry, %ebx has the entry abs offset to sl_stub_entry. This
+	 * will be correctly scaled using the rva macro and avoid causing
+	 * relocations. Only %cs and %ds segments are known good.
+	 */
+
 	/* Load GDT, set segment regs and lret to __SL32_CS */
-	addl	%ebx, (sl_gdt_desc + 2)(%ebx)
-	lgdt	sl_gdt_desc(%ebx)
+	leal	rva(sl_gdt_desc)(%ebx), %eax
+	addl	%eax, 2(%eax)
+	lgdt	(%eax)
 
 	movl	$(__SL32_DS), %eax
 	movw	%ax, %ds
@@ -107,9 +92,9 @@ SYM_FUNC_START(sl_stub)
 	 * Now that %ss us known good, take the first stack for the BSP. The
 	 * AP stacks are only used on Intel.
 	 */
-	leal	sl_stacks_end(%ebx), %esp
+	leal	rva(sl_stacks_end)(%ebx), %esp
 
-	leal	.Lsl_cs(%ebx), %eax
+	leal	rva(.Lsl_cs)(%ebx), %eax
 	pushl	$(__SL32_CS)
 	pushl	%eax
 	lret
@@ -131,16 +116,16 @@ SYM_FUNC_START(sl_stub)
 	popl	%ebx
 
 	/* Know it is Intel */
-	movl	$(SL_CPU_INTEL), sl_cpu_type(%ebx)
+	movl	$(SL_CPU_INTEL), rva(sl_cpu_type)(%ebx)
 
 	/* Increment CPU count for BSP */
-	incl	sl_txt_cpu_count(%ebx)
+	incl	rva(sl_txt_cpu_count)(%ebx)
 
 	/* Enable SMI with GETSEC[SMCTRL] */
 	GETSEC	$(SMX_X86_GETSEC_SMCTRL)
 
 	/* IRET-to-self can be used to enable NMIs which SENTER disabled */
-	leal	.Lnmi_enabled(%ebx), %eax
+	leal	rva(.Lnmi_enabled)(%ebx), %eax
 	pushfl
 	pushl	$(__SL32_CS)
 	pushl	%eax
@@ -173,7 +158,7 @@ SYM_FUNC_START(sl_stub)
 
 	/* Fetch the AP wake code block address from the heap */
 	movl	SL_ap_wake_block(%eax), %edi
-	movl	%edi, sl_txt_ap_wake_block(%ebx)
+	movl	%edi, rva(sl_txt_ap_wake_block)(%ebx)
 
 	/* Store the offset in the AP wake block to the jmp address */
 	movl	$(sl_ap_jmp_offset - sl_txt_ap_wake_begin), \
@@ -211,12 +196,9 @@ SYM_FUNC_START(sl_stub)
 	 * it on the BSP later when it is ready.
 	 */
 
-	/* Keep SL segments for the early portion of the kernel boot */
-	orb	$(KEEP_SEGMENTS), BP_loadflags(%esi)
-
 	/* Done, jump to normal 32b pm entry */
 	jmp	startup_32
-SYM_FUNC_END(sl_stub)
+SYM_FUNC_END(sl_stub_entry)
 
 SYM_FUNC_START(sl_check_buffer_mle_overlap)
 	/* %ecx: buffer begin %edx: buffer end */
@@ -252,7 +234,7 @@ SYM_FUNC_START(sl_txt_verify_os_mle_struct)
 	leal	(%eax, %ecx), %edx
 
 	/* Save MLE image base for sl_main's use */
-	movl	%ebx, sl_mle_start(%ebx)
+	movl	%ebx, rva(sl_mle_start)(%ebx)
 
 	/* Verify the value of the low PMR base. It should always be 0. */
 	movl	SL_vtd_pmr_lo_base(%edx), %esi
@@ -326,19 +308,19 @@ SYM_FUNC_START(sl_txt_ap_entry)
 	movl	$1, %ecx
 .Lspin:
 	xorl	%eax, %eax
-	lock cmpxchgl	%ecx, sl_txt_spin_lock(%ebx)
+	lock cmpxchgl	%ecx, rva(sl_txt_spin_lock)(%ebx)
 	pause
 	jnz	.Lspin
 
 	/* Increment the stack index and use the next value inside lock */
-	incl	sl_txt_stack_index(%ebx)
-	movl	sl_txt_stack_index(%ebx), %eax
+	incl	rva(sl_txt_stack_index)(%ebx)
+	movl	rva(sl_txt_stack_index)(%ebx), %eax
 
 	/* Unlock */
-	movl	$0, sl_txt_spin_lock(%ebx)
+	movl	$0, rva(sl_txt_spin_lock)(%ebx)
 
 	/* Location of the relocated AP wake block */
-	movl	sl_txt_ap_wake_block(%ebx), %ecx
+	movl	rva(sl_txt_ap_wake_block)(%ebx), %ecx
 
 	/* Load reloc GDT, set segment regs and lret to __SL32_CS */
 	lgdt	(sl_ap_gdt_desc - sl_txt_ap_wake_begin)(%ecx)
@@ -357,7 +339,7 @@ SYM_FUNC_START(sl_txt_ap_entry)
 	subl	%eax, %esp
 
 	/* Switch to AP code segment */
-	leal	.Lsl_ap_cs(%ebx), %eax
+	leal	rva(.Lsl_ap_cs)(%ebx), %eax
 	pushl	$(__SL32_CS)
 	pushl	%eax
 	lret
@@ -373,7 +355,7 @@ SYM_FUNC_START(sl_txt_ap_entry)
 	GETSEC $(SMX_X86_GETSEC_SMCTRL)
 
 	/* IRET-to-self can be used to enable NMIs which SENTER disabled */
-	leal	.Lnmi_enabled_ap(%ebx), %eax
+	leal	rva(.Lnmi_enabled_ap)(%ebx), %eax
 	pushfl
 	pushl	$(__SL32_CS)
 	pushl	%eax
@@ -390,9 +372,9 @@ SYM_FUNC_START(sl_txt_ap_entry)
 	 * Basically done, increment the CPU count and jump off to the AP
 	 * wake block to wait.
 	 */
-	lock incl	sl_txt_cpu_count(%ebx)
+	lock incl	rva(sl_txt_cpu_count)(%ebx)
 
-	movl	sl_txt_ap_wake_block(%ebx), %eax
+	movl	rva(sl_txt_ap_wake_block)(%ebx), %eax
 	jmp	*%eax
 SYM_FUNC_END(sl_txt_ap_entry)
 
@@ -400,27 +382,29 @@ SYM_FUNC_START(sl_txt_reloc_ap_wake)
 	/* Save boot params register */
 	pushl	%esi
 
-	movl	sl_txt_ap_wake_block(%ebx), %edi
+	movl	rva(sl_txt_ap_wake_block)(%ebx), %edi
 
 	/* Fixup AP IDT and GDT descriptor before relocating */
-	addl	%edi, (sl_ap_idt_desc + 2)(%ebx)
-	addl	%edi, (sl_ap_gdt_desc + 2)(%ebx)
+	leal	rva(sl_ap_idt_desc)(%ebx), %eax
+	addl	%edi, 2(%eax)
+	leal	rva(sl_ap_gdt_desc)(%ebx), %eax
+	addl	%edi, 2(%eax)
 
 	/*
 	 * Copy the AP wake code and AP GDT/IDT to the protected wake block
 	 * provided by the loader. Destination already in %edi.
 	 */
 	movl	$(sl_txt_ap_wake_end - sl_txt_ap_wake_begin), %ecx
-	leal	sl_txt_ap_wake_begin(%ebx), %esi
+	leal	rva(sl_txt_ap_wake_begin)(%ebx), %esi
 	rep movsb
 
 	/* Setup the IDT for the APs to use in the relocation block */
-	movl	sl_txt_ap_wake_block(%ebx), %ecx
+	movl	rva(sl_txt_ap_wake_block)(%ebx), %ecx
 	addl	$(sl_ap_idt - sl_txt_ap_wake_begin), %ecx
 	xorl	%edx, %edx
 
 	/* Form the default reset vector relocation address */
-	movl	sl_txt_ap_wake_block(%ebx), %esi
+	movl	rva(sl_txt_ap_wake_block)(%ebx), %esi
 	addl	$(sl_txt_int_reset - sl_txt_ap_wake_begin), %esi
 
 1:
@@ -439,7 +423,7 @@ SYM_FUNC_START(sl_txt_reloc_ap_wake)
 
 2:
 	/* Load single wake NMI IPI vector at the relocation address */
-	movl	sl_txt_ap_wake_block(%ebx), %eax
+	movl	rva(sl_txt_ap_wake_block)(%ebx), %eax
 	addl	$(sl_txt_int_ipi_wake - sl_txt_ap_wake_begin), %eax
 	movw	%ax, (IDT_VECTOR_LO_BITS)(%ecx)
 	shrl	$16, %eax
@@ -520,9 +504,9 @@ SYM_FUNC_START(sl_txt_wake_aps)
 	pushl	%esi
 
 	/* First setup the MLE join structure and load it into TXT reg */
-	leal	sl_gdt(%ebx), %eax
-	leal	sl_txt_ap_entry(%ebx), %ecx
-	leal	sl_smx_rlp_mle_join(%ebx), %edx
+	leal	rva(sl_gdt)(%ebx), %eax
+	leal	rva(sl_txt_ap_entry)(%ebx), %ecx
+	leal	rva(sl_smx_rlp_mle_join)(%ebx), %edx
 	movl	%eax, SL_rlp_gdt_base(%edx)
 	movl	%ecx, SL_rlp_entry_point(%edx)
 	movl	%edx, (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_MLE_JOIN)
@@ -564,7 +548,7 @@ SYM_FUNC_START(sl_txt_wake_aps)
 	 * halt.
 	 */
 	pause
-	cmpl	sl_txt_cpu_count(%ebx), %edx
+	cmpl	rva(sl_txt_cpu_count)(%ebx), %edx
 	jne	.Laps_awake
 
 	popl	%esi
@@ -609,13 +593,13 @@ SYM_FUNC_START(sl_txt_int_reset)
 	TXT_RESET $(SL_ERROR_INV_AP_INTERRUPT)
 SYM_FUNC_END(sl_txt_int_reset)
 
-	.balign 16
+	.balign 8
 sl_ap_idt_desc:
 	.word	sl_ap_idt_end - sl_ap_idt - 1		/* Limit */
 	.long	sl_ap_idt - sl_txt_ap_wake_begin	/* Base */
 sl_ap_idt_desc_end:
 
-	.balign 16
+	.balign 8
 sl_ap_idt:
 	.rept	NR_VECTORS
 	.word	0x0000		/* Offset 15 to 0 */
@@ -625,13 +609,13 @@ sl_ap_idt:
 	.endr
 sl_ap_idt_end:
 
-	.balign 16
+	.balign 8
 sl_ap_gdt_desc:
 	.word	sl_ap_gdt_end - sl_ap_gdt - 1
 	.long	sl_ap_gdt - sl_txt_ap_wake_begin
 sl_ap_gdt_desc_end:
 
-	.balign	16
+	.balign	8
 sl_ap_gdt:
 	.quad	0x0000000000000000	/* NULL */
 	.quad	0x00cf9a000000ffff	/* __SL32_CS */
@@ -649,20 +633,20 @@ sl_stacks_end:
 sl_txt_ap_wake_end:
 
 	.data
-	.balign 16
+	.balign 8
 sl_gdt_desc:
 	.word	sl_gdt_end - sl_gdt - 1
-	.long	sl_gdt
+	.long	sl_gdt - sl_gdt_desc
 sl_gdt_desc_end:
 
-	.balign	16
+	.balign	8
 sl_gdt:
 	.quad	0x0000000000000000	/* NULL */
 	.quad	0x00cf9a000000ffff	/* __SL32_CS */
 	.quad	0x00cf92000000ffff	/* __SL32_DS */
 sl_gdt_end:
 
-	.balign 16
+	.balign 8
 sl_smx_rlp_mle_join:
 	.long	sl_gdt_end - sl_gdt - 1	/* GDT limit */
 	.long	0x00000000		/* GDT base */
@@ -675,7 +659,7 @@ SYM_DATA_END(sl_cpu_type)
 
 SYM_DATA_START(sl_mle_start)
 	.long	0x00000000
-SYM_DATA_END(sl_cpu_type)
+SYM_DATA_END(sl_mle_start)
 
 sl_txt_spin_lock:
 	.long	0x00000000
