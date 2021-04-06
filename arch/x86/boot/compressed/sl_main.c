@@ -21,7 +21,7 @@
 #include <asm/bootparam_utils.h>
 #include <linux/slaunch.h>
 #ifdef CONFIG_SECURE_LAUNCH_SHA256
-#include <config/crypto/sha256.h>
+#include <crypto/sha2.h>
 #endif
 #ifdef CONFIG_SECURE_LAUNCH_SHA512
 #include <linux/sha512.h>
