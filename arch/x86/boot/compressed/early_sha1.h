@@ -6,7 +6,7 @@
 #ifndef BOOT_COMPRESSED_EARLY_SHA1_H
 #define BOOT_COMPRESSED_EARLY_SHA1_H
 
-#include <crypto/sha.h>
+#include <crypto/sha1.h>
 
 void early_sha1_init(struct sha1_state *sctx);
 void early_sha1_update(struct sha1_state *sctx,
