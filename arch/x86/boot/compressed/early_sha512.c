@@ -3,4 +3,4 @@
  * Copyright (c) 2020 Apertus Solutions, LLC
  */
 
-#include "../../../../lib/sha512.c"
+#include "../../../../lib/crypto/sha512.c"
