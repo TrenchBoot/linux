@@ -246,40 +246,31 @@ static void slaunch_teardown_securityfs(void)
 	}
 }
 
-static void slaunch_intel_evtlog(void)
+static void slaunch_intel_evtlog(void __iomem *txt)
 {
-	void __iomem *config;
 	struct txt_os_mle_data *params;
 	void *os_sinit_data;
 	u64 base, size;
 
-	config = ioremap(TXT_PUB_CONFIG_REGS_BASE, TXT_NR_CONFIG_PAGES *
-			 PAGE_SIZE);
-	if (!config) {
-		pr_err("Error failed to ioremap TXT reqs\n");
-		return;
-	}
-
-	memcpy_fromio(&base, config + TXT_CR_HEAP_BASE, sizeof(u64));
-	memcpy_fromio(&size, config + TXT_CR_HEAP_SIZE, sizeof(u64));
-	iounmap(config);
+	memcpy_fromio(&base, txt + TXT_CR_HEAP_BASE, sizeof(u64));
+	memcpy_fromio(&size, txt + TXT_CR_HEAP_SIZE, sizeof(u64));
 
 	/* now map TXT heap */
 	txt_heap = memremap(base, size, MEMREMAP_WB);
-	if (!txt_heap) {
-		pr_err("Error failed to memremap TXT heap\n");
-		return;
-	}
+	if (!txt_heap)
+		slaunch_txt_reset(txt,
+			"Error failed to memremap TXT heap\n",
+			SL_ERROR_HEAP_MAP);
 
 	params = (struct txt_os_mle_data *)txt_os_mle_data_start(txt_heap);
 
 	sl_evtlog.size = params->evtlog_size;
 	sl_evtlog.addr = memremap(params->evtlog_addr, params->evtlog_size,
 				  MEMREMAP_WB);
-	if (!sl_evtlog.addr) {
-		pr_err("Error failed to memremap TPM event log\n");
-		return;
-	}
+	if (!sl_evtlog.addr)
+		slaunch_txt_reset(txt,
+			"Error failed to memremap TPM event log\n",
+			SL_ERROR_EVENTLOG_MAP);
 
 	/* Determine if this is TPM 1.2 or 2.0 event log */
 	if (memcmp(sl_evtlog.addr + sizeof(struct tpm12_pcr_event),
@@ -296,18 +287,29 @@ static void slaunch_intel_evtlog(void)
 	 * events to the log will fail.
 	 */
 	if (!evtlog20)
-		pr_err("Error failed to find TPM20 event log element\n");
+		slaunch_txt_reset(txt,
+			"Error failed to find TPM20 event log element\n",
+			SL_ERROR_TPM_INVALID_LOG20);
 }
 
 static int __init slaunch_module_init(void)
 {
+	void __iomem *txt;
+
 	/* Check to see if Secure Launch happened */
 	if ((slaunch_get_flags() & (SL_FLAG_ACTIVE|SL_FLAG_ARCH_TXT)) !=
 	    (SL_FLAG_ACTIVE|SL_FLAG_ARCH_TXT))
 		return 0;
 
+	txt = ioremap(TXT_PRIV_CONFIG_REGS_BASE, TXT_NR_CONFIG_PAGES *
+		      PAGE_SIZE);
+	if (!txt)
+		panic("Error ioremap of TXT priv registers\n");
+
 	/* Only Intel TXT is supported at this point */
-	slaunch_intel_evtlog();
+	slaunch_intel_evtlog(txt);
+
+	iounmap(txt);
 
 	return slaunch_expose_securityfs();
 }
