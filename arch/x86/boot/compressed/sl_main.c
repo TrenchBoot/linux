@@ -398,7 +398,7 @@ asmlinkage __visible void sl_main(void *bootparams)
 	sanitize_boot_params(boot_params);
 
 	/* Place event log NO_ACTION tags before and after measurements */
-	sl_tpm_extend_evtlog(0, NO_ACTION, NULL, 0, SL_TPM_DELIM_START);
+	sl_tpm_extend_evtlog(17, NO_ACTION, NULL, 0, SL_TPM_DELIM_START);
 
 	/* Measure the zero page/boot params */
 	sl_tpm_extend_evtlog(pcr_config, TXT_EVTYPE_SLAUNCH,
@@ -468,7 +468,7 @@ asmlinkage __visible void sl_main(void *bootparams)
 			     sizeof(struct txt_os_mle_data),
 			     "Measured TXT OS-MLE data");
 
-	sl_tpm_extend_evtlog(0, NO_ACTION, NULL, 0, SL_TPM_DELIM_END);
+	sl_tpm_extend_evtlog(17, NO_ACTION, NULL, 0, SL_TPM_DELIM_END);
 
 	/*
 	 * Now that the OS-MLE data is measured, ensure the MTRR and
