@@ -147,6 +147,7 @@
 #define SL_ERROR_MLE_BUFFER_OVERLAP	0xc000801b
 #define SL_ERROR_BUFFER_BEYOND_PMR	0xc000801c
 #define SL_ERROR_OS_SINIT_BAD_VERSION	0xc000801d
+#define SL_ERROR_EVENTLOG_MAP		0xc000801e
 
 /*
  * Secure Launch Defined Limits
@@ -545,6 +546,8 @@ extern void slaunch_setup(void);
 extern u32 slaunch_get_flags(void);
 extern struct sl_ap_wake_info *slaunch_get_ap_wake_info(void);
 extern struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table_header *dmar);
+extern void __noreturn slaunch_txt_reset(void __iomem *txt,
+					 const char *msg, u64 error);
 extern void slaunch_finalize(int do_sexit);
 
 #endif /* !__ASSEMBLY */
