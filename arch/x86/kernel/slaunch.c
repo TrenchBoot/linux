@@ -49,8 +49,8 @@ struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table_header *dmar)
 	return (struct acpi_table_header *)(&txt_dmar[0]);
 }
 
-static void __init __noreturn slaunch_txt_reset(void __iomem *txt,
-						const char *msg, u64 error)
+void __noreturn slaunch_txt_reset(void __iomem *txt,
+				  const char *msg, u64 error)
 {
 	u64 one = 1, val;
 
