@@ -148,6 +148,8 @@
 #define SL_ERROR_BUFFER_BEYOND_PMR	0xc000801c
 #define SL_ERROR_OS_SINIT_BAD_VERSION	0xc000801d
 #define SL_ERROR_EVENTLOG_MAP		0xc000801e
+#define SL_ERROR_TPM_NUMBER_ALGS	0xc000801f
+#define SL_ERROR_TPM_UNKNOWN_DIGEST	0xc0008020
 
 /*
  * Secure Launch Defined Limits
@@ -159,8 +161,10 @@
  * Secure Launch event log entry type. The TXT specification defines the
  * base event value as 0x400 for DRTM values.
  */
-#define TXT_EVTYPE_BASE		0x400
-#define TXT_EVTYPE_SLAUNCH	(TXT_EVTYPE_BASE + 0x102)
+#define TXT_EVTYPE_BASE			0x400
+#define TXT_EVTYPE_SLAUNCH		(TXT_EVTYPE_BASE + 0x102)
+#define TXT_EVTYPE_SLAUNCH_START	(TXT_EVTYPE_BASE + 0x103)
+#define TXT_EVTYPE_SLAUNCH_END		(TXT_EVTYPE_BASE + 0x104)
 
 /*
  * Measured Launch PCRs
@@ -177,15 +181,11 @@
 #define SL_SCRATCH_AP_JMP_OFFSET	4
 #define SL_SCRATCH_AP_PAUSE		8
 
-/*
- * TPM log delimiter strings
- */
-#define SL_TPM_DELIM_START	"START_SLAUNCH_EVENTS"
-#define SL_TPM_DELIM_END	"END_SLAUNCH_EVENTS"
-
 #ifndef __ASSEMBLY__
 
 #include <linux/io.h>
+#include <linux/tpm.h>
+#include <linux/tpm_eventlog.h>
 
 /*
  * Secure Launch AP wakeup information fetched in SMP boot code.
@@ -361,38 +361,6 @@ struct tpm12_event_log_header {
 	/* PCREvents[] */
 } __packed;
 
-struct tpm12_pcr_event {
-	u32 pcr_index;
-	u32 type;
-	u8 digest[20];
-	u32 size;
-	/* Data[] */
-} __packed;
-
-#define TPM20_EVTLOG_SIGNATURE "Spec ID Event03"
-
-struct tpm20_ha {
-	u16 algorithm_id;
-	/* digest[AlgorithmID_DIGEST_SIZE] */
-} __packed;
-
-struct tpm20_digest_values {
-	u32 count;
-	/* TPMT_HA digests[count] */
-} __packed;
-
-struct tpm20_pcr_event_head {
-	u32 pcr_index;
-	u32 event_type;
-} __packed;
-
-/* Variable size array of hashes in the tpm20_digest_values structure */
-
-struct tpm20_pcr_event_tail {
-	u32 event_size;
-	/* Event[EventSize]; */
-} __packed;
-
 /*
  * Functions to extract data from the Intel TXT Heap Memory. The layout
  * of the heap is as follows:
@@ -515,15 +483,15 @@ static inline int tpm20_log_event(struct txt_heap_event_log_pointer2_1_element *
 				  void *evtlog_base, u32 evtlog_size,
 				  u32 event_size, void *event)
 {
-	struct tpm12_pcr_event *header =
-		(struct tpm12_pcr_event *)evtlog_base;
+	struct tcg_pcr_event *header =
+		(struct tcg_pcr_event *)evtlog_base;
 
 	/* Has to be at least big enough for the signature */
-	if (header->size < sizeof(TPM20_EVTLOG_SIGNATURE))
+	if (header->event_size < sizeof(TCG_SPECID_SIG))
 		return -EINVAL;
 
-	if (memcmp((u8 *)header + sizeof(struct tpm12_pcr_event),
-		   TPM20_EVTLOG_SIGNATURE, sizeof(TPM20_EVTLOG_SIGNATURE)))
+	if (memcmp((u8 *)header + sizeof(struct tcg_pcr_event),
+		   TCG_SPECID_SIG, sizeof(TCG_SPECID_SIG)))
 		return -EINVAL;
 
 	if (elem->allocated_event_container_size > evtlog_size)
