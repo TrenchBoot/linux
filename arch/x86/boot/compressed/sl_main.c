@@ -20,11 +20,8 @@
 #include <asm/efi.h>
 #include <asm/bootparam_utils.h>
 #include <linux/slaunch.h>
-#include <linux/tpm.h>
-#include <linux/tpm_eventlog.h>
 #include <crypto/sha1.h>
 #include <crypto/sha2.h>
-#include <linux/sha512.h>
 
 #include "misc.h"
 #include "early_sha1.h"
@@ -34,20 +31,21 @@
 #define SL_TPM12_LOG		1
 #define SL_TPM20_LOG		2
 
+#define SL_TPM20_MAX_ALGS	2
+
 #define SL_MAX_EVENT_DATA	64
-#define SL_TPM12_LOG_SIZE	(sizeof(struct tpm12_pcr_event) + \
+#define SL_TPM12_LOG_SIZE	(sizeof(struct tcg_pcr_event) + \
 				SL_MAX_EVENT_DATA)
-#define SL_TPM20_LOG_SIZE	(sizeof(struct tpm20_ha) + \
-				SHA512_DIGEST_SIZE + \
-				sizeof(struct tpm20_digest_values) + \
-				sizeof(struct tpm20_pcr_event_head) + \
-				sizeof(struct tpm20_pcr_event_tail) + \
+#define SL_TPM20_LOG_SIZE	(sizeof(struct tcg_pcr_event2_head) + \
+				SHA1_DIGEST_SIZE + SHA256_DIGEST_SIZE + \
+				sizeof(struct tcg_event_field) + \
 				SL_MAX_EVENT_DATA)
 
 static void *evtlog_base;
 static u32 evtlog_size;
 static struct txt_heap_event_log_pointer2_1_element *log20_elem;
 static u32 tpm_log_ver = SL_TPM12_LOG;
+struct tcg_efi_specid_event_algs tpm_algs[SL_TPM20_MAX_ALGS] = {0};
 
 #ifndef CONFIG_SECURE_LAUNCH_ALT_PCR19
 static u32 pcr_config = SL_DEF_CONFIG_PCR18;
@@ -224,127 +222,122 @@ pmr_check:
 	 */
 }
 
-static void sl_tpm12_log_event(u32 pcr, u8 *digest, u32 event_type,
+static void sl_find_event_log_algorithms(void)
+{
+	struct tcg_efi_specid_event_head *efi_head =
+		(struct tcg_efi_specid_event_head *)(evtlog_base +
+					log20_elem->first_record_offset +
+					sizeof(struct tcg_pcr_event));
+
+	if (efi_head->num_algs == 0 || efi_head->num_algs > 2)
+		sl_txt_reset(SL_ERROR_TPM_NUMBER_ALGS);
+
+	memcpy(&tpm_algs[0], &efi_head->digest_sizes[0],
+	       sizeof(struct tcg_efi_specid_event_algs) * efi_head->num_algs);
+}
+
+static void sl_tpm12_log_event(u32 pcr, u32 event_type,
+			       const u8 *data, u32 length,
 			       const u8 *event_data, u32 event_size)
 {
-	struct tpm12_pcr_event *pcr_event;
+	struct tcg_pcr_event *pcr_event;
+	struct sha1_state sctx = {0};
 	u32 total_size;
 	u8 log_buf[SL_TPM12_LOG_SIZE] = {0};
+	u8 sha1_hash[SHA1_DIGEST_SIZE] = {0};
 
-	pcr_event = (struct tpm12_pcr_event *)log_buf;
-	pcr_event->pcr_index = pcr;
-	pcr_event->type = event_type;
-	memcpy(&pcr_event->digest[0], digest, SHA1_DIGEST_SIZE);
-	pcr_event->size = event_size;
-	memcpy((u8 *)pcr_event + sizeof(struct tpm12_pcr_event),
-	       event_data, event_size);
+	pcr_event = (struct tcg_pcr_event *)log_buf;
+	pcr_event->pcr_idx = pcr;
+	pcr_event->event_type = event_type;
+	if (length > 0) {
+		early_sha1_init(&sctx);
+		early_sha1_update(&sctx, data, length);
+		early_sha1_final(&sctx, &sha1_hash[0]);
+		memcpy(&pcr_event->digest[0], &sha1_hash[0], SHA1_DIGEST_SIZE);
+	}
+	pcr_event->event_size = event_size;
+	if (event_size > 0)
+		memcpy((u8 *)pcr_event + sizeof(struct tcg_pcr_event),
+		       event_data, event_size);
 
-	total_size = sizeof(struct tpm12_pcr_event) + event_size;
+	total_size = sizeof(struct tcg_pcr_event) + event_size;
 
 	if (tpm12_log_event(evtlog_base, evtlog_size, total_size, pcr_event))
 		sl_txt_reset(SL_ERROR_TPM_LOGGING_FAILED);
 }
 
-static void sl_tpm20_log_event(u32 pcr, u8 *digest, u16 algo, u32 event_type,
+static void sl_tpm20_log_event(u32 pcr, u32 event_type,
+			       const u8 *data, u32 length,
 			       const u8 *event_data, u32 event_size)
 {
-	struct tpm20_pcr_event_head *head;
-	struct tpm20_digest_values *dvs;
-	struct tpm20_ha *ha;
-	struct tpm20_pcr_event_tail *tail;
-	u8 *dptr;
+	struct tcg_pcr_event2_head *head;
+	struct tcg_event_field *event;
+	struct sha1_state sctx1 = {0};
+	struct sha256_state sctx256 = {0};
 	u32 total_size;
+	u16 *alg_ptr;
+	u8 *dgst_ptr;
 	u8 log_buf[SL_TPM20_LOG_SIZE] = {0};
+	u8 sha1_hash[SHA1_DIGEST_SIZE] = {0};
+	u8 sha256_hash[SHA256_DIGEST_SIZE] = {0};
 
-	head = (struct tpm20_pcr_event_head *)log_buf;
-	head->pcr_index = pcr;
+	head = (struct tcg_pcr_event2_head *)log_buf;
+	head->pcr_idx = pcr;
 	head->event_type = event_type;
-	dvs = (struct tpm20_digest_values *)
-		((u8 *)head + sizeof(struct tpm20_pcr_event_head));
-	dvs->count = 1;
-	ha = (struct tpm20_ha *)
-		((u8 *)dvs + sizeof(struct tpm20_digest_values));
-	ha->algorithm_id = algo;
-	dptr = (u8 *)ha + sizeof(struct tpm20_ha);
+	total_size = sizeof(struct tcg_pcr_event2_head);
+	alg_ptr = (u16 *)(log_buf + sizeof(struct tcg_pcr_event2_head));
 
-	switch (algo) {
-	case TPM_ALG_SHA512:
-		memcpy(dptr, digest, SHA512_DIGEST_SIZE);
-		tail = (struct tpm20_pcr_event_tail *)
-			(dptr + SHA512_DIGEST_SIZE);
-		break;
-	case TPM_ALG_SHA256:
-		memcpy(dptr, digest, SHA256_DIGEST_SIZE);
-		tail = (struct tpm20_pcr_event_tail *)
-			(dptr + SHA256_DIGEST_SIZE);
-		break;
-	case TPM_ALG_SHA1:
-	default:
-		memcpy(dptr, digest, SHA1_DIGEST_SIZE);
-		tail = (struct tpm20_pcr_event_tail *)
-			(dptr + SHA1_DIGEST_SIZE);
-	};
+	for ( ; head->count < 2; head->count++) {
+		if (!tpm_algs[head->count].alg_id)
+			break;
 
-	tail->event_size = event_size;
-	memcpy((u8 *)tail + sizeof(struct tpm20_pcr_event_tail),
-	       event_data, event_size);
+		*alg_ptr = tpm_algs[head->count].alg_id;
+		dgst_ptr = (u8 *)alg_ptr + sizeof(u16);
 
-	total_size = (u32)((u8 *)tail - (u8 *)head) +
-		sizeof(struct tpm20_pcr_event_tail) + event_size;
+		if (tpm_algs[head->count].alg_id == TPM_ALG_SHA256 &&
+		    length) {
+			sha256_init(&sctx256);
+			sha256_update(&sctx256, data, length);
+			sha256_final(&sctx256, &sha256_hash[0]);
+		} else if (tpm_algs[head->count].alg_id == TPM_ALG_SHA1 &&
+		           length) {
+			early_sha1_init(&sctx1);
+			early_sha1_update(&sctx1, data, length);
+			early_sha1_final(&sctx1, &sha1_hash[0]);
+		}
 
-	if (tpm20_log_event(log20_elem, evtlog_base, evtlog_size, total_size, &log_buf[0]))
+		if (tpm_algs[head->count].alg_id == TPM_ALG_SHA256) {
+			memcpy(dgst_ptr, &sha256_hash[0], SHA256_DIGEST_SIZE);
+			total_size += SHA256_DIGEST_SIZE + sizeof(u16);
+			alg_ptr = (u16 *)((u8 *)alg_ptr + SHA256_DIGEST_SIZE + sizeof(u16));
+		} else if (tpm_algs[head->count].alg_id == TPM_ALG_SHA1) {
+			memcpy(dgst_ptr, &sha1_hash[0], SHA1_DIGEST_SIZE);
+			total_size += SHA1_DIGEST_SIZE + sizeof(u16);
+			alg_ptr = (u16 *)((u8 *)alg_ptr + SHA1_DIGEST_SIZE + sizeof(u16));
+		} else
+			sl_txt_reset(SL_ERROR_TPM_UNKNOWN_DIGEST);
+	}
+
+	event = (struct tcg_event_field *)(log_buf + total_size);
+	event->event_size = event_size;
+	if (event_size > 0)
+		memcpy((u8 *)event + sizeof(struct tcg_event_field),
+		       event_data, event_size);
+	total_size += sizeof(struct tcg_event_field) + event_size;
+
+	if (tpm20_log_event(log20_elem, evtlog_base, evtlog_size,
+	    total_size, &log_buf[0]))
 		sl_txt_reset(SL_ERROR_TPM_LOGGING_FAILED);
 }
 
 static void sl_tpm_extend_evtlog(u32 pcr, u32 type,
 				 const u8 *data, u32 length, const char *desc)
 {
-	struct sha1_state sctx = {0};
-	u8 sha1_hash[SHA1_DIGEST_SIZE] = {0};
-
-	if (tpm_log_ver == SL_TPM20_LOG) {
-#ifdef CONFIG_SECURE_LAUNCH_SHA256
-		struct sha256_state sctx = {0};
-		u8 sha256_hash[SHA256_DIGEST_SIZE] = {0};
-
-		if (length > 0) {
-			sha256_init(&sctx);
-			sha256_update(&sctx, data, length);
-			sha256_final(&sctx, &sha256_hash[0]);
-		}
-		sl_tpm20_log_event(pcr, &sha256_hash[0],
-				   TPM_ALG_SHA256, type,
-				   (const u8 *)desc, strlen(desc));
-		return;
-#endif
-#ifdef CONFIG_SECURE_LAUNCH_SHA512
-		struct sha512_state sctx = {0};
-		u8 sha512_hash[SHA512_DIGEST_SIZE] = {0};
-
-		if (length > 0) {
-			sha512_init(&sctx);
-			sha512_update(&sctx, data, length);
-			sha512_final(&sctx, &sha512_hash[0]);
-		}
-		sl_tpm20_log_event(pcr, &sha512_hash[0],
-				   TPM_ALG_SHA512, type,
-				   (const u8 *)desc, strlen(desc));
-		return;
-#endif
-	}
-
-	if (length > 0) {
-		early_sha1_init(&sctx);
-		early_sha1_update(&sctx, data, length);
-		early_sha1_final(&sctx, &sha1_hash[0]);
-	}
-
 	if (tpm_log_ver == SL_TPM20_LOG)
-		sl_tpm20_log_event(pcr, &sha1_hash[0],
-				   TPM_ALG_SHA1, type,
+		sl_tpm20_log_event(pcr, type, data, length,
 				   (const u8 *)desc, strlen(desc));
 	else
-		sl_tpm12_log_event(pcr, &sha1_hash[0], type,
+		sl_tpm12_log_event(pcr, type, data, length,
 				   (const u8 *)desc, strlen(desc));
 }
 
@@ -393,12 +386,19 @@ asmlinkage __visible void sl_main(void *bootparams)
 	/* Validate the location of the event log buffer before using it */
 	sl_validate_event_log_buffer();
 
+	/*
+	 * Find the TPM hash algorithms used by the ACM and recorded in the
+	 * event log.
+	 */
+	if (tpm_log_ver == SL_TPM20_LOG)
+		sl_find_event_log_algorithms();
+
 	/* Sanitize them before measuring */
 	boot_params = (struct boot_params*)bootparams;
 	sanitize_boot_params(boot_params);
 
 	/* Place event log NO_ACTION tags before and after measurements */
-	sl_tpm_extend_evtlog(17, NO_ACTION, NULL, 0, SL_TPM_DELIM_START);
+	sl_tpm_extend_evtlog(17, TXT_EVTYPE_SLAUNCH_START, NULL, 0, "");
 
 	/* Measure the zero page/boot params */
 	sl_tpm_extend_evtlog(pcr_config, TXT_EVTYPE_SLAUNCH,
@@ -468,7 +468,7 @@ asmlinkage __visible void sl_main(void *bootparams)
 			     sizeof(struct txt_os_mle_data),
 			     "Measured TXT OS-MLE data");
 
-	sl_tpm_extend_evtlog(17, NO_ACTION, NULL, 0, SL_TPM_DELIM_END);
+	sl_tpm_extend_evtlog(17, TXT_EVTYPE_SLAUNCH_END, NULL, 0, "");
 
 	/*
 	 * Now that the OS-MLE data is measured, ensure the MTRR and
