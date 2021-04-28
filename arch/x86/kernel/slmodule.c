@@ -24,6 +24,7 @@
 #include <linux/memblock.h>
 #include <asm/segment.h>
 #include <asm/sections.h>
+#include <crypto/sha2.h>
 #include <linux/slaunch.h>
 
 #define SL_FS_ENTRIES		10
@@ -273,8 +274,8 @@ static void slaunch_intel_evtlog(void __iomem *txt)
 			SL_ERROR_EVENTLOG_MAP);
 
 	/* Determine if this is TPM 1.2 or 2.0 event log */
-	if (memcmp(sl_evtlog.addr + sizeof(struct tpm12_pcr_event),
-		    TPM20_EVTLOG_SIGNATURE, sizeof(TPM20_EVTLOG_SIGNATURE)))
+	if (memcmp(sl_evtlog.addr + sizeof(struct tcg_pcr_event),
+		    TCG_SPECID_SIG, sizeof(TCG_SPECID_SIG)))
 		return; /* looks like it is not 2.0 */
 
 	/* For TPM 2.0 logs, the extended heap element must be located */
