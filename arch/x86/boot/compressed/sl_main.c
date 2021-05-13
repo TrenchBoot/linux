@@ -96,6 +96,41 @@ static u64 sl_rdmsr(u32 reg)
 	return (hi << 32) | lo;
 }
 
+static void sl_check_pmr_coverage(void *base, u32 size, bool allow_hi)
+{
+	void *end = base + size;
+	struct txt_os_sinit_data *os_sinit_data;
+	void *txt_heap;
+
+	if (!(sl_cpu_type & SL_CPU_INTEL))
+		return;
+
+	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
+	os_sinit_data = txt_os_sinit_data_start(txt_heap);
+
+	if ((end >= (void *)0x100000000ULL) &&
+	    (base < (void *)0x100000000ULL))
+		sl_txt_reset(SL_ERROR_REGION_STRADDLE_4GB);
+
+	/*
+ 	 * Note that the late stub code validates that the hi PMR covers
+	 * all memory above 4G. At this point the code can only check that
+	 * regions are within the hi PMR but that is sufficient.
+	 */
+	if ((end > (void *)0x100000000ULL) &&
+	    (base >= (void *)0x100000000ULL)) {
+		if (allow_hi) {
+			if (end >= (void *)(os_sinit_data->vtd_pmr_hi_base +
+					   os_sinit_data->vtd_pmr_hi_size))
+				sl_txt_reset(SL_ERROR_BUFFER_BEYOND_PMR);
+		} else
+			sl_txt_reset(SL_ERROR_REGION_ABOVE_4GB);
+	}
+
+	if (end >= (void *)os_sinit_data->vtd_pmr_lo_size)
+		sl_txt_reset(SL_ERROR_BUFFER_BEYOND_PMR);
+}
+
 /*
  * Some MSRs are modified by the pre-launch code including the MTRRs.
  * The early MLE code has to restore these values. This code validates
@@ -198,14 +233,6 @@ static void sl_validate_event_log_buffer(void)
 
 pmr_check:
 	/*
-	 * Have to restrict the event log to below 4G since there is
-	 * no easy way to validate the hi PMR values.
-	 */
-	if ((evtlog_end >= (void *)0x100000000ULL) ||
-	    (evtlog_base >= (void *)0x100000000ULL))
-		sl_txt_reset(SL_ERROR_REGION_ABOVE_4GB);
-
-	/*
 	 * The TXT heap is protected by the DPR. If the TPM event log is
 	 * inside the TXT heap, there is no need for a PMR check.
 	 */
@@ -213,13 +240,7 @@ pmr_check:
 	    (evtlog_end < txt_heap_end))
 		return;
 
-	if (evtlog_end > (void *)os_sinit_data->vtd_pmr_lo_size)
-		sl_txt_reset(SL_ERROR_BUFFER_BEYOND_PMR);
-
-	/*
- 	 * Note that the late stub code validates that the hi PMR covers
-	 * all memory above 4G before the event log buffer is ever read.
-	 */
+	sl_check_pmr_coverage(evtlog_base, evtlog_size, true);
 }
 
 static void sl_find_event_log_algorithms(void)
@@ -343,22 +364,7 @@ static void sl_tpm_extend_evtlog(u32 pcr, u32 type,
 
 asmlinkage __visible void sl_check_region(void *base, u32 size)
 {
-	void *end = base + size;
-	struct txt_os_sinit_data *os_sinit_data;
-	void *txt_heap;
-
-	if (!(sl_cpu_type & SL_CPU_INTEL))
-		return;
-
-	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
-	os_sinit_data = txt_os_sinit_data_start(txt_heap);
-
-	if ((end >= (void *)0x100000000ULL) ||
-	    (base >= (void *)0x100000000ULL))
-		sl_txt_reset(SL_ERROR_REGION_ABOVE_4GB);
-
-	if (end > (void *)os_sinit_data->vtd_pmr_lo_size)
-		sl_txt_reset(SL_ERROR_BUFFER_BEYOND_PMR);
+	sl_check_pmr_coverage(base, size, false);
 }
 
 asmlinkage __visible void sl_main(void *bootparams)
@@ -400,6 +406,8 @@ asmlinkage __visible void sl_main(void *bootparams)
 	/* Place event log NO_ACTION tags before and after measurements */
 	sl_tpm_extend_evtlog(17, TXT_EVTYPE_SLAUNCH_START, NULL, 0, "");
 
+	sl_check_pmr_coverage(bootparams, PAGE_SIZE, false);
+
 	/* Measure the zero page/boot params */
 	sl_tpm_extend_evtlog(pcr_config, TXT_EVTYPE_SLAUNCH,
 			     bootparams, PAGE_SIZE,
@@ -409,10 +417,20 @@ asmlinkage __visible void sl_main(void *bootparams)
 	bp = (struct boot_params *)bootparams;
 
 	/* Measure the command line */
-	sl_tpm_extend_evtlog(pcr_config, TXT_EVTYPE_SLAUNCH,
-			     (u8 *)((unsigned long)bp->hdr.cmd_line_ptr),
-			     bp->hdr.cmdline_size,
-			     "Measured Kernel command line");
+	if (bp->hdr.cmdline_size > 0) {
+		u64 cmdline = (u64)bp->hdr.cmd_line_ptr;
+
+		if (bp->ext_cmd_line_ptr > 0)
+			cmdline = cmdline | ((u64)bp->ext_cmd_line_ptr << 32);
+
+		sl_check_pmr_coverage((void *)cmdline,
+				      bp->hdr.cmdline_size, true);
+
+		sl_tpm_extend_evtlog(pcr_config, TXT_EVTYPE_SLAUNCH,
+				     (u8 *)cmdline,
+				     bp->hdr.cmdline_size,
+				     "Measured Kernel command line");
+	}
 
 	/*
 	 * Measuring the boot params measured the fixed e820 memory map.
@@ -420,6 +438,9 @@ asmlinkage __visible void sl_main(void *bootparams)
 	 */
 	data = (struct setup_data *)(unsigned long)bp->hdr.setup_data;
 	while (data) {
+		sl_check_pmr_coverage(((u8 *)data) + sizeof(struct setup_data),
+				      data->len, true);
+
 		sl_tpm_extend_evtlog(pcr_config, TXT_EVTYPE_SLAUNCH,
 				     ((u8 *)data) + sizeof(struct setup_data),
 				     data->len,
@@ -445,11 +466,24 @@ asmlinkage __visible void sl_main(void *bootparams)
 				     "Measured EFI memory map");
 
 	/* Measure any external initrd */
-	if (bp->hdr.ramdisk_image != 0 && bp->hdr.ramdisk_size != 0)
+	if (bp->hdr.ramdisk_image != 0 && bp->hdr.ramdisk_size != 0) {
+		u64 ramdisk = (u64)bp->hdr.ramdisk_image;
+
+		if (bp->ext_ramdisk_size > 0)
+			sl_txt_reset(SL_ERROR_INITRD_TOO_BIG);
+
+		if (bp->ext_ramdisk_image > 0)
+			ramdisk = ramdisk |
+				  ((u64)bp->ext_ramdisk_image << 32);
+
+		sl_check_pmr_coverage((void *)ramdisk,
+				      bp->hdr.ramdisk_size, true);
+
 		sl_tpm_extend_evtlog(pcr_image, TXT_EVTYPE_SLAUNCH,
-				     (u8 *)((u64)bp->hdr.ramdisk_image),
+				     (u8 *)(ramdisk),
 				     bp->hdr.ramdisk_size,
 				     "Measured initramfs");
+	}
 
 	/*
 	 * Some extra work to do on Intel, have to measure the OS-MLE
@@ -462,6 +496,8 @@ asmlinkage __visible void sl_main(void *bootparams)
 	os_mle_tmp.version = os_mle_data->version;
 	os_mle_tmp.saved_misc_enable_msr = os_mle_data->saved_misc_enable_msr;
 	os_mle_tmp.saved_bsp_mtrrs = os_mle_data->saved_bsp_mtrrs;
+
+	/* No PMR check is needed, the TXT heap is covered by the DPR */
 
 	sl_tpm_extend_evtlog(pcr_config, TXT_EVTYPE_SLAUNCH,
 			     (u8 *)&os_mle_tmp,
