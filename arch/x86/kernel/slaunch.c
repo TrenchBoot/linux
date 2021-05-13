@@ -137,7 +137,7 @@ static void __init *txt_early_get_heap_table(void __iomem *txt, u32 type,
 static void __init slaunch_verify_pmrs(void __iomem *txt)
 {
 	struct txt_os_sinit_data *os_sinit_data;
-	unsigned long last_pfn, initrd_extent;
+	unsigned long last_pfn;
 	u32 field_offset, err = 0;
 	const char *errmsg = "";
 
@@ -185,29 +185,12 @@ static void __init slaunch_verify_pmrs(void __iomem *txt)
 	    (__pa_symbol(_end) > os_sinit_data->vtd_pmr_lo_size)) {
 		err = SL_ERROR_LO_PMR_MLE;
 		errmsg = "Error lo PMR does not cover MLE kernel\n";
-		goto out;
 	}
 
 	/*
-	 * AP wake block already checked for protection by the lo PMR in
-	 * early stub code.
+	 * Other regions of interest like boot param, AP wake block, cmdline
+	 * already checked for PMR coverage in the early stub code.
 	 */
-
-	/*
-	 * If an external initrd is present and loaded below 4G, check
-	 * that it is protected by the lo PMR.
-	 */
-	if (boot_params.hdr.ramdisk_image != 0 &&
-	    boot_params.hdr.ramdisk_size != 0) {
-		initrd_extent = boot_params.hdr.ramdisk_image +
-				boot_params.hdr.ramdisk_size;
-		if ((initrd_extent < 0x100000000ULL) &&
-		    (initrd_extent > os_sinit_data->vtd_pmr_lo_size)) {
-			err = SL_ERROR_LO_PMR_INITRD;
-			errmsg = "Error lo PMR does not cover external initrd\n";
-			goto out;
-		}
-	}
 
 out:
 	early_memunmap(os_sinit_data, field_offset);
@@ -302,7 +285,10 @@ nomdr:
 	for (i = 0; i < e820_table->nr_entries; i++) {
 		base = e820_table->entries[i].addr;
 		size = e820_table->entries[i].size;
-		if ((base > vtd_pmr_lo_size) && (base < 0x100000000ULL))
+		if ((base >= vtd_pmr_lo_size) && (base < 0x100000000ULL))
+			slaunch_txt_reserve_range(base, size);
+		else if ((base < vtd_pmr_lo_size) &&
+			 (base + size >= vtd_pmr_lo_size))
 			slaunch_txt_reserve_range(base, size);
 	}
 }
