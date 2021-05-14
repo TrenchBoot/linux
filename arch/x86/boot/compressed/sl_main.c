@@ -47,13 +47,13 @@ static struct txt_heap_event_log_pointer2_1_element *log20_elem;
 static u32 tpm_log_ver = SL_TPM12_LOG;
 struct tcg_efi_specid_event_algs tpm_algs[SL_TPM20_MAX_ALGS] = {0};
 
-#ifndef CONFIG_SECURE_LAUNCH_ALT_PCR19
+#if !IS_ENABLED(CONFIG_SECURE_LAUNCH_ALT_PCR19)
 static u32 pcr_config = SL_DEF_CONFIG_PCR18;
 #else
 static u32 pcr_config = SL_ALT_CONFIG_PCR19;
 #endif
 
-#ifndef CONFIG_SECURE_LAUNCH_ALT_PCR20
+#if !IS_ENABLED(CONFIG_SECURE_LAUNCH_ALT_PCR20)
 static u32 pcr_image = SL_DEF_IMAGE_PCR17;
 #else
 static u32 pcr_image = SL_ALT_IMAGE_PCR20;

@@ -29,7 +29,7 @@ SYM_DATA_START(kernel_info)
 	.long	SETUP_TYPE_MAX
 
 	/* Offset to the MLE header structure */
-#ifdef CONFIG_SECURE_LAUNCH
+#if IS_ENABLED(CONFIG_SECURE_LAUNCH)
 	.long	rva(mle_header)
 #else
 	.long	0
@@ -39,6 +39,7 @@ kernel_info_var_len_data:
 	/* Empty for time being... */
 SYM_DATA_END_LABEL(kernel_info, SYM_L_LOCAL, kernel_info_end)
 
+#if IS_ENABLED(CONFIG_SECURE_LAUNCH)
 	/*
 	 * The MLE Header per the TXT Specification, section 2.1
 	 * MLE capabilities, see table 4. Capabilities set:
@@ -62,5 +63,4 @@ SYM_DATA_START(mle_header)
 	.long	0x00000000  /* Starting linear address of command line (unused) */
 	.long	0x00000000  /* Ending linear address of command line (unused) */
 SYM_DATA_END(mle_header)
-
-
+#endif
