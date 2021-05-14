@@ -594,39 +594,39 @@ SYM_FUNC_START(sl_txt_int_reset)
 SYM_FUNC_END(sl_txt_int_reset)
 
 	.balign 8
-sl_ap_idt_desc:
+SYM_DATA_START_LOCAL(sl_ap_idt_desc)
 	.word	sl_ap_idt_end - sl_ap_idt - 1		/* Limit */
 	.long	sl_ap_idt - sl_txt_ap_wake_begin	/* Base */
-sl_ap_idt_desc_end:
+SYM_DATA_END_LABEL(sl_ap_idt_desc, SYM_L_LOCAL, sl_ap_idt_desc_end)
 
 	.balign 8
-sl_ap_idt:
+SYM_DATA_START_LOCAL(sl_ap_idt)
 	.rept	NR_VECTORS
 	.word	0x0000		/* Offset 15 to 0 */
 	.word	__SL32_CS	/* Segment selector */
 	.word	0x8e00		/* Present, DPL=0, 32b Vector, Interrupt */
 	.word	0x0000		/* Offset 31 to 16 */
 	.endr
-sl_ap_idt_end:
+SYM_DATA_END_LABEL(sl_ap_idt, SYM_L_LOCAL, sl_ap_idt_end)
 
 	.balign 8
-sl_ap_gdt_desc:
+SYM_DATA_START_LOCAL(sl_ap_gdt_desc)
 	.word	sl_ap_gdt_end - sl_ap_gdt - 1
 	.long	sl_ap_gdt - sl_txt_ap_wake_begin
-sl_ap_gdt_desc_end:
+SYM_DATA_END_LABEL(sl_ap_gdt_desc, SYM_L_LOCAL, sl_ap_gdt_desc_end)
 
 	.balign	8
-sl_ap_gdt:
+SYM_DATA_START_LOCAL(sl_ap_gdt)
 	.quad	0x0000000000000000	/* NULL */
 	.quad	0x00cf9a000000ffff	/* __SL32_CS */
 	.quad	0x00cf92000000ffff	/* __SL32_DS */
-sl_ap_gdt_end:
+SYM_DATA_END_LABEL(sl_ap_gdt, SYM_L_LOCAL, sl_ap_gdt_end)
 
 	/* Small stacks for BSP and APs to work with */
 	.balign 4
-sl_stacks:
+SYM_DATA_START_LOCAL(sl_stacks)
 	.fill (TXT_MAX_CPUS * TXT_BOOT_STACK_SIZE), 1, 0
-sl_stacks_end:
+SYM_DATA_END_LABEL(sl_stacks, SYM_L_LOCAL, sl_stacks_end)
 
 /* This is the end of the relocated AP wake code block */
 	.global sl_txt_ap_wake_end
@@ -634,41 +634,34 @@ sl_txt_ap_wake_end:
 
 	.data
 	.balign 8
-sl_gdt_desc:
+SYM_DATA_START_LOCAL(sl_gdt_desc)
 	.word	sl_gdt_end - sl_gdt - 1
 	.long	sl_gdt - sl_gdt_desc
-sl_gdt_desc_end:
+SYM_DATA_END_LABEL(sl_gdt_desc, SYM_L_LOCAL, sl_gdt_desc_end)
 
 	.balign	8
-sl_gdt:
+SYM_DATA_START_LOCAL(sl_gdt)
 	.quad	0x0000000000000000	/* NULL */
 	.quad	0x00cf9a000000ffff	/* __SL32_CS */
 	.quad	0x00cf92000000ffff	/* __SL32_DS */
-sl_gdt_end:
+SYM_DATA_END_LABEL(sl_gdt, SYM_L_LOCAL, sl_gdt_end)
 
 	.balign 8
-sl_smx_rlp_mle_join:
+SYM_DATA_START_LOCAL(sl_smx_rlp_mle_join)
 	.long	sl_gdt_end - sl_gdt - 1	/* GDT limit */
 	.long	0x00000000		/* GDT base */
 	.long	__SL32_CS	/* Seg Sel - CS (DS, ES, SS = seg_sel+8) */
 	.long	0x00000000	/* Entry point physical address */
+SYM_DATA_END(sl_smx_rlp_mle_join)
 
-SYM_DATA_START(sl_cpu_type)
-	.long	0x00000000
-SYM_DATA_END(sl_cpu_type)
+SYM_DATA(sl_cpu_type, .long 0x00000000)
 
-SYM_DATA_START(sl_mle_start)
-	.long	0x00000000
-SYM_DATA_END(sl_mle_start)
+SYM_DATA(sl_mle_start, .long 0x00000000)
 
-sl_txt_spin_lock:
-	.long	0x00000000
+SYM_DATA_LOCAL(sl_txt_spin_lock, .long 0x00000000)
 
-sl_txt_stack_index:
-	.long	0x00000000
+SYM_DATA_LOCAL(sl_txt_stack_index, .long 0x00000000)
 
-sl_txt_cpu_count:
-	.long	0x00000000
+SYM_DATA_LOCAL(sl_txt_cpu_count, .long 0x00000000)
 
-sl_txt_ap_wake_block:
-	.long	0x00000000
+SYM_DATA_LOCAL(sl_txt_ap_wake_block, .long 0x00000000)
