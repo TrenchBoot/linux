@@ -100,7 +100,7 @@ static void __init *txt_early_get_heap_table(void __iomem *txt, u32 type,
 		if (!heap)
 			slaunch_txt_reset(txt,
 				"Error early_memremap of heap for heap walk\n",
-				SL_ERROR_HEAP_WALK);
+				SL_ERROR_HEAP_MAP);
 
 		offset = *((u64 *)heap);
 
