@@ -15,7 +15,7 @@
 #define SL_FLAG_ARCH_SKINIT	0x00000002
 #define SL_FLAG_ARCH_TXT	0x00000004
 
-#ifdef CONFIG_SECURE_LAUNCH
+#if IS_ENABLED(CONFIG_SECURE_LAUNCH)
 
 /*
  * Secure Launch main definitions file.
@@ -122,7 +122,7 @@
 #define SL_ERROR_TPM_INIT		0xc0008002
 #define SL_ERROR_TPM_INVALID_LOG20	0xc0008003
 #define SL_ERROR_TPM_LOGGING_FAILED	0xc0008004
-#define SL_ERROR_TPM_GET_LOC		0xc0008005
+#define SL_ERROR_REGION_STRADDLE_4GB	0xc0008005
 #define SL_ERROR_TPM_EXTEND		0xc0008006
 #define SL_ERROR_MTRR_INV_VCNT		0xc0008007
 #define SL_ERROR_MTRR_INV_DEF_TYPE	0xc0008008
@@ -151,7 +151,6 @@
 #define SL_ERROR_TPM_NUMBER_ALGS	0xc000801f
 #define SL_ERROR_TPM_UNKNOWN_DIGEST	0xc0008020
 #define SL_ERROR_TPM_INVALID_EVENT	0xc0008021
-#define SL_ERROR_REGION_STRADDLE_4GB	0xc0008022
 
 /*
  * Secure Launch Defined Limits
@@ -529,6 +528,6 @@ extern void slaunch_finalize(int do_sexit);
 #define slaunch_get_dmar_table(d)	(d)
 #define slaunch_finalize(d)		do { } while (0)
 
-#endif /* !CONFIG_SECURE_LAUNCH */
+#endif /* !IS_ENABLED(CONFIG_SECURE_LAUNCH) */
 
 #endif /* _LINUX_SLAUNCH_H */
