@@ -113,7 +113,7 @@ static void sl_check_pmr_coverage(void *base, u32 size, bool allow_hi)
 		sl_txt_reset(SL_ERROR_REGION_STRADDLE_4GB);
 
 	/*
- 	 * Note that the late stub code validates that the hi PMR covers
+	 * Note that the late stub code validates that the hi PMR covers
 	 * all memory above 4G. At this point the code can only check that
 	 * regions are within the hi PMR but that is sufficient.
 	 */
@@ -321,7 +321,7 @@ static void sl_tpm20_log_event(u32 pcr, u32 event_type,
 			sha256_update(&sctx256, data, length);
 			sha256_final(&sctx256, &sha256_hash[0]);
 		} else if (tpm_algs[head->count].alg_id == TPM_ALG_SHA1 &&
-		           length) {
+			   length) {
 			early_sha1_init(&sctx1);
 			early_sha1_update(&sctx1, data, length);
 			early_sha1_final(&sctx1, &sha1_hash[0]);
@@ -400,7 +400,7 @@ asmlinkage __visible void sl_main(void *bootparams)
 		sl_find_event_log_algorithms();
 
 	/* Sanitize them before measuring */
-	boot_params = (struct boot_params*)bootparams;
+	boot_params = (struct boot_params *)bootparams;
 	sanitize_boot_params(boot_params);
 
 	/* Place event log NO_ACTION tags before and after measurements */
