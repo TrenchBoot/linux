@@ -359,7 +359,7 @@ static void slaunch_tpm20_extend(struct tpm_chip *tpm, void __iomem *txt)
 					 evtlog20->first_record_offset);
 	/* Skip first TPM 1.2 event to get to first TPM 2.0 event */
 	struct tcg_pcr_event2_head *event =
-		(struct tcg_pcr_event2_head *)((u8* )event_header +
+		(struct tcg_pcr_event2_head *)((u8 *)event_header +
 					       sizeof(struct tcg_pcr_event) +
 					       event_header->event_size);
 	int start = 0, end = 0, size;
