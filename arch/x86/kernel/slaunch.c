@@ -288,8 +288,9 @@ nomdr:
 		if ((base >= vtd_pmr_lo_size) && (base < 0x100000000ULL))
 			slaunch_txt_reserve_range(base, size);
 		else if ((base < vtd_pmr_lo_size) &&
-			 (base + size >= vtd_pmr_lo_size))
-			slaunch_txt_reserve_range(base, size);
+			 (base + size > vtd_pmr_lo_size))
+			slaunch_txt_reserve_range(vtd_pmr_lo_size,
+						  base + size - vtd_pmr_lo_size);
 	}
 }
 
