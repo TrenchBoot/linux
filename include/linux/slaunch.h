@@ -2,7 +2,7 @@
 /*
  * Main Secure Launch header file.
  *
- * Copyright (c) 2020, Oracle and/or its affiliates.
+ * Copyright (c) 2021, Oracle and/or its affiliates.
  */
 
 #ifndef _LINUX_SLAUNCH_H
@@ -16,12 +16,6 @@
 #define SL_FLAG_ARCH_TXT	0x00000004
 
 #if IS_ENABLED(CONFIG_SECURE_LAUNCH)
-
-/*
- * Secure Launch main definitions file.
- *
- * Copyright (c) 2019 Oracle and/or its affiliates. All rights reserved.
- */
 
 #define __SL32_CS	0x0008
 #define __SL32_DS	0x0010
