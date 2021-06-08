@@ -3,7 +3,7 @@
 /*
  * Secure Launch protected mode entry point.
  *
- * Copyright (c) 2020, Oracle and/or its affiliates.
+ * Copyright (c) 2021, Oracle and/or its affiliates.
  */
 	.code32
 	.text

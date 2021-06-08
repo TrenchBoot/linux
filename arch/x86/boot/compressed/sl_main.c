@@ -2,7 +2,7 @@
 /*
  * Secure Launch early measurement and validation routines.
  *
- * Copyright (c) 2020, Oracle and/or its affiliates.
+ * Copyright (c) 2021, Oracle and/or its affiliates.
  */
 
 #include <linux/init.h>
