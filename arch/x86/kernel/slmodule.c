@@ -3,9 +3,9 @@
  * Secure Launch late validation/setup, securityfs exposure and
  * finalization support.
  *
- * Copyright (c) 2020, Oracle and/or its affiliates.
- * Copyright (c) 2020 Apertus Solutions, LLC
- * Copyright (c) 2020 Assured Information Security, Inc.
+ * Copyright (c) 2021 Apertus Solutions, LLC
+ * Copyright (c) 2021 Assured Information Security, Inc.
+ * Copyright (c) 2021, Oracle and/or its affiliates.
  *
  * Author(s):
  *     Daniel P. Smith <dpsmith@apertussolutions.com>
