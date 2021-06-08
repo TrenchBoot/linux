@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2020, Oracle and/or its affiliates.
+ * Copyright (c) 2021 Apertus Solutions, LLC
  */
 
 #ifndef BOOT_COMPRESSED_EARLY_SHA1_H

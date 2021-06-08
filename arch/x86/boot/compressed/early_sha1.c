@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2020, Oracle and/or its affiliates.
- * Copyright (c) 2020 Apertus Solutions, LLC.
+ * Copyright (c) 2021 Apertus Solutions, LLC.
  */
 
 #include <linux/init.h>
