@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2020 Apertus Solutions, LLC
+ * Copyright (c) 2021 Apertus Solutions, LLC
  */
 
 #define SHA256_DISABLE_EXPORT
