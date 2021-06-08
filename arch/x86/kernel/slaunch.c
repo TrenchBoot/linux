@@ -2,7 +2,7 @@
 /*
  * Secure Launch late validation/setup and finalization support.
  *
- * Copyright (c) 2020, Oracle and/or its affiliates.
+ * Copyright (c) 2021, Oracle and/or its affiliates.
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
