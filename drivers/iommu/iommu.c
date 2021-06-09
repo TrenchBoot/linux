@@ -23,6 +23,7 @@
 #include <linux/property.h>
 #include <linux/fsl/mc.h>
 #include <linux/module.h>
+#include <linux/slaunch.h>
 #include <trace/events/iommu.h>
 
 static struct kset *iommu_group_kset;
@@ -2780,7 +2781,7 @@ void iommu_set_default_passthrough(bool cmd_line)
 		iommu_set_cmd_line_dma_api();
 
 	/* Do not allow identity domain when Secure Launch is configured */
-	if (!IS_ENABLED(CONFIG_SECURE_LAUNCH))
+	if (!(slaunch_get_flags() & SL_FLAG_ACTIVE))
 		iommu_def_domain_type = IOMMU_DOMAIN_IDENTITY;
 }
 
