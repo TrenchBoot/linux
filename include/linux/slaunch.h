@@ -15,13 +15,16 @@
 #define SL_FLAG_ARCH_SKINIT	0x00000002
 #define SL_FLAG_ARCH_TXT	0x00000004
 
+/*
+ * Secure Launch CPU Type
+ */
+#define SL_CPU_AMD	1
+#define SL_CPU_INTEL	2
+
 #if IS_ENABLED(CONFIG_SECURE_LAUNCH)
 
 #define __SL32_CS	0x0008
 #define __SL32_DS	0x0010
-
-#define SL_CPU_AMD	1
-#define SL_CPU_INTEL	2
 
 #define INTEL_CPUID_MFGID_EBX	0x756e6547 /* Genu */
 #define INTEL_CPUID_MFGID_EDX	0x49656e69 /* ineI */
@@ -503,7 +506,12 @@ static inline int tpm20_log_event(struct txt_heap_event_log_pointer2_1_element *
 }
 
 /*
- * External functions
+ * External functions avalailable in compressed kernel.
+ */
+extern u32 slaunch_get_cpu_type(void);
+
+/*
+ * External functions avalailable in mainline kernel.
  */
 extern void slaunch_setup(void);
 extern u32 slaunch_get_flags(void);
@@ -517,6 +525,7 @@ extern void slaunch_finalize(int do_sexit);
 
 #else
 
+#define slaunch_get_cpu_type()		0
 #define slaunch_setup()			do { } while (0)
 #define slaunch_get_flags()		0
 #define slaunch_get_dmar_table(d)	(d)
