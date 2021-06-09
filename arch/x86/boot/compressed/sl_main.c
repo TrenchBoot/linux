@@ -62,6 +62,11 @@ static u32 pcr_image = SL_ALT_IMAGE_PCR20;
 extern u32 sl_cpu_type;
 extern u32 sl_mle_start;
 
+u32 slaunch_get_cpu_type(void)
+{
+	return sl_cpu_type;
+}
+
 static u64 sl_txt_read(u32 reg)
 {
 	return readq((void *)(u64)(TXT_PRIV_CONFIG_REGS_BASE + reg));
