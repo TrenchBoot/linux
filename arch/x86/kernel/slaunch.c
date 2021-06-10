@@ -60,13 +60,13 @@ void __noreturn slaunch_txt_reset(void __iomem *txt,
 	 * This performs a TXT reset with a sticky error code. The reads of
 	 * TXT_CR_E2STS act as barriers.
 	 */
-	memcpy_toio(txt + TXT_CR_ERRORCODE, &error, sizeof(u64));
-	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(u64));
-	memcpy_toio(txt + TXT_CR_CMD_NO_SECRETS, &one, sizeof(u64));
-	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(u64));
-	memcpy_toio(txt + TXT_CR_CMD_UNLOCK_MEM_CONFIG, &one, sizeof(u64));
-	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(u64));
-	memcpy_toio(txt + TXT_CR_CMD_RESET, &one, sizeof(u64));
+	memcpy_toio(txt + TXT_CR_ERRORCODE, &error, sizeof(error));
+	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(val));
+	memcpy_toio(txt + TXT_CR_CMD_NO_SECRETS, &one, sizeof(one));
+	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(val));
+	memcpy_toio(txt + TXT_CR_CMD_UNLOCK_MEM_CONFIG, &one, sizeof(one));
+	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(val));
+	memcpy_toio(txt + TXT_CR_CMD_RESET, &one, sizeof(one));
 
 	for ( ; ; )
 		asm volatile ("hlt");
@@ -90,8 +90,8 @@ static void __init *txt_early_get_heap_table(void __iomem *txt, u32 type,
 			"Error invalid table type for early heap walk\n",
 			SL_ERROR_HEAP_WALK);
 
-	memcpy_fromio(&base, txt + TXT_CR_HEAP_BASE, sizeof(u64));
-	memcpy_fromio(&size, txt + TXT_CR_HEAP_SIZE, sizeof(u64));
+	memcpy_fromio(&base, txt + TXT_CR_HEAP_BASE, sizeof(base));
+	memcpy_fromio(&size, txt + TXT_CR_HEAP_SIZE, sizeof(size));
 
 	/* Iterate over heap tables looking for table of "type" */
 	for (i = 0; i < type; i++) {
@@ -238,12 +238,12 @@ static void __init slaunch_txt_reserve(void __iomem *txt)
 	size = TXT_PUB_CONFIG_REGS_BASE - TXT_PRIV_CONFIG_REGS_BASE;
 	slaunch_txt_reserve_range(base, size);
 
-	memcpy_fromio(&heap_base, txt + TXT_CR_HEAP_BASE, sizeof(u64));
-	memcpy_fromio(&heap_size, txt + TXT_CR_HEAP_SIZE, sizeof(u64));
+	memcpy_fromio(&heap_base, txt + TXT_CR_HEAP_BASE, sizeof(heap_base));
+	memcpy_fromio(&heap_size, txt + TXT_CR_HEAP_SIZE, sizeof(heap_size));
 	slaunch_txt_reserve_range(heap_base, heap_size);
 
-	memcpy_fromio(&base, txt + TXT_CR_SINIT_BASE, sizeof(u64));
-	memcpy_fromio(&size, txt + TXT_CR_SINIT_SIZE, sizeof(u64));
+	memcpy_fromio(&base, txt + TXT_CR_SINIT_BASE, sizeof(base));
+	memcpy_fromio(&size, txt + TXT_CR_SINIT_SIZE, sizeof(size));
 	slaunch_txt_reserve_range(base, size);
 
 	field_offset = offsetof(struct txt_sinit_mle_data,
@@ -353,7 +353,7 @@ static void __init slaunch_fetch_os_mle_fields(void __iomem *txt)
 	u8 *jmp_offset;
 
 	os_mle_data = txt_early_get_heap_table(txt, TXT_OS_MLE_DATA_TABLE,
-					       sizeof(struct txt_os_mle_data));
+					       sizeof(*os_mle_data));
 
 	ap_wake_info.ap_wake_block = os_mle_data->ap_wake_block;
 	ap_wake_info.ap_wake_block_size = os_mle_data->ap_wake_block_size;
@@ -364,7 +364,7 @@ static void __init slaunch_fetch_os_mle_fields(void __iomem *txt)
 	evtlog_addr = os_mle_data->evtlog_addr;
 	evtlog_size = os_mle_data->evtlog_size;
 
-	early_memunmap(os_mle_data, sizeof(struct txt_os_mle_data));
+	early_memunmap(os_mle_data, sizeof(*os_mle_data));
 }
 
 /*
@@ -386,7 +386,7 @@ static void __init slaunch_setup_intel(void)
 		panic("Error early_ioremap of TXT pub registers\n");
 	}
 
-	memcpy_fromio(&val, txt + TXT_CR_STS, sizeof(u64));
+	memcpy_fromio(&val, txt + TXT_CR_STS, sizeof(val));
 	early_iounmap(txt, TXT_NR_CONFIG_PAGES * PAGE_SIZE);
 
 	/* Was SENTER done? */
@@ -410,7 +410,7 @@ static void __init slaunch_setup_intel(void)
 	 * TXT measured launch happened properly and the private space is
 	 * available.
 	 */
-	memcpy_fromio(&val, txt + TXT_CR_DIDVID, sizeof(u64));
+	memcpy_fromio(&val, txt + TXT_CR_DIDVID, sizeof(val));
 	if ((u16)(val & 0xffff) != 0x8086) {
 		/*
 		 * Can't do a proper TXT reset since it appears something is
@@ -430,11 +430,11 @@ static void __init slaunch_setup_intel(void)
 
 	/* On Intel, have to handle TPM localities via TXT */
 	val = 0x1ULL;
-	memcpy_toio(txt + TXT_CR_CMD_SECRETS, &val, sizeof(u64));
-	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(u64));
+	memcpy_toio(txt + TXT_CR_CMD_SECRETS, &val, sizeof(val));
+	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(val));
 	val = 0x1ULL;
-	memcpy_toio(txt + TXT_CR_CMD_OPEN_LOCALITY1, &val, sizeof(u64));
-	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(u64));
+	memcpy_toio(txt + TXT_CR_CMD_OPEN_LOCALITY1, &val, sizeof(val));
+	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(val));
 
 	slaunch_fetch_os_mle_fields(txt);
 
@@ -486,16 +486,16 @@ void slaunch_finalize(int do_sexit)
 	}
 
 	/* Clear secrets bit for SEXIT */
-	memcpy_toio(config + TXT_CR_CMD_NO_SECRETS, &one, sizeof(u64));
-	memcpy_fromio(&val, config + TXT_CR_E2STS, sizeof(u64));
+	memcpy_toio(config + TXT_CR_CMD_NO_SECRETS, &one, sizeof(one));
+	memcpy_fromio(&val, config + TXT_CR_E2STS, sizeof(val));
 
 	/* Unlock memory configurations */
-	memcpy_toio(config + TXT_CR_CMD_UNLOCK_MEM_CONFIG, &one, sizeof(u64));
-	memcpy_fromio(&val, config + TXT_CR_E2STS, sizeof(u64));
+	memcpy_toio(config + TXT_CR_CMD_UNLOCK_MEM_CONFIG, &one, sizeof(one));
+	memcpy_fromio(&val, config + TXT_CR_E2STS, sizeof(val));
 
 	/* Close the TXT private register space */
-	memcpy_toio(config + TXT_CR_CMD_CLOSE_PRIVATE, &one, sizeof(u64));
-	memcpy_fromio(&val, config + TXT_CR_E2STS, sizeof(u64));
+	memcpy_toio(config + TXT_CR_CMD_CLOSE_PRIVATE, &one, sizeof(one));
+	memcpy_fromio(&val, config + TXT_CR_E2STS, sizeof(val));
 
 	/*
 	 * Calls to iounmap are not being done because of the state of the
@@ -513,7 +513,7 @@ void slaunch_finalize(int do_sexit)
 		return;
 	}
 
-	memcpy_fromio(&val, config + TXT_CR_E2STS, sizeof(u64));
+	memcpy_fromio(&val, config + TXT_CR_E2STS, sizeof(val));
 
 	pr_emerg("TXT clear secrets bit and unlock memory complete.");
 
