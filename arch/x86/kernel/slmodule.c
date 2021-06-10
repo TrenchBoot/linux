@@ -253,8 +253,8 @@ static void slaunch_intel_evtlog(void __iomem *txt)
 	void *os_sinit_data;
 	u64 base, size;
 
-	memcpy_fromio(&base, txt + TXT_CR_HEAP_BASE, sizeof(u64));
-	memcpy_fromio(&size, txt + TXT_CR_HEAP_SIZE, sizeof(u64));
+	memcpy_fromio(&base, txt + TXT_CR_HEAP_BASE, sizeof(base));
+	memcpy_fromio(&size, txt + TXT_CR_HEAP_SIZE, sizeof(size));
 
 	/* now map TXT heap */
 	txt_heap = memremap(base, size, MEMREMAP_WB);
@@ -303,7 +303,7 @@ static void slaunch_tpm20_extend_event(struct tpm_chip *tpm, void __iomem *txt,
 	int ret;
 	u32 i, j;
 
-	digests = kcalloc(tpm->nr_allocated_banks, sizeof(struct tpm_digest),
+	digests = kcalloc(tpm->nr_allocated_banks, sizeof(*digests),
 			  GFP_KERNEL);
 	if (!digests)
 		slaunch_txt_reset(txt,
