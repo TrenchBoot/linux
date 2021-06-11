@@ -1034,15 +1034,15 @@ static int
 slaunch_fixup_jump_vector(void)
 {
 	struct sl_ap_wake_info *ap_wake_info;
-	unsigned int *ap_jmp_ptr = 0;
+	u32 *ap_jmp_ptr = NULL;
 
 	if (!atomic_dec_and_test(&first_ap_only))
 		return 0;
 
 	ap_wake_info = slaunch_get_ap_wake_info();
 
-	ap_jmp_ptr = (unsigned int *)__va(ap_wake_info->ap_wake_block +
-					  ap_wake_info->ap_jmp_offset);
+	ap_jmp_ptr = (u32 *)__va(ap_wake_info->ap_wake_block +
+				 ap_wake_info->ap_jmp_offset);
 
 	*ap_jmp_ptr = real_mode_header->sl_trampoline_start32;
 
@@ -1173,7 +1173,6 @@ static int do_boot_cpu(int apicid, int cpu, struct task_struct *idle,
 						     cpu0_nmi_registered);
 
 txt_wake:
-
 	if (!boot_error) {
 		/*
 		 * Wait 10s total for first sign of life from AP
