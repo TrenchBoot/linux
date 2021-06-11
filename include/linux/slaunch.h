@@ -85,6 +85,9 @@
 #define TXT_CR_CMD_NO_SECRETS		0x08e8
 #define TXT_CR_E2STS			0x08f0
 
+/* TXT default register value */
+#define TXT_REGVALUE_ONE		0x1ULL
+
 /* TXTCR_STS status bits */
 #define TXT_SENTER_DONE_STS		(1<<0)
 #define TXT_SEXIT_DONE_STS		(1<<1)
@@ -108,6 +111,7 @@
 #define TXT_OS_MLE_DATA_TABLE		2
 #define TXT_OS_SINIT_DATA_TABLE		3
 #define TXT_SINIT_MLE_DATA_TABLE	4
+#define TXT_SINIT_TABLE_MAX		TXT_SINIT_MLE_DATA_TABLE
 
 /*
  * Secure Launch Defined Error Codes used in MLE-initiated TXT resets.
