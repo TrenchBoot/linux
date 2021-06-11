@@ -85,7 +85,7 @@ static void __init *txt_early_get_heap_table(void __iomem *txt, u32 type,
 	u64 base, size, offset = 0;
 	int i;
 
-	if (type > TXT_SINIT_MLE_DATA_TABLE)
+	if (type > TXT_SINIT_TABLE_MAX)
 		slaunch_txt_reset(txt,
 			"Error invalid table type for early heap walk\n",
 			SL_ERROR_HEAP_WALK);
@@ -127,6 +127,11 @@ static void __init *txt_early_get_heap_table(void __iomem *txt, u32 type,
 	return heap;
 }
 
+static void __init txt_early_put_heap_table(void *addr, unsigned long size)
+{
+	early_memunmap(addr, size);
+}
+
 /*
  * TXT uses a special set of VTd registers to protect all of memory from DMA
  * until the IOMMU can be programmed to protect memory. There is the low
@@ -162,8 +167,7 @@ static void __init slaunch_verify_pmrs(void __iomem *txt)
 			goto out;
 		}
 
-		if (last_pfn << PAGE_SHIFT >
-		    os_sinit_data->vtd_pmr_hi_base +
+		if (PFN_PHYS(last_pfn) > os_sinit_data->vtd_pmr_hi_base +
 		    os_sinit_data->vtd_pmr_hi_size) {
 			err = SL_ERROR_HI_PMR_SIZE;
 			errmsg = "Error hi PMR size\n";
@@ -193,7 +197,7 @@ static void __init slaunch_verify_pmrs(void __iomem *txt)
 	 */
 
 out:
-	early_memunmap(os_sinit_data, field_offset);
+	txt_early_put_heap_table(os_sinit_data, field_offset);
 
 	if (err)
 		slaunch_txt_reset(txt, errmsg, err);
@@ -249,12 +253,12 @@ static void __init slaunch_txt_reserve(void __iomem *txt)
 	field_offset = offsetof(struct txt_sinit_mle_data,
 				sinit_vtd_dmar_table_size);
 	sinit_mle_data = txt_early_get_heap_table(txt, TXT_SINIT_MLE_DATA_TABLE,
-					field_offset);
+						  field_offset);
 
 	mdrnum = sinit_mle_data->num_of_sinit_mdrs;
 	mdroffset = sinit_mle_data->sinit_mdrs_table_offset;
 
-	early_memunmap(sinit_mle_data, field_offset);
+	txt_early_put_heap_table(sinit_mle_data, field_offset);
 
 	if (!mdrnum)
 		goto nomdr;
@@ -273,12 +277,18 @@ static void __init slaunch_txt_reserve(void __iomem *txt)
 			slaunch_txt_reserve_range(mdr->address, mdr->length);
 	}
 
-	early_memunmap(mdrs, mdroffset + mdrslen - 8);
+	txt_early_put_heap_table(mdrs, mdroffset + mdrslen - 8);
 
 nomdr:
 	slaunch_txt_reserve_range(ap_wake_info.ap_wake_block,
 				  ap_wake_info.ap_wake_block_size);
 
+	/*
+	 * Earlier checks ensured that the event log was properly situated
+	 * either inside the TXT heap or outside. This is a check to see if the
+	 * event log needs to be reserved. If it is in the TXT heap, it is
+	 * already reserved.
+	 */
 	if (evtlog_addr < heap_base || evtlog_addr > (heap_base + heap_size))
 		slaunch_txt_reserve_range(evtlog_addr, evtlog_size);
 
@@ -315,7 +325,7 @@ static void __init slaunch_copy_dmar_table(void __iomem *txt)
 	dmar_size = sinit_mle_data->sinit_vtd_dmar_table_size;
 	dmar_offset = sinit_mle_data->sinit_vtd_dmar_table_offset;
 
-	early_memunmap(sinit_mle_data, field_offset);
+	txt_early_put_heap_table(sinit_mle_data, field_offset);
 
 	if (!dmar_size || !dmar_offset)
 		slaunch_txt_reset(txt,
@@ -337,7 +347,7 @@ static void __init slaunch_copy_dmar_table(void __iomem *txt)
 
 	memcpy(&txt_dmar[0], dmar + dmar_offset - 8, dmar_size);
 
-	early_memunmap(dmar, dmar_offset + dmar_size - 8);
+	txt_early_put_heap_table(dmar, dmar_offset + dmar_size - 8);
 }
 
 /*
@@ -364,7 +374,7 @@ static void __init slaunch_fetch_os_mle_fields(void __iomem *txt)
 	evtlog_addr = os_mle_data->evtlog_addr;
 	evtlog_size = os_mle_data->evtlog_size;
 
-	early_memunmap(os_mle_data, sizeof(*os_mle_data));
+	txt_early_put_heap_table(os_mle_data, sizeof(*os_mle_data));
 }
 
 /*
@@ -373,7 +383,7 @@ static void __init slaunch_fetch_os_mle_fields(void __iomem *txt)
 static void __init slaunch_setup_intel(void)
 {
 	void __iomem *txt;
-	u64 val = 0x1ULL;
+	u64 one = TXT_REGVALUE_ONE, val;
 
 	/*
 	 * First see if SENTER was done and not by TBOOT by reading the status
@@ -429,11 +439,9 @@ static void __init slaunch_setup_intel(void)
 	 */
 
 	/* On Intel, have to handle TPM localities via TXT */
-	val = 0x1ULL;
-	memcpy_toio(txt + TXT_CR_CMD_SECRETS, &val, sizeof(val));
+	memcpy_toio(txt + TXT_CR_CMD_SECRETS, &one, sizeof(one));
 	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(val));
-	val = 0x1ULL;
-	memcpy_toio(txt + TXT_CR_CMD_OPEN_LOCALITY1, &val, sizeof(val));
+	memcpy_toio(txt + TXT_CR_CMD_OPEN_LOCALITY1, &one, sizeof(one));
 	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(val));
 
 	slaunch_fetch_os_mle_fields(txt);
@@ -472,7 +480,7 @@ static inline void smx_getsec_sexit(void)
 void slaunch_finalize(int do_sexit)
 {
 	void __iomem *config;
-	u64 one = 1, val;
+	u64 one = TXT_REGVALUE_ONE, val;
 
 	if ((slaunch_get_flags() & (SL_FLAG_ACTIVE|SL_FLAG_ARCH_TXT)) !=
 	    (SL_FLAG_ACTIVE|SL_FLAG_ARCH_TXT))
