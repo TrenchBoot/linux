@@ -476,14 +476,12 @@ trampoline_return:
 
 #ifdef CONFIG_SECURE_LAUNCH
 	pushq	%rsi
-	pushq	%rbx
 
 	/* Ensure the relocation region coverd by a PMR */
 	movq	%rbx, %rdi
-	movq	$(_bss - startup_32), %rsi
+	movl	$(_bss - startup_32), %esi
 	callq	sl_check_region
 
-	popq	%rbx
 	popq	%rsi
 #endif
 

@@ -226,6 +226,10 @@ static void sl_validate_event_log_buffer(void)
 
 	mle_end = mle_base + os_sinit_data->mle_size;
 
+	/*
+	 * This check is to ensure the event log buffer does not overlap with
+	 * the MLE image.
+	 */
 	if ((evtlog_base >= mle_end) &&
 	    (evtlog_end > mle_end))
 		goto pmr_check; /* above */

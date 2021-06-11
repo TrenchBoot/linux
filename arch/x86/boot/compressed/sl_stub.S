@@ -89,7 +89,7 @@ SYM_FUNC_START(sl_stub_entry)
 	movw	%ax, %ss
 
 	/*
-	 * Now that %ss us known good, take the first stack for the BSP. The
+	 * Now that %ss is known good, take the first stack for the BSP. The
 	 * AP stacks are only used on Intel.
 	 */
 	leal	rva(sl_stacks_end)(%ebx), %esp
