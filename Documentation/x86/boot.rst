@@ -1033,7 +1033,11 @@ Offset/size:	0x0010/4
 
   This field contains the offset to the Secure Launch Measured Launch Environment
   (MLE) header. This offset is used to locate information needed during a secure
-  late launch using Intel TXT and AMD SKINIT.
+  late launch using Intel TXT. If the offset is zero, the kernel does not have
+  Secure Launch capabilities. The MLE entry point is called from TXT on the BSP
+  following a success measured launch. The specific state of the processors is
+  outlined in the TXT Software Development Guide, the latest can be found here:
+  https://www.intel.com/content/dam/www/public/us/en/documents/guides/intel-txt-software-development-guide.pdf
 
 
 The Image Checksum
