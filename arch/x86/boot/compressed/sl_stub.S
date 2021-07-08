@@ -100,8 +100,9 @@ SYM_FUNC_START(sl_stub_entry)
 	lret
 
 .Lsl_cs:
-	/* Save our base pointer reg */
+	/* Save our base pointer reg and page table for MLE */
 	pushl	%ebx
+	pushl	%ecx
 
 	/* Now see if it is GenuineIntel. CPUID 0 returns the manufacturer */
 	xorl	%eax, %eax
@@ -113,10 +114,14 @@ SYM_FUNC_START(sl_stub_entry)
 	cmpl	$(INTEL_CPUID_MFGID_ECX), %ecx
 	jnz	.Ldo_unknown_cpu
 
+	popl	%ecx
 	popl	%ebx
 
 	/* Know it is Intel */
 	movl	$(SL_CPU_INTEL), rva(sl_cpu_type)(%ebx)
+
+	/* Locate the base of the MLE using the page tables in %ecx */
+	call	sl_find_mle_base
 
 	/* Increment CPU count for BSP */
 	incl	rva(sl_txt_cpu_count)(%ebx)
@@ -200,6 +205,21 @@ SYM_FUNC_START(sl_stub_entry)
 	jmp	startup_32
 SYM_FUNC_END(sl_stub_entry)
 
+SYM_FUNC_START(sl_find_mle_base)
+	/* %ecx has PDPT, get first PD */
+	movl	(%ecx), %eax
+	andl	$(PAGE_MASK), %eax
+	/* Get first PT from first PDE */
+	movl	(%eax), %eax
+	andl	$(PAGE_MASK), %eax
+	/* Get MLE base from first PTE */
+	movl	(%eax), %eax
+	andl	$(PAGE_MASK), %eax
+
+	movl	%eax, rva(sl_mle_start)(%ebx)
+	ret
+SYM_FUNC_END(sl_find_mle_base)
+
 SYM_FUNC_START(sl_check_buffer_mle_overlap)
 	/* %ecx: buffer begin %edx: buffer end */
 	/* %ebx: MLE begin %edi: MLE end */
@@ -225,6 +245,7 @@ SYM_FUNC_START(sl_check_buffer_mle_overlap)
 SYM_FUNC_END(sl_check_buffer_mle_overlap)
 
 SYM_FUNC_START(sl_txt_verify_os_mle_struct)
+	pushl	%ebx
 	/*
 	 * %eax points to the base of the OS-MLE struct. Need to also
 	 * read some values from the OS-SINIT struct too.
@@ -233,8 +254,8 @@ SYM_FUNC_START(sl_txt_verify_os_mle_struct)
 	/* Skip over OS to MLE data section and size of OS-SINIT structure */
 	leal	(%eax, %ecx), %edx
 
-	/* Save MLE image base for sl_main's use */
-	movl	%ebx, rva(sl_mle_start)(%ebx)
+	/* Load MLE image base absolute offset */
+	movl	rva(sl_mle_start)(%ebx), %ebx
 
 	/* Verify the value of the low PMR base. It should always be 0. */
 	movl	SL_vtd_pmr_lo_base(%edx), %esi
@@ -274,6 +295,7 @@ SYM_FUNC_START(sl_txt_verify_os_mle_struct)
 	TXT_RESET $(SL_ERROR_WAKE_BLOCK_TOO_SMALL)
 
 .Lwake_block_ok:
+	popl	%ebx
 	ret
 
 .Loverflow_detected:
