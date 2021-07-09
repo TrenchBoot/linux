@@ -126,17 +126,14 @@ SYM_FUNC_START(sl_stub_entry)
 	/* Increment CPU count for BSP */
 	incl	rva(sl_txt_cpu_count)(%ebx)
 
-	/* Enable SMI with GETSEC[SMCTRL] */
+	/*
+	 * Enable SMI with GETSEC[SMCTRL] which were disabled by SENTER.
+	 * NMIs were also disabled by SENTER. Since there is no IDT for the BSP,
+	 * allow the mainline kernel re-enable them in the normal course of
+	 * booting.
+	 */
 	GETSEC	$(SMX_X86_GETSEC_SMCTRL)
 
-	/* IRET-to-self can be used to enable NMIs which SENTER disabled */
-	leal	rva(.Lnmi_enabled)(%ebx), %eax
-	pushfl
-	pushl	$(__SL32_CS)
-	pushl	%eax
-	iret
-
-.Lnmi_enabled:
 	/* Clear the TXT error registers for a clean start of day */
 	movl	$0, (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_ERRORCODE)
 	movl	$0xffffffff, (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_ESTS)
