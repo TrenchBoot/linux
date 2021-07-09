@@ -385,6 +385,9 @@ static void __init slaunch_setup_intel(void)
 	void __iomem *txt;
 	u64 one = TXT_REGVALUE_ONE, val;
 
+	if (!boot_cpu_has(X86_FEATURE_SMX))
+		return;
+
 	/*
 	 * First see if SENTER was done and not by TBOOT by reading the status
 	 * register in the public space.
