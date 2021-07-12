@@ -390,14 +390,13 @@ static void __init slaunch_setup_intel(void)
 
 	/*
 	 * First see if SENTER was done and not by TBOOT by reading the status
-	 * register in the public space.
+	 * register in the public space. If the public register space cannot
+	 * be read, TXT is disabled.
 	 */
 	txt = early_ioremap(TXT_PUB_CONFIG_REGS_BASE,
 			    TXT_NR_CONFIG_PAGES * PAGE_SIZE);
-	if (!txt) {
-		/* This is really bad, no where to go from here */
-		panic("Error early_ioremap of TXT pub registers\n");
-	}
+	if (!txt)
+		return;
 
 	memcpy_fromio(&val, txt + TXT_CR_STS, sizeof(val));
 	early_iounmap(txt, TXT_NR_CONFIG_PAGES * PAGE_SIZE);
