@@ -371,6 +371,41 @@ static void sl_tpm_extend_evtlog(u32 pcr, u32 type,
 				   (const u8 *)desc, strlen(desc));
 }
 
+static struct setup_data *sl_handle_setup_data(struct setup_data *curr)
+{
+	struct setup_data *next;
+	struct setup_indirect *ind;
+
+	if (!curr)
+		return NULL;
+
+	next = (struct setup_data *)(unsigned long)curr->next;
+
+	/* SETUP_INDIRECT instances have to be handled differently */
+	if (curr->type == SETUP_INDIRECT) {
+		ind = (struct setup_indirect *)
+			((u8 *)curr + offsetof(struct setup_data, data));
+
+		sl_check_pmr_coverage((void *)ind->addr, ind->len, true);
+
+		sl_tpm_extend_evtlog(pcr_config, TXT_EVTYPE_SLAUNCH,
+				     (void *)ind->addr, ind->len,
+				     "Measured Kernel setup_indirect");
+
+		return next;
+	}
+
+	sl_check_pmr_coverage(((u8 *)curr) + sizeof(struct setup_data),
+			      curr->len, true);
+
+	sl_tpm_extend_evtlog(pcr_config, TXT_EVTYPE_SLAUNCH,
+			     ((u8 *)curr) + sizeof(struct setup_data),
+			     curr->len,
+			     "Measured Kernel setup_data");
+
+	return next;
+}
+
 asmlinkage __visible void sl_check_region(void *base, u32 size)
 {
 	sl_check_pmr_coverage(base, size, false);
@@ -446,17 +481,8 @@ asmlinkage __visible void sl_main(void *bootparams)
 	 * Measure any setup_data entries including e820 extended entries.
 	 */
 	data = (struct setup_data *)(unsigned long)bp->hdr.setup_data;
-	while (data) {
-		sl_check_pmr_coverage(((u8 *)data) + sizeof(struct setup_data),
-				      data->len, true);
-
-		sl_tpm_extend_evtlog(pcr_config, TXT_EVTYPE_SLAUNCH,
-				     ((u8 *)data) + sizeof(struct setup_data),
-				     data->len,
-				     "Measured Kernel setup_data");
-
-		data = (struct setup_data *)(unsigned long)data->next;
-	}
+	while (data)
+		data = sl_handle_setup_data(data);
 
 	/* If bootloader was EFI, measure the memory map passed across */
 	signature =
