@@ -17,6 +17,9 @@
 #include <asm/irq_vectors.h>
 #include <linux/slaunch.h>
 
+/* CPUID: leaf 1, ECX, SMX feature bit */
+#define X86_FEATURE_BIT_SMX	6
+
 /* Can't include apiddef.h in asm */
 #define XAPIC_ENABLE	(1 << 11)
 #define X2APIC_ENABLE	(1 << 10)
@@ -104,15 +107,11 @@ SYM_FUNC_START(sl_stub_entry)
 	pushl	%ebx
 	pushl	%ecx
 
-	/* Now see if it is GenuineIntel. CPUID 0 returns the manufacturer */
-	xorl	%eax, %eax
+	/* See if SMX feature is supported. */
+	movl	$1, %eax
 	cpuid
-	cmpl	$(INTEL_CPUID_MFGID_EBX), %ebx
-	jnz	.Ldo_unknown_cpu
-	cmpl	$(INTEL_CPUID_MFGID_EDX), %edx
-	jnz	.Ldo_unknown_cpu
-	cmpl	$(INTEL_CPUID_MFGID_ECX), %ecx
-	jnz	.Ldo_unknown_cpu
+	testl	$(X86_FEATURE_BIT_SMX), %ecx
+	jz	.Ldo_unknown_cpu
 
 	popl	%ecx
 	popl	%ebx
