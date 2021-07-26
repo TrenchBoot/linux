@@ -26,14 +26,6 @@
 #define __SL32_CS	0x0008
 #define __SL32_DS	0x0010
 
-#define INTEL_CPUID_MFGID_EBX	0x756e6547 /* Genu */
-#define INTEL_CPUID_MFGID_EDX	0x49656e69 /* ineI */
-#define INTEL_CPUID_MFGID_ECX	0x6c65746e /* ntel */
-
-#define AMD_CPUID_MFGID_EBX	0x68747541 /* Auth */
-#define AMD_CPUID_MFGID_EDX	0x69746e65 /* enti */
-#define AMD_CPUID_MFGID_ECX	0x444d4163 /* cAMD */
-
 /*
  * Intel Safer Mode Extensions (SMX)
  *
@@ -517,7 +509,7 @@ extern u32 slaunch_get_cpu_type(void);
 /*
  * External functions avalailable in mainline kernel.
  */
-extern void slaunch_setup(void);
+extern void slaunch_setup_txt(void);
 extern u32 slaunch_get_flags(void);
 extern struct sl_ap_wake_info *slaunch_get_ap_wake_info(void);
 extern struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table_header *dmar);
@@ -530,7 +522,7 @@ extern void slaunch_finalize(int do_sexit);
 #else
 
 #define slaunch_get_cpu_type()		0
-#define slaunch_setup()			do { } while (0)
+#define slaunch_setup_txt()		do { } while (0)
 #define slaunch_get_flags()		0
 #define slaunch_get_dmar_table(d)	(d)
 #define slaunch_finalize(d)		do { } while (0)
