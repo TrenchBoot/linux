@@ -378,9 +378,9 @@ static void __init slaunch_fetch_os_mle_fields(void __iomem *txt)
 }
 
 /*
- * Intel specific late stub setup and validation.
+ * Intel TXT specific late stub setup and validation.
  */
-static void __init slaunch_setup_intel(void)
+void __init slaunch_setup_txt(void)
 {
 	void __iomem *txt;
 	u64 one = TXT_REGVALUE_ONE, val;
@@ -457,20 +457,6 @@ static void __init slaunch_setup_intel(void)
 	early_iounmap(txt, TXT_NR_CONFIG_PAGES * PAGE_SIZE);
 
 	pr_info("Intel TXT setup complete\n");
-}
-
-void __init slaunch_setup(void)
-{
-	u32 vendor[4];
-
-	/* Get manufacturer string with CPUID 0 */
-	cpuid(0, &vendor[0], &vendor[1], &vendor[2], &vendor[3]);
-
-	/* Only Intel TXT is supported at this point */
-	if (vendor[1] == INTEL_CPUID_MFGID_EBX &&
-	    vendor[2] == INTEL_CPUID_MFGID_ECX &&
-	    vendor[3] == INTEL_CPUID_MFGID_EDX)
-		slaunch_setup_intel();
 }
 
 static inline void smx_getsec_sexit(void)
