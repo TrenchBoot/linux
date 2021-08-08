@@ -30,6 +30,7 @@ x86-specific Documentation
    resctrl
    tsx_async_abort
    usb-legacy-support
+   secure-launch
    i386/index
    x86_64/index
    sva
