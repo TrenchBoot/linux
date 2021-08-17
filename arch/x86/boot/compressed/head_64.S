@@ -508,6 +508,9 @@ SYM_FUNC_START_LOCAL_NOALIGN(.Lrelocated)
 /*
  * Jump to the decompressed kernel.
  */
+#ifdef CONFIG_SECURE_LAUNCH
+	movq	sl_skl_base(%rip), %rdi
+#endif
 	movq	%r15, %rsi
 	jmp	*%rax
 SYM_FUNC_END(.Lrelocated)
@@ -622,6 +625,11 @@ SYM_FUNC_START_LOCAL_NOALIGN(.Lno_longmode)
 	hlt
 	jmp     1b
 SYM_FUNC_END(.Lno_longmode)
+
+#ifdef CONFIG_SECURE_LAUNCH
+	/* Defined in sl_stub.S */
+	.globl sl_skl_base
+#endif
 
 	.globl	verify_cpu
 #include "../../kernel/verify_cpu.S"

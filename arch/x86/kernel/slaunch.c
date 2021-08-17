@@ -17,6 +17,7 @@
 #include <asm/sections.h>
 #include <asm/tlbflush.h>
 #include <asm/e820/api.h>
+#include <asm/svm.h>
 #include <asm/setup.h>
 #include <asm/realmode.h>
 #include <linux/slr_table.h>
@@ -216,7 +217,7 @@ out:
 		slaunch_txt_reset(txt, errmsg, err);
 }
 
-static void __init slaunch_txt_reserve_range(u64 base, u64 size)
+static void __init slaunch_reserve_range(u64 base, u64 size)
 {
 	int type;
 
@@ -254,15 +255,15 @@ static void __init slaunch_txt_reserve(void __iomem *txt)
 
 	base = TXT_PRIV_CONFIG_REGS_BASE;
 	size = TXT_PUB_CONFIG_REGS_BASE - TXT_PRIV_CONFIG_REGS_BASE;
-	slaunch_txt_reserve_range(base, size);
+	slaunch_reserve_range(base, size);
 
 	memcpy_fromio(&heap_base, txt + TXT_CR_HEAP_BASE, sizeof(heap_base));
 	memcpy_fromio(&heap_size, txt + TXT_CR_HEAP_SIZE, sizeof(heap_size));
-	slaunch_txt_reserve_range(heap_base, heap_size);
+	slaunch_reserve_range(heap_base, heap_size);
 
 	memcpy_fromio(&base, txt + TXT_CR_SINIT_BASE, sizeof(base));
 	memcpy_fromio(&size, txt + TXT_CR_SINIT_SIZE, sizeof(size));
-	slaunch_txt_reserve_range(base, size);
+	slaunch_reserve_range(base, size);
 
 	field_offset = offsetof(struct txt_sinit_mle_data,
 				sinit_vtd_dmar_table_size);
@@ -287,14 +288,14 @@ static void __init slaunch_txt_reserve(void __iomem *txt)
 	for (i = 0; i < mdrnum; i++, mdr++) {
 		/* Spec says some entries can have length 0, ignore them */
 		if (mdr->type > 0 && mdr->length > 0)
-			slaunch_txt_reserve_range(mdr->address, mdr->length);
+			slaunch_reserve_range(mdr->address, mdr->length);
 	}
 
 	txt_early_put_heap_table(mdrs, mdroffset + mdrslen - 8);
 
 nomdr:
-	slaunch_txt_reserve_range(ap_wake_info.ap_wake_block,
-				  ap_wake_info.ap_wake_block_size);
+	slaunch_reserve_range(ap_wake_info.ap_wake_block,
+			      ap_wake_info.ap_wake_block_size);
 
 	/*
 	 * Earlier checks ensured that the event log was properly situated
@@ -303,16 +304,16 @@ nomdr:
 	 * already reserved.
 	 */
 	if (evtlog_addr < heap_base || evtlog_addr > (heap_base + heap_size))
-		slaunch_txt_reserve_range(evtlog_addr, evtlog_size);
+		slaunch_reserve_range(evtlog_addr, evtlog_size);
 
 	for (i = 0; i < e820_table->nr_entries; i++) {
 		base = e820_table->entries[i].addr;
 		size = e820_table->entries[i].size;
 		if (base >= vtd_pmr_lo_size && base < 0x100000000ULL)
-			slaunch_txt_reserve_range(base, size);
+			slaunch_reserve_range(base, size);
 		else if (base < vtd_pmr_lo_size && base + size > vtd_pmr_lo_size)
-			slaunch_txt_reserve_range(vtd_pmr_lo_size,
-						  base + size - vtd_pmr_lo_size);
+			slaunch_reserve_range(vtd_pmr_lo_size,
+					      base + size - vtd_pmr_lo_size);
 	}
 }
 
@@ -517,6 +518,46 @@ static void __init slaunch_setup_txt(void)
 	pr_info("Intel TXT setup complete\n");
 }
 
+/* AMD SKINIT specific late stub setup. */
+static void __init slaunch_setup_skinit(void)
+{
+	struct skinit_sl_header *sl_header;
+	struct slr_table *slrt;
+	u64 vm_cr;
+
+	/*
+	 * If the platform is performing a Secure Launch via SKINIT,
+	 * INIT_REDIRECTION flag will be active.
+	 */
+	rdmsrl(MSR_VM_CR, vm_cr);
+	if (!(vm_cr & BIT(SVM_VM_CR_INIT_REDIRECTION)))
+		return;
+
+	slaunch_reserve_range(sl_skl_base, SKINIT_SLB_SIZE);
+
+	sl_header = early_memremap(sl_skl_base, SKINIT_SLB_SIZE);
+	if (!sl_header)
+		slaunch_skinit_reset("Error failed to memremap SLB base\n",
+				     SL_ERROR_EVENTLOG_MAP);
+
+	/* SLRT is bootloader's data and it fits inside of SLB. */
+	slrt = (void *)sl_header + sl_header->bootloader_data_offset;
+
+	struct slr_entry_log_info *log_info;
+	log_info = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_LOG_INFO);
+
+	if (!log_info)
+		slaunch_skinit_reset("SLRT missing logging info entry\n",
+				     SL_ERROR_SLRT_MISSING_ENTRY);
+
+	slaunch_reserve_range(log_info->addr, log_info->size);
+
+	early_memunmap(sl_header, SKINIT_SLB_SIZE);
+
+	/* Set flags on BSP so subsequent code knows it was an SKINIT launch */
+	sl_flags |= (SL_FLAG_ACTIVE | SL_FLAG_ARCH_SKINIT);
+}
+
 /*
  * Late stub setup and validation called from within x86-specific setup_arch().
  */
@@ -524,6 +565,8 @@ void __init slaunch_late_setup(void)
 {
 	if (boot_cpu_has(X86_FEATURE_SMX))
 		slaunch_setup_txt();
+	else if (boot_cpu_has(X86_FEATURE_SKINIT))
+		slaunch_setup_skinit();
 }
 
 static inline void smx_getsec_sexit(void)
@@ -596,4 +639,13 @@ void slaunch_finalize(int do_sexit)
 	smx_getsec_sexit();
 
 	pr_info("TXT SEXIT complete.\n");
+}
+
+void __noreturn slaunch_skinit_reset(const char *msg, u64 error)
+{
+	pr_err("%s - error: 0x%llx", msg, error);
+
+	asm volatile ("ud2");
+
+	unreachable();
 }
