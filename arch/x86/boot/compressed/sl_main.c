@@ -18,6 +18,7 @@
 #include <asm/asm-offsets.h>
 #include <asm/bootparam.h>
 #include <asm/efi.h>
+#include <asm/svm.h>
 #include <asm/bootparam_utils.h>
 #include <linux/slaunch.h>
 #include <crypto/sha1.h>
@@ -61,6 +62,7 @@ static u32 pcr_image = SL_ALT_IMAGE_PCR20;
 
 extern u32 sl_cpu_type;
 extern u32 sl_mle_start;
+extern void *sl_skl_base;
 
 u32 slaunch_get_cpu_type(void)
 {
@@ -88,6 +90,14 @@ static void __noreturn sl_txt_reset(u64 error)
 
 	for ( ; ; )
 		asm volatile ("hlt");
+
+	unreachable();
+}
+
+static void __noreturn sl_skinit_reset(void)
+{
+	/* AMD does not have a reset mechanism or an error register */
+	asm volatile ("ud2");
 
 	unreachable();
 }
@@ -174,12 +184,58 @@ static void sl_txt_validate_msrs(struct txt_os_mle_data *os_mle_data)
 		sl_txt_reset(SL_ERROR_MSR_INV_MISC_EN);
 }
 
+/*
+ * In order to simplify adding new entries and to minimize the number of
+ * differences between AMD and Intel, the event logs have actually two headers,
+ * both for TPM 1.2 and 2.0.
+ *
+ * For TPM 1.2 this is TCG_PCClientSpecIDEventStruct [1] with Intel's own
+ * TXT-specific header embedded inside its 'vendorInfo' field. The offset to
+ * this field is added to the base address in AMD path, making the code for
+ * adding new events the same for both vendors.
+ *
+ * TPM 2.0 in TXT uses HEAP_EVENT_LOG_POINTER_ELEMENT2_1 structure, which is
+ * normally constructed on the TXT stack [2]. For AMD, this structure is put
+ * inside TCG_EfiSpecIdEvent [3], also in 'vendorInfo' field. The actual offset
+ * to this field depends on number of hash algorithms supported by the event
+ * log.
+ *
+ * [1] https://www.trustedcomputinggroup.org/wp-content/uploads/TCG_PCClientImplementation_1-21_1_00.pdf
+ * [2] http://www.intel.com/content/dam/www/public/us/en/documents/guides/intel-txt-software-development-guide.pdf
+ * [3] https://trustedcomputinggroup.org/wp-content/uploads/TCG_PCClientSpecPlat_TPM_2p0_1p04_pub.pdf
+ */
 static void sl_find_event_log(void)
 {
 	struct txt_os_mle_data *os_mle_data;
 	struct txt_os_sinit_data *os_sinit_data;
 	void *txt_heap;
 
+	if (sl_cpu_type == SL_CPU_AMD) {
+		evtlog_base = (void *)skinit_find_event_log(sl_skl_base,
+							    &evtlog_size);
+
+		if (!evtlog_base)
+			sl_skinit_reset(); /* No hope without an event log */
+
+		/* Check if it is TPM 2.0 event log */
+		if (!memcmp(evtlog_base + sizeof(struct tcg_pcr_event),
+			    TCG_SPECID_SIG, sizeof(TCG_SPECID_SIG))) {
+			log20_elem = evtlog_base + sizeof(struct tcg_pcr_event)
+				+ TCG_EfiSpecIdEvent_SIZE(
+				  TPM20_HASH_COUNT(evtlog_base
+					+ sizeof(struct tcg_pcr_event)));
+			tpm_log_ver = SL_TPM20_LOG;
+		} else {
+			evtlog_base += sizeof(struct tcg_pcr_event)
+				+ TCG_PCClientSpecIDEventStruct_SIZE;
+			evtlog_size -= sizeof(struct tcg_pcr_event)
+				+ TCG_PCClientSpecIDEventStruct_SIZE;
+		}
+
+		return;
+	}
+
+	/* Else it is Intel and TXT */
 	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
 
 	os_mle_data = txt_os_mle_data_start(txt_heap);
@@ -207,7 +263,21 @@ static void sl_find_event_log(void)
 		tpm_log_ver = SL_TPM20_LOG;
 }
 
-static void sl_validate_event_log_buffer(void)
+static bool sl_check_buffer_kernel_overlap(void *buffer_base, void *buffer_end,
+					   void *kernel_base, void *kernel_end)
+{
+	if ((buffer_base >= kernel_end) &&
+	    (buffer_end > kernel_end))
+		return false; /* above */
+
+	if ((buffer_end <= kernel_base) &&
+	    (buffer_base < kernel_base))
+		return false; /* below */
+
+	return true;
+}
+
+static void sl_txt_validate_event_log_buffer(void)
 {
 	void *mle_base = (void *)(u64)sl_mle_start;
 	void *mle_end;
@@ -230,13 +300,9 @@ static void sl_validate_event_log_buffer(void)
 	 * This check is to ensure the event log buffer does not overlap with
 	 * the MLE image.
 	 */
-	if ((evtlog_base >= mle_end) &&
-	    (evtlog_end > mle_end))
-		goto pmr_check; /* above */
-
-	if ((evtlog_end <= mle_base) &&
-	    (evtlog_base < mle_base))
-		goto pmr_check; /* below */
+	if (!sl_check_buffer_kernel_overlap(evtlog_base, evtlog_end,
+					    mle_base, mle_end))
+		goto pmr_check;
 
 	sl_txt_reset(SL_ERROR_MLE_BUFFER_OVERLAP);
 
@@ -250,6 +316,34 @@ pmr_check:
 		return;
 
 	sl_check_pmr_coverage(evtlog_base, evtlog_size, true);
+}
+
+static void sl_skinit_validate_buffers(void *bootparams)
+{
+	struct boot_params *bp = (struct boot_params *)bootparams;
+	void *evtlog_end, *kernel_end;
+
+	/* On AMD, all the buffers should be below 4Gb */
+	if ((u64)(evtlog_base + evtlog_size) > UINT_MAX)
+		sl_skinit_reset();
+
+	evtlog_end = evtlog_base + evtlog_size;
+	kernel_end = (void *)(u64)(bp->hdr.code32_start +
+				   (bp->hdr.syssize << 4));
+
+	/*
+	 * This check is to ensure the event log buffer and the bootparams do
+	 * overlap with the kernel image.
+	 */
+	if (sl_check_buffer_kernel_overlap(bootparams, bootparams + PAGE_SIZE,
+					   (void *)(u64)bp->hdr.code32_start,
+					   kernel_end))
+		sl_skinit_reset();
+
+	if (sl_check_buffer_kernel_overlap(evtlog_base, evtlog_end,
+					   (void *)(u64)bp->hdr.code32_start,
+					   kernel_end))
+		sl_skinit_reset();
 }
 
 static void sl_find_event_log_algorithms(void)
@@ -292,8 +386,12 @@ static void sl_tpm12_log_event(u32 pcr, u32 event_type,
 
 	total_size = sizeof(struct tcg_pcr_event) + event_size;
 
-	if (tpm12_log_event(evtlog_base, evtlog_size, total_size, pcr_event))
-		sl_txt_reset(SL_ERROR_TPM_LOGGING_FAILED);
+	if (tpm12_log_event(evtlog_base, evtlog_size, total_size, pcr_event)) {
+		if (sl_cpu_type == SL_CPU_INTEL)
+			sl_txt_reset(SL_ERROR_TPM_LOGGING_FAILED);
+		else
+			sl_skinit_reset();
+	}
 }
 
 static void sl_tpm20_log_event(u32 pcr, u32 event_type,
@@ -356,8 +454,12 @@ static void sl_tpm20_log_event(u32 pcr, u32 event_type,
 	total_size += sizeof(struct tcg_event_field) + event_size;
 
 	if (tpm20_log_event(log20_elem, evtlog_base, evtlog_size,
-	    total_size, &log_buf[0]))
-		sl_txt_reset(SL_ERROR_TPM_LOGGING_FAILED);
+	    total_size, &log_buf[0])) {
+		if (sl_cpu_type == SL_CPU_INTEL)
+			sl_txt_reset(SL_ERROR_TPM_LOGGING_FAILED);
+		else
+			sl_skinit_reset();
+	}
 }
 
 static void sl_tpm_extend_evtlog(u32 pcr, u32 type,
@@ -385,6 +487,10 @@ static struct setup_data *sl_handle_setup_data(struct setup_data *curr)
 	if (curr->type == SETUP_INDIRECT) {
 		ind = (struct setup_indirect *)
 			((u8 *)curr + offsetof(struct setup_data, data));
+
+		/* If this is the secure launch setup data, skip it */
+		if (ind->type == (SETUP_INDIRECT|SETUP_SECURE_LAUNCH))
+			return next;
 
 		sl_check_pmr_coverage((void *)ind->addr, ind->len, true);
 
@@ -427,14 +533,27 @@ asmlinkage __visible void sl_main(void *bootparams)
 	 * this value also indicates that the kernel was booted successfully
 	 * through the Secure Launch entry point and is in SMX mode.
 	 */
-	if (!(sl_cpu_type & SL_CPU_INTEL))
+	if (!(sl_cpu_type & (SL_CPU_INTEL | SL_CPU_AMD)))
 		return;
 
 	/* Locate the TPM event log. */
 	sl_find_event_log();
 
-	/* Validate the location of the event log buffer before using it */
-	sl_validate_event_log_buffer();
+	/* Sanitize them before measuring and using */
+	boot_params = (struct boot_params *)bootparams;
+	sanitize_boot_params(boot_params);
+
+	/*
+	 * On a TXT launch, validate the logging buffer for overlaps with the
+	 * MLE and proper PMR coverage before using it. On an SKINIT launch,
+	 * the boot params have to be used here to find the base and extent of
+	 * the launched kernel. These values can then be used to make sure the
+	 * boot params and logging buffer do not overlap the kernel.
+	 */
+	if (sl_cpu_type & SL_CPU_INTEL)
+		sl_txt_validate_event_log_buffer();
+	else
+		sl_skinit_validate_buffers(bootparams);
 
 	/*
 	 * Find the TPM hash algorithms used by the ACM and recorded in the
@@ -442,10 +561,6 @@ asmlinkage __visible void sl_main(void *bootparams)
 	 */
 	if (tpm_log_ver == SL_TPM20_LOG)
 		sl_find_event_log_algorithms();
-
-	/* Sanitize them before measuring */
-	boot_params = (struct boot_params *)bootparams;
-	sanitize_boot_params(boot_params);
 
 	/* Place event log NO_ACTION tags before and after measurements */
 	sl_tpm_extend_evtlog(17, TXT_EVTYPE_SLAUNCH_START, NULL, 0, "");
@@ -457,7 +572,6 @@ asmlinkage __visible void sl_main(void *bootparams)
 			     bootparams, PAGE_SIZE,
 			     "Measured boot parameters");
 
-	/* Now safe to use boot params */
 	bp = (struct boot_params *)bootparams;
 
 	/* Measure the command line */
@@ -520,30 +634,32 @@ asmlinkage __visible void sl_main(void *bootparams)
 				     "Measured initramfs");
 	}
 
-	/*
-	 * Some extra work to do on Intel, have to measure the OS-MLE
-	 * heap area.
-	 */
-	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
-	os_mle_data = txt_os_mle_data_start(txt_heap);
+	if (sl_cpu_type & SL_CPU_INTEL) {
+		/*
+		 * Some extra work to do on Intel, have to measure the OS-MLE
+		 * heap area.
+		 */
+		txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
+		os_mle_data = txt_os_mle_data_start(txt_heap);
 
-	/* Measure only portions of OS-MLE data, not addresses/sizes etc. */
-	os_mle_tmp.version = os_mle_data->version;
-	os_mle_tmp.saved_misc_enable_msr = os_mle_data->saved_misc_enable_msr;
-	os_mle_tmp.saved_bsp_mtrrs = os_mle_data->saved_bsp_mtrrs;
+		/* Measure only portions of OS-MLE data, not addresses/sizes etc. */
+		os_mle_tmp.version = os_mle_data->version;
+		os_mle_tmp.saved_misc_enable_msr = os_mle_data->saved_misc_enable_msr;
+		os_mle_tmp.saved_bsp_mtrrs = os_mle_data->saved_bsp_mtrrs;
 
-	/* No PMR check is needed, the TXT heap is covered by the DPR */
+		/* No PMR check is needed, the TXT heap is covered by the DPR */
 
-	sl_tpm_extend_evtlog(pcr_config, TXT_EVTYPE_SLAUNCH,
-			     (u8 *)&os_mle_tmp,
-			     sizeof(struct txt_os_mle_data),
-			     "Measured TXT OS-MLE data");
+		sl_tpm_extend_evtlog(pcr_config, TXT_EVTYPE_SLAUNCH,
+				     (u8 *)&os_mle_tmp,
+				     sizeof(struct txt_os_mle_data),
+				     "Measured TXT OS-MLE data");
 
-	sl_tpm_extend_evtlog(17, TXT_EVTYPE_SLAUNCH_END, NULL, 0, "");
+		sl_tpm_extend_evtlog(17, TXT_EVTYPE_SLAUNCH_END, NULL, 0, "");
 
-	/*
-	 * Now that the OS-MLE data is measured, ensure the MTRR and
-	 * misc enable MSRs are what we expect.
-	 */
-	sl_txt_validate_msrs(os_mle_data);
+		/*
+		 * Now that the OS-MLE data is measured, ensure the MTRR and
+		 * misc enable MSRs are what we expect.
+		 */
+		sl_txt_validate_msrs(os_mle_data);
+	}
 }
