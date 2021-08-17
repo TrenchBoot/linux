@@ -23,6 +23,9 @@
 /* CPUID: leaf 1, ECX, SMX feature bit */
 #define X86_FEATURE_BIT_SMX	(1 << 6)
 
+/* CPUID: leaf 0x80000001, ECX, SKINIT feature bit */
+#define X86_FEATURE_BIT_SKINIT	(1 << 12)
+
 #define IDT_VECTOR_LO_BITS	0
 #define IDT_VECTOR_HI_BITS	6
 
@@ -68,11 +71,26 @@ SYM_FUNC_START(sl_stub_entry)
 	cld
 
 	/*
-	 * On entry, %ebx has the entry abs offset to sl_stub_entry. The rva()
-	 * macro is used to generate relative references using %ebx as a base, as
-	 * to avoid absolute relocations, which would require fixups at runtime.
-	 * Only %cs and %ds segments are known good.
+	 * In case of TXT %ebx holds the absolute address of sl_stub_entry on
+	 * entry. Nothing guarantees it on AMD and making SKL behave that way
+	 * will create issues for Multiboot kernels like Xen, so just compute
+	 * the offset everywhere.
+	 *
+	 * The rva() macro is then used to generate relative references using %ebx
+	 * as a base, as to avoid absolute relocations, which would require fixups
+	 * at runtime.
+	 *
+	 * Only %cs and %ds segments are known good. On Intel, the ACM guarantees
+	 * this while on AMD the SKL does likewise.
+	 *
+	 * In addition, on Intel %ecx holds the MLE page directory pointer
+	 * table and on AMD %edx holds the physical base address of the SKL.
 	 */
+	call	1f
+1:
+	popl	%ebx
+	/* Move the address from label to functions start */
+	subl	rva(1b), %ebx
 
 	/* Load GDT, set segment regs and lret to __SL32_CS */
 	leal	rva(sl_gdt_desc)(%ebx), %eax
@@ -98,6 +116,12 @@ SYM_FUNC_START(sl_stub_entry)
 	lret
 
 .Lsl_cs:
+	/*
+	 * For AMD, save SKL base before the CPUID instruction overwrites it.
+	 * Performs cast from u32 to 64b void* for simpler use later.
+	 */
+	movl	%edx, rva(sl_skl_base)(%ebx)
+
 	/* Save our base pointer reg and page table for MLE */
 	pushl	%ebx
 	pushl	%ecx
@@ -106,7 +130,7 @@ SYM_FUNC_START(sl_stub_entry)
 	movl	$1, %eax
 	cpuid
 	testl	$(X86_FEATURE_BIT_SMX), %ecx
-	jz	.Ldo_unknown_cpu
+	jz	.Ldo_amd /* maybe AMD/SKINIT? */
 
 	popl	%ecx
 	popl	%ebx
@@ -189,9 +213,21 @@ SYM_FUNC_START(sl_stub_entry)
 
 	jmp	.Lcpu_setup_done
 
-.Ldo_unknown_cpu:
-	/* Non-Intel CPUs are not yet supported */
-	ud2
+.Ldo_amd:
+	/* See if SKINIT feature is supported. */
+	movl	$0x80000001, %eax
+	cpuid
+	testl	$(X86_FEATURE_BIT_SKINIT), %ecx
+	jz	.Ldo_unknown_cpu
+
+	popl	%ecx
+	/* Base pointer reg saved in Intel check */
+	popl	%ebx
+
+	/* Know it is AMD */
+	movl	$(SL_CPU_AMD), rva(sl_cpu_type)(%ebx)
+
+	/* On AMD %esi is set up by the Landing Zone, just go on */
 
 .Lcpu_setup_done:
 	/*
@@ -201,6 +237,10 @@ SYM_FUNC_START(sl_stub_entry)
 
 	/* Done, jump to normal 32b pm entry */
 	jmp	startup_32
+
+.Ldo_unknown_cpu:
+	/* Neither Intel nor AMD */
+	ud2
 SYM_FUNC_END(sl_stub_entry)
 
 SYM_FUNC_START(sl_find_mle_base)
@@ -716,6 +756,8 @@ SYM_DATA_END(sl_smx_rlp_mle_join)
 SYM_DATA(sl_cpu_type, .long 0x00000000)
 
 SYM_DATA(sl_mle_start, .long 0x00000000)
+
+SYM_DATA(sl_skl_base, .quad 0x0000000000000000)
 
 SYM_DATA_LOCAL(sl_txt_spin_lock, .long 0x00000000)
 
