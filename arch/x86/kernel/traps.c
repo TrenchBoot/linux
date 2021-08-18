@@ -42,6 +42,7 @@
 #include <linux/hardirq.h>
 #include <linux/atomic.h>
 #include <linux/iommu.h>
+#include <linux/slaunch.h>
 
 #include <asm/stacktrace.h>
 #include <asm/processor.h>
@@ -1442,6 +1443,9 @@ void __init trap_init(void)
 	/* Setup traps as cpu_init() might #GP */
 	if (!cpu_feature_enabled(X86_FEATURE_FRED))
 		idt_setup_traps();
+
+	/* If SKINIT was done on the BSP, this is the spot to enable GIF */
+	slaunch_cpu_setup_skinit();
 
 	cpu_init();
 }

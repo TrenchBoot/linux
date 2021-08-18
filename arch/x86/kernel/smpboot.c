@@ -250,6 +250,12 @@ static void notrace start_secondary(void *unused)
 	cpu_init_exception_handling();
 
 	/*
+	 * If this is an AMD SKINIT secure launch, some extra work is done
+	 * to prepare to start the secondary CPUs.
+	 */
+	slaunch_cpu_setup_skinit();
+
+	/*
 	 * Load the microcode before reaching the AP alive synchronization
 	 * point below so it is not part of the full per CPU serialized
 	 * bringup part when "parallel" bringup is enabled.
@@ -735,7 +741,14 @@ static int wakeup_secondary_cpu_via_init(u32 phys_apicid, unsigned long start_ei
 
 	preempt_disable();
 	maxlvt = lapic_get_maxlvt();
-	send_init_sequence(phys_apicid);
+
+	/*
+	 * If this is an SKINIT secure launch, #INIT is already done on the APs
+	 * by issuing the SKINIT instruction. For security reasons #INIT
+	 * should not be done again.
+	 */
+	if (!slaunch_is_skinit_launch())
+		send_init_sequence(phys_apicid);
 
 	mb();
 
