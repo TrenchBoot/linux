@@ -649,3 +649,21 @@ void __noreturn slaunch_skinit_reset(const char *msg, u64 error)
 
 	unreachable();
 }
+
+/* AMD specific SKINIT CPU setup */
+void slaunch_skinit_cpu_setup(void)
+{
+	u64 vm_cr;
+
+	if (!slaunch_is_skinit_launch())
+		return;
+
+	/*
+	 * We don't yet handle #SX.  Disable INIT_REDIRECTION first, before
+	 * enabling GIF, so a pending INIT resets us, rather than causing a
+	 * panic due to an unknown exception.
+	 */
+	rdmsrl(MSR_VM_CR, vm_cr);
+	wrmsrl(MSR_VM_CR, vm_cr & ~SVM_VM_CR_INIT_REDIRECTION);
+	asm volatile ( "stgi" ::: "memory" );
+}
