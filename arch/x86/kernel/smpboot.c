@@ -249,6 +249,9 @@ static void notrace start_secondary(void *unused)
 
 	cpu_init_exception_handling();
 
+	/* Initialization specific for AMD SKINIT. */
+	slaunch_setup_skinit();
+
 	/*
 	 * Load the microcode before reaching the AP alive synchronization
 	 * point below so it is not part of the full per CPU serialized
@@ -713,6 +716,15 @@ static void send_init_sequence(u32 phys_apicid)
 			apic_write(APIC_ESR, 0);
 		apic_read(APIC_ESR);
 	}
+
+	/*
+	 * If this is an SKINIT secure launch, #INIT is already done on the APs
+	 * by issuing the SKINIT instruction. For security reasons #INIT
+	 * should not be done again.
+	 */
+	if ((slaunch_get_flags() & (SL_FLAG_ACTIVE | SL_FLAG_ARCH_SKINIT)) ==
+	    (SL_FLAG_ACTIVE | SL_FLAG_ARCH_SKINIT))
+		return;
 
 	/* Assert INIT on the target CPU */
 	apic_icr_write(APIC_INT_LEVELTRIG | APIC_INT_ASSERT | APIC_DM_INIT, phys_apicid);
