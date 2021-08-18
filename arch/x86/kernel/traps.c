@@ -39,6 +39,7 @@
 #include <linux/io.h>
 #include <linux/hardirq.h>
 #include <linux/atomic.h>
+#include <linux/slaunch.h>
 
 #include <asm/stacktrace.h>
 #include <asm/processor.h>
@@ -1161,6 +1162,9 @@ void __init trap_init(void)
 	sev_es_init_vc_handling();
 
 	idt_setup_traps();
+
+	/* If SKINIT was done on the BSP, this is the spot to enable GIF */
+	slaunch_setup_skinit();
 
 	/*
 	 * Should be a barrier for any external CPU state:
