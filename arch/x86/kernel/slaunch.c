@@ -17,6 +17,7 @@
 #include <asm/sections.h>
 #include <asm/tlbflush.h>
 #include <asm/e820/api.h>
+#include <asm/svm.h>
 #include <asm/setup.h>
 #include <asm/realmode.h>
 #include <linux/slr_table.h>
@@ -642,4 +643,33 @@ void slaunch_finalize(int do_sexit)
 		slaunch_finalize_txt(do_sexit);
 	else if (boot_cpu_has(X86_FEATURE_SKINIT))
 		slaunch_finalize_skinit();
+}
+
+/*
+ * AMD specific SKINIT CPU setup and initialization.
+ */
+void slaunch_cpu_setup_skinit(void)
+{
+	u64 val;
+
+	if (!boot_cpu_has(X86_FEATURE_SKINIT))
+		return;
+
+	/*
+	 * If the platform is performing a Secure Launch via SKINIT
+	 * INIT_REDIRECTION flag will be active.
+	 */
+	rdmsrl(MSR_VM_CR, val);
+	if (!(val & (1 << SVM_VM_CR_INIT_REDIRECTION)))
+		return;
+
+	/*
+	 * We don't yet handle #SX.  Disable INIT_REDIRECTION first, before
+	 * enabling GIF, so a pending INIT resets us, rather than causing a
+	 * panic due to an unknown exception.
+	 */
+	wrmsrl(MSR_VM_CR, val & ~(1 << SVM_VM_CR_INIT_REDIRECTION));
+
+	/* Enable Global Interrupts flag */
+	asm volatile ( "stgi" ::: "memory" );
 }
