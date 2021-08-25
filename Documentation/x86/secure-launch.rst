@@ -57,14 +57,14 @@ Overview
 ========
 
 Prior to the start of the TrenchBoot project, the only active Open
-Source project supporting dynamic launch was Intel's Tboot project to
+Source project supporting dynamic launch was Intel's tboot project to
 support their implementation of dynamic launch known as Intel Trusted
-eXecution Technology (TXT). The approach taken by Tboot was to provide
+eXecution Technology (TXT). The approach taken by tboot was to provide
 an exokernel that could handle the launch protocol implemented by
 Intel's special loader, the SINIT Authenticated Code Module (ACM [3]_)
 and remained in memory to manage the SMX CPU mode that a dynamic launch
 would put a system. While it is not precluded from being used for doing
-a late launch, Tboot's primary use case was to be used as an early
+a late launch, tboot's primary use case was to be used as an early
 launch solution. As a result the TrenchBoot project started the
 development of Secure Launch kernel feature to provide a more
 generalized approach. The focus of the effort is twofold, the first is to
@@ -121,11 +121,11 @@ secure launch in the GRUB bootloader.*
 Post-launch: *Phase where control is passed from the ACM to the MLE and the secure
 kernel begins execution.*
 
- - Entry from the dynamic launch jumps to the SL stub
- - SL stub fixes up the world on the BSP
- - For TXT, SL stub wakes the APs, fixes up their worlds
- - For TXT, APs are left halted waiting for an NMI to wake them
- - SL stub jumps to startup_32
+ - Entry from the dynamic launch jumps to the SL stub.
+ - SL stub fixes up the world on the BSP.
+ - For TXT, SL stub wakes the APs, fixes up their worlds.
+ - For TXT, APs are left halted waiting for an NMI to wake them.
+ - SL stub jumps to startup_32.
  - SL main locates the TPM event log and writes the measurements of
    configuration and module information into it.
  - Kernel boot proceeds normally from this point.
@@ -136,7 +136,7 @@ kernel begins execution.*
  - SL platform module is registered as a late initcall module. It reads
    the TPM event log and extends the measurements taken into the TPM PCRs.
  - SL platform module initializes the securityfs interface to allow
-   asccess to the TPM event log and TXT public registers.
+   access to the TPM event log and TXT public registers.
  - Kernel boot finishes booting normally
  - SEXIT support to leave SMX mode is present on the kexec path and
    the various reboot paths (poweroff, reset, halt).
@@ -273,7 +273,7 @@ ap_wake_block          Pre-launch allocated memory block to wake up and park the
 ap_wake_block_size     Size of the ap_wake_block. A minimum of 16384b (4x4K pages) is required.
 evtlog_addr            Pre-launch allocated memory block for the TPM event log. The event
                        log is formatted both by the pre-launch environment and the SINIT
-                       ACM. his block is validated by the MLE before use.
+                       ACM. This block is validated by the MLE before use.
 evtlog_size            Size of the evtlog_addr block.
 mle_scratch            Scratch area used post-launch by the MLE kernel. Fields:
  
@@ -351,9 +351,9 @@ The secure launch code failed to find a valid event log descriptor for TPM
 version 2.0 or the event log descriptor is malformed. Usually this indicates
 that incompatible versions of the pre-launch environment (GRUB) and the MLE
 kernel. GRUB and the kernel share a structure in the TXT heap and if this
-structure (the OS-MLE table) is mismatched, this error is often seen. In
-addition, this value is set by the pre-launch environment, so the issue could
-originate there. It could be the sign of an attempted attack.
+structure (the OS-MLE table) is mismatched, this error is often seen. This
+TXT heap area is setup by the pre-launch environment so the issue may originate
+there. It could be the sign of an attempted attack.
 
 ======  ===========================
 Name:   SL_ERROR_TPM_LOGGING_FAILED
@@ -365,7 +365,8 @@ Description:
 There was a failed attempt to write a TPM event to the event log early in the
 secure launch process. This is likely the result of a malformed TPM event log
 buffer. Formatting of the event log buffer information is done by the
-pre-launch environment (GRUB) so the the issue originates there.
+pre-launch environment (GRUB) so the the issue issue most likely originates
+there.
 
 ======  ============================
 Name:   SL_ERROR_REGION_STRADDLE_4GB
@@ -544,8 +545,8 @@ Description:
 
 On a system with more than 4G of RAM, the high PMR [2]_ base address should be set
 to 4G. This error is due to that not being the case. This PMR value is set by
-the pre-launch environment so the issue originates there. It could also be the
-sign of an attempted attack.
+the pre-launch environment so the issue most likely originates there. It could also
+be the sign of an attempted attack.
 
 ======  ====================
 Name:   SL_ERROR_HI_PMR_SIZE
@@ -556,8 +557,8 @@ Description:
 
 On a system with more than 4G of RAM, the high PMR [2]_ size should be set to cover
 all RAM > 4G. This error is due to that not being the case. This PMR value is
-set by the pre-launch environment so the issue originates there. It could also
-be the sign of an attempted attack.
+set by the pre-launch environment so the issue most likely originates there. It
+could also be the sign of an attempted attack.
 
 ======  ====================
 Name:   SL_ERROR_LO_PMR_BASE
@@ -568,7 +569,7 @@ Description:
 
 The low PMR [2]_ base should always be set to address zero. This error is due to
 that not being the case. This PMR value is set by the pre-launch environment
-so the issue originates there. It could also be the sign of an attempted
+so the issue most likely originates there. It could also be the sign of an attempted
 attack.
 
 ======  ====================
@@ -579,8 +580,8 @@ Value:  0xc0008017
 Description:
 
 This error indicates the MLE image is not covered by the low PMR [2]_ range. The
-PMR values are set by the pre-launch environment so the issue originates there.
-It could also be the sign of an attempted attack.
+PMR values are set by the pre-launch environment so the issue most likely originates
+there. It could also be the sign of an attempted attack.
 
 ======  =======================
 Name:   SL_ERROR_INITRD_TOO_BIG
@@ -614,8 +615,8 @@ Value:  0xc000801a
 Description:
 
 The AP wake block buffer passed to the MLE via the OS-MLE TXT heap table is not
-large enough. This value is set by the pre-launch environment so the issue
-originates there. It also could be the sign of an attempted attack.
+large enough. This value is set by the pre-launch environment so the issue most
+likely originates there. It also could be the sign of an attempted attack.
 
 ======  ===========================
 Name:   SL_ERROR_MLE_BUFFER_OVERLAP
@@ -626,7 +627,7 @@ Description:
 
 One of the buffers passed to the MLE via the OS-MLE TXT heap table overlaps
 with the MLE image in memory. This value is set by the pre-launch environment
-so the issue originates there. It could also be the sign of an attempted
+so the issue most likely originates there. It could also be the sign of an attempted
 attack.
 
 ======  ==========================
@@ -638,7 +639,8 @@ Description:
 
 One of the buffers passed to the MLE via the OS-MLE TXT heap table is not
 protected by a PMR. This value is set by the pre-launch environment so the
-issue originates there. It could also be the sign of an attempted attack.
+issue most likey  originates there. It could also be the sign of an attempted
+attack.
 
 ======  =============================
 Name:   SL_ERROR_OS_SINIT_BAD_VERSION
@@ -648,10 +650,10 @@ Value:  0xc000801d
 Description:
 
 The version of the OS-SINIT TXT heap table is bad. It must be 6 or greater.
-This value is set by the pre-launch environment so the issue originates
-there. It could also be the sign of an attempted attack. It is also possible
-though very unlikely that the platform is so old that the ACM being used
-requires an unsupported version.
+This value is set by the pre-launch environment so the issue most likely
+originates there. It could also be the sign of an attempted attack. It is also
+possible though very unlikely that the platform is so old that the ACM being
+used requires an unsupported version.
 
 ======  =====================
 Name:   SL_ERROR_EVENTLOG_MAP
