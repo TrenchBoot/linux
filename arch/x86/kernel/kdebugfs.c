@@ -129,6 +129,10 @@ static int __init create_setup_data_nodes(struct dentry *parent)
 				node->paddr = ((struct setup_indirect *)data->data)->addr;
 				node->type  = ((struct setup_indirect *)data->data)->type;
 				node->len   = ((struct setup_indirect *)data->data)->len;
+			} else {
+				node->paddr = pa_data;
+				node->type  = data->type;
+				node->len   = data->len;
 			}
 		} else {
 			node->paddr = pa_data;
