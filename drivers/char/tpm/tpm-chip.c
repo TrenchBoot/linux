@@ -35,18 +35,16 @@ dev_t tpm_devt;
 
 static int tpm_request_locality(struct tpm_chip *chip)
 {
-	int rc, locality;
+	int locality;
+	int rc;
 
 	if (!chip->ops->request_locality)
 		return 0;
 
-	if (slaunch_get_flags() & SL_FLAG_ACTIVE) {
-		dev_dbg(&chip->dev, "setting TPM locality to 2 for MLE\n");
+	if (slaunch_get_flags() & SL_FLAG_ACTIVE)
 		locality = 2;
-	} else {
-		dev_dbg(&chip->dev, "setting TPM locality to 0\n");
+	else
 		locality = 0;
-	}
 
 	rc = chip->ops->request_locality(chip, locality);
 	if (rc < 0)
