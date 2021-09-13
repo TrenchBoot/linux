@@ -21,7 +21,7 @@
 #define X86_FEATURE_BIT_SMX	(1 << 6)
 
 /* CPUID: leaf 0x80000001, ECX, SKINIT feature bit */
-#define X86_FEATURE_BIT_SKINIT	12
+#define X86_FEATURE_BIT_SKINIT	(1 << 12)
 
 /* Can't include apiddef.h in asm */
 #define XAPIC_ENABLE	(1 << 11)
