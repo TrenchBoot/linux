@@ -338,7 +338,7 @@ static void slaunch_skinit_evtlog(void)
 				slaunch_skinit_reset(
 					"Error failed to memremap setup ind\n",
 					SL_ERROR_MAP_SETUP_DATA);
-			if (data->type == (SETUP_INDIRECT|SETUP_SECURE_LAUNCH))
+			if (ind->type == (SETUP_INDIRECT|SETUP_SECURE_LAUNCH))
 				break;
 
 			memunmap(ind);
@@ -358,7 +358,6 @@ static void slaunch_skinit_evtlog(void)
 		slaunch_skinit_reset("Error failed to memremap LZ base\n",
 			SL_ERROR_EVENTLOG_MAP);
 	memunmap(ind);
-
 
 	pa_evtlog = skinit_find_event_log(lz_base, &evtlog_size);
 	if (!pa_evtlog)
