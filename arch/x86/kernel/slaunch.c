@@ -511,7 +511,7 @@ void slaunch_finalize(int do_sexit)
 
 	memcpy_fromio(&val, config + TXT_CR_E2STS, sizeof(val));
 
-	pr_emerg("TXT clear secrets bit and unlock memory complete.");
+	pr_emerg("TXT clear secrets bit and unlock memory complete.\n");
 
 	if (!do_sexit)
 		return;
@@ -527,5 +527,5 @@ void slaunch_finalize(int do_sexit)
 	/* Do the SEXIT SMX operation */
 	smx_getsec_sexit();
 
-	pr_emerg("TXT SEXIT complete.");
+	pr_emerg("TXT SEXIT complete.\n");
 }
