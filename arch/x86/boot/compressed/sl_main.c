@@ -654,12 +654,13 @@ asmlinkage __visible void sl_main(void *bootparams)
 				     sizeof(struct txt_os_mle_data),
 				     "Measured TXT OS-MLE data");
 
-		sl_tpm_extend_evtlog(17, TXT_EVTYPE_SLAUNCH_END, NULL, 0, "");
-
 		/*
 		 * Now that the OS-MLE data is measured, ensure the MTRR and
 		 * misc enable MSRs are what we expect.
 		 */
 		sl_txt_validate_msrs(os_mle_data);
 	}
+
+	/* Final end event for TPM log */
+	sl_tpm_extend_evtlog(17, TXT_EVTYPE_SLAUNCH_END, NULL, 0, "");
 }
