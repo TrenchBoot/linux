@@ -345,8 +345,8 @@ static void slaunch_skinit_evtlog(void)
 			ind = NULL;
 		}
 
-		memunmap(data);
 		pa_data = data->next;
+		memunmap(data);
 	}
 
 	if (!ind)
