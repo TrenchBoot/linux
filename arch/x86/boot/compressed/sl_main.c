@@ -413,7 +413,7 @@ asmlinkage __visible void sl_check_region(void *base, u32 size)
 
 asmlinkage __visible void sl_main(void *bootparams)
 {
-	struct boot_params *bp;
+	struct boot_params *bp  = (struct boot_params *)bootparams;
 	struct setup_data *data;
 	struct txt_os_mle_data *os_mle_data;
 	struct txt_os_mle_data os_mle_tmp = {0};
@@ -421,6 +421,12 @@ asmlinkage __visible void sl_main(void *bootparams)
 	unsigned long mmap = 0;
 	void *txt_heap;
 	u32 data_count;
+
+	/*
+	 * Ensure loadflags do not indicate a secure launch was done
+	 * unless it really was.
+	 */
+	bp->hdr.loadflags &= ~SLAUNCH_FLAG;
 
 	/*
 	 * Currently only Intel TXT is supported for Secure Launch. Testing
@@ -443,22 +449,23 @@ asmlinkage __visible void sl_main(void *bootparams)
 	if (tpm_log_ver == SL_TPM20_LOG)
 		sl_find_event_log_algorithms();
 
-	/* Sanitize them before measuring */
+	/*
+ 	 * Sanitize them before measuring. Set the SLAUNCH_FLAG early since if
+ 	 * anything fails, the system will reset anyway.
+ 	 */
 	boot_params = (struct boot_params *)bootparams;
 	sanitize_boot_params(boot_params);
+	bp->hdr.loadflags |= SLAUNCH_FLAG;
 
 	/* Place event log NO_ACTION tags before and after measurements */
 	sl_tpm_extend_evtlog(17, TXT_EVTYPE_SLAUNCH_START, NULL, 0, "");
 
 	sl_check_pmr_coverage(bootparams, PAGE_SIZE, false);
 
-	/* Measure the zero page/boot params */
+	/* Measure the zero page/boot params (safe to use after this) */
 	sl_tpm_extend_evtlog(pcr_config, TXT_EVTYPE_SLAUNCH,
 			     bootparams, PAGE_SIZE,
 			     "Measured boot parameters");
-
-	/* Now safe to use boot params */
-	bp = (struct boot_params *)bootparams;
 
 	/* Measure the command line */
 	if (bp->hdr.cmdline_size > 0) {
