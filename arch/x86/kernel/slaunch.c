@@ -389,9 +389,16 @@ void __init slaunch_setup_txt(void)
 		return;
 
 	/*
-	 * First see if SENTER was done and not by TBOOT by reading the status
-	 * register in the public space. If the public register space cannot
-	 * be read, TXT is disabled.
+	 * If booted through secure launch entry point, the loadflags
+	 * option will be set.
+	 */
+	if (!(boot_params.hdr.loadflags & SLAUNCH_FLAG))
+		return;
+
+	/*
+	 * See if SENTER was done by reading the status register in the
+	 * public space. If the public register space cannot be read, TXT may
+	 * be disabled.
 	 */
 	txt = early_ioremap(TXT_PUB_CONFIG_REGS_BASE,
 			    TXT_NR_CONFIG_PAGES * PAGE_SIZE);
@@ -401,13 +408,13 @@ void __init slaunch_setup_txt(void)
 	memcpy_fromio(&val, txt + TXT_CR_STS, sizeof(val));
 	early_iounmap(txt, TXT_NR_CONFIG_PAGES * PAGE_SIZE);
 
-	/* Was SENTER done? */
+	/* SENTER should have been done */
 	if (!(val & TXT_SENTER_DONE_STS))
-		return;
+		panic("Error TXT.STS SENTER_DONE not set\n");
 
-	/* Was it done by TBOOT? */
-	if (boot_params.tboot_addr)
-		return;
+	/* SEXIT should have been cleared */
+	if (val & TXT_SEXIT_DONE_STS)
+		panic("Error TXT.STS SEXIT_DONE set\n");
 
 	/* Now we want to use the private register space */
 	txt = early_ioremap(TXT_PRIV_CONFIG_REGS_BASE,
