@@ -1981,25 +1981,27 @@ config SECURE_LAUNCH
 	   continues the measurement chain over kernel configuration
 	   information and init images.
 
-config SECURE_LAUNCH_ALT_PCR19
-	bool "Secure Launch Alternate PCR 19 usage"
+config SECURE_LAUNCH_ALT_DLME_AUTHORITY
+	bool "Secure Launch Alternate DLME Authority PCR"
 	default n
 	depends on SECURE_LAUNCH
 	help
-	   In the post ACM environment, Secure Launch by default measures
-	   configuration information into PCR18. This feature allows finer
-	   control over measurements by moving configuration measurements
-	   into PCR19.
+	   As the DLME environment, Secure Launch by default measures
+	   the configuration information as the DLME Authority into
+	   PCR18. This feature allows separating these measurements
+	   into the TCG DRTM specification PCR (PCR.DLME_AUTHORITY),
+	   PCR19.
 
-config SECURE_LAUNCH_ALT_PCR20
-	bool "Secure Launch Alternate PCR 20 usage"
+config SECURE_LAUNCH_ALT_DLME_DETAIL
+	bool "Secure Launch Alternate DLME Detail PCR"
 	default n
 	depends on SECURE_LAUNCH
 	help
-	   In the post ACM environment, Secure Launch by default measures
-	   image data like any external initrd into PCR17. This feature
-	   allows finer control over measurements by moving image measurements
-	   into PCR20.
+	   As the DLME environment, Secure Launch by default measures
+	   the image data like any external initrd as a DRTM Detail
+	   into PCR17. This feature allows separating these
+	   measurements into the Secure Launch's Detail PCR
+	   (PCR.DLME_DETAIL), PCR20.
 
 source "kernel/Kconfig.hz"
 
