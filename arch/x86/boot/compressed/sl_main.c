@@ -47,16 +47,16 @@ static struct txt_heap_event_log_pointer2_1_element *log20_elem;
 static u32 tpm_log_ver = SL_TPM12_LOG;
 struct tcg_efi_specid_event_algs tpm_algs[SL_TPM20_MAX_ALGS] = {0};
 
-#if !IS_ENABLED(CONFIG_SECURE_LAUNCH_ALT_PCR19)
-static u32 pcr_config = SL_DEF_CONFIG_PCR18;
+#if !IS_ENABLED(CONFIG_SECURE_LAUNCH_ALT_DLME_AUTHORITY)
+static u32 pcr_dlme_authority = SL_DEF_DLME_AUTHORITY_PCR18;
 #else
-static u32 pcr_config = SL_ALT_CONFIG_PCR19;
+static u32 pcr_dlme_authority = SL_ALT_DLME_AUTHORITY_PCR19;
 #endif
 
-#if !IS_ENABLED(CONFIG_SECURE_LAUNCH_ALT_PCR20)
-static u32 pcr_image = SL_DEF_IMAGE_PCR17;
+#if !IS_ENABLED(CONFIG_SECURE_LAUNCH_ALT_DLME_DETAIL)
+static u32 pcr_dlme_detail = SL_DEF_DLME_DETAIL_PCR17;
 #else
-static u32 pcr_image = SL_ALT_IMAGE_PCR20;
+static u32 pcr_dlme_detail = SL_ALT_DLME_DETAIL_PCR20;
 #endif
 
 extern u32 sl_cpu_type;
@@ -388,7 +388,7 @@ static struct setup_data *sl_handle_setup_data(struct setup_data *curr)
 
 		sl_check_pmr_coverage((void *)ind->addr, ind->len, true);
 
-		sl_tpm_extend_evtlog(pcr_config, TXT_EVTYPE_SLAUNCH,
+		sl_tpm_extend_evtlog(pcr_dlme_authority, TXT_EVTYPE_SLAUNCH,
 				     (void *)ind->addr, ind->len,
 				     "Measured Kernel setup_indirect");
 
@@ -398,7 +398,7 @@ static struct setup_data *sl_handle_setup_data(struct setup_data *curr)
 	sl_check_pmr_coverage(((u8 *)curr) + sizeof(struct setup_data),
 			      curr->len, true);
 
-	sl_tpm_extend_evtlog(pcr_config, TXT_EVTYPE_SLAUNCH,
+	sl_tpm_extend_evtlog(pcr_dlme_authority, TXT_EVTYPE_SLAUNCH,
 			     ((u8 *)curr) + sizeof(struct setup_data),
 			     curr->len,
 			     "Measured Kernel setup_data");
@@ -463,7 +463,7 @@ asmlinkage __visible void sl_main(void *bootparams)
 	sl_check_pmr_coverage(bootparams, PAGE_SIZE, false);
 
 	/* Measure the zero page/boot params (safe to use after this) */
-	sl_tpm_extend_evtlog(pcr_config, TXT_EVTYPE_SLAUNCH,
+	sl_tpm_extend_evtlog(pcr_dlme_authority, TXT_EVTYPE_SLAUNCH,
 			     bootparams, PAGE_SIZE,
 			     "Measured boot parameters");
 
@@ -477,7 +477,7 @@ asmlinkage __visible void sl_main(void *bootparams)
 		sl_check_pmr_coverage((void *)cmdline,
 				      bp->hdr.cmdline_size, true);
 
-		sl_tpm_extend_evtlog(pcr_config, TXT_EVTYPE_SLAUNCH,
+		sl_tpm_extend_evtlog(pcr_dlme_authority, TXT_EVTYPE_SLAUNCH,
 				     (u8 *)cmdline,
 				     bp->hdr.cmdline_size,
 				     "Measured Kernel command line");
@@ -502,7 +502,7 @@ asmlinkage __visible void sl_main(void *bootparams)
 			((u64)bp->efi_info.efi_memmap_hi << 32));
 
 	if (mmap)
-		sl_tpm_extend_evtlog(pcr_config, TXT_EVTYPE_SLAUNCH,
+		sl_tpm_extend_evtlog(pcr_dlme_authority, TXT_EVTYPE_SLAUNCH,
 				     (void *)mmap,
 				     bp->efi_info.efi_memmap_size,
 				     "Measured EFI memory map");
@@ -521,7 +521,7 @@ asmlinkage __visible void sl_main(void *bootparams)
 		sl_check_pmr_coverage((void *)ramdisk,
 				      bp->hdr.ramdisk_size, true);
 
-		sl_tpm_extend_evtlog(pcr_image, TXT_EVTYPE_SLAUNCH,
+		sl_tpm_extend_evtlog(pcr_dlme_detail, TXT_EVTYPE_SLAUNCH,
 				     (u8 *)(ramdisk),
 				     bp->hdr.ramdisk_size,
 				     "Measured initramfs");
@@ -541,7 +541,7 @@ asmlinkage __visible void sl_main(void *bootparams)
 
 	/* No PMR check is needed, the TXT heap is covered by the DPR */
 
-	sl_tpm_extend_evtlog(pcr_config, TXT_EVTYPE_SLAUNCH,
+	sl_tpm_extend_evtlog(pcr_dlme_authority, TXT_EVTYPE_SLAUNCH,
 			     (u8 *)&os_mle_tmp,
 			     sizeof(struct txt_os_mle_data),
 			     "Measured TXT OS-MLE data");
