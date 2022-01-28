@@ -477,7 +477,7 @@ void slaunch_finalize(int do_sexit)
 	u64 one = TXT_REGVALUE_ONE, val;
 
 	if ((slaunch_get_flags() & (SL_FLAG_ACTIVE|SL_FLAG_ARCH_TXT)) !=
-	    (SL_FLAG_ACTIVE|SL_FLAG_ARCH_TXT))
+	    (SL_FLAG_ACTIVE | SL_FLAG_ARCH_TXT))
 		return;
 
 	config = ioremap(TXT_PRIV_CONFIG_REGS_BASE, TXT_NR_CONFIG_PAGES *
@@ -522,10 +522,8 @@ void slaunch_finalize(int do_sexit)
 	if (!do_sexit)
 		return;
 
-	if (smp_processor_id() != 0) {
-		pr_emerg("Error TXT SEXIT must be called on CPU 0\n");
-		return;
-	}
+	if (smp_processor_id() != 0)
+		panic("Error TXT SEXIT must be called on CPU 0\n");
 
 	/* Disable SMX mode */
 	cr4_set_bits(X86_CR4_SMXE);
@@ -533,5 +531,5 @@ void slaunch_finalize(int do_sexit)
 	/* Do the SEXIT SMX operation */
 	smx_getsec_sexit();
 
-	pr_emerg("TXT SEXIT complete.\n");
+	pr_info("TXT SEXIT complete.\n");
 }
