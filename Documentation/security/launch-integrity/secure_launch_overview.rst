@@ -128,6 +128,9 @@ kernel begins execution.*
  - For TXT, SL stub wakes the APs, fixes up their worlds.
  - For TXT, APs are left halted waiting for an NMI to wake them.
  - SL stub jumps to startup_32.
+ - SL main does validation of buffers and memory locations. It sets
+   the boot parameter loadflag value SLAUNCH_FLAG to inform the main
+   kernel that a Secure Launch was done.
  - SL main locates the TPM event log and writes the measurements of
    configuration and module information into it.
  - Kernel boot proceeds normally from this point.
