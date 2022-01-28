@@ -1098,7 +1098,7 @@ slaunch_fixup_jump_vector(void)
 
 	*ap_jmp_ptr = real_mode_header->sl_trampoline_start32;
 
-	pr_info("TXT AP long jump address updated\n");
+	pr_debug("TXT AP long jump address updated\n");
 
 	return 0;
 }
