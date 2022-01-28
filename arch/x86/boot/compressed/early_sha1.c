@@ -24,13 +24,7 @@ static void __sha_transform(u32 *digest, const char *data)
 
 	sha1_transform(digest, data, ws);
 
-	memset(ws, 0, sizeof(ws));
-	/*
-	 * As this is cryptographic code, prevent the memset 0 from being
-	 * optimized out potentially leaving secrets in memory.
-	 */
-	wmb();
-
+	memzero_explicit(ws, sizeof(ws));
 }
 
 void early_sha1_init(struct sha1_state *sctx)
