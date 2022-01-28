@@ -263,13 +263,12 @@ static void __init slaunch_txt_reserve(void __iomem *txt)
 	if (!mdrnum)
 		goto nomdr;
 
-	mdrslen = (mdrnum * sizeof(struct txt_sinit_memory_descriptor_record));
+	mdrslen = mdrnum * sizeof(struct txt_sinit_memory_descriptor_record);
 
 	mdrs = txt_early_get_heap_table(txt, TXT_SINIT_MLE_DATA_TABLE,
 					mdroffset + mdrslen - 8);
 
-	mdr = (struct txt_sinit_memory_descriptor_record *)
-			(mdrs + mdroffset - 8);
+	mdr = mdrs + mdroffset - 8;
 
 	for (i = 0; i < mdrnum; i++, mdr++) {
 		/* Spec says some entries can have length 0, ignore them */
@@ -430,7 +429,7 @@ void __init slaunch_setup_txt(void)
 	 * available.
 	 */
 	memcpy_fromio(&val, txt + TXT_CR_DIDVID, sizeof(val));
-	if ((u16)(val & 0xffff) != 0x8086) {
+	if ((val & 0xffff) != 0x8086) {
 		/*
 		 * Can't do a proper TXT reset since it appears something is
 		 * wrong even though SENTER happened and it should be in SMX
