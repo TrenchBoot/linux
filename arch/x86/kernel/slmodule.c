@@ -27,13 +27,6 @@
 #include <crypto/sha2.h>
 #include <linux/slaunch.h>
 
-#define SL_FS_ENTRIES		10
-/* root directory node must be last */
-#define SL_ROOT_DIR_ENTRY	(SL_FS_ENTRIES - 1)
-#define SL_TXT_DIR_ENTRY	(SL_FS_ENTRIES - 2)
-#define SL_TXT_FILE_FIRST	(SL_TXT_DIR_ENTRY - 1)
-#define SL_TXT_ENTRY_COUNT	7
-
 #define DECLARE_TXT_PUB_READ_U(size, fmt, msg_size)			\
 static ssize_t txt_pub_read_u##size(unsigned int offset,		\
 		loff_t *read_offset,					\
@@ -45,8 +38,8 @@ static ssize_t txt_pub_read_u##size(unsigned int offset,		\
 	u##size reg_value = 0;						\
 	txt = ioremap(TXT_PUB_CONFIG_REGS_BASE,				\
 			TXT_NR_CONFIG_PAGES * PAGE_SIZE);		\
-	if (IS_ERR(txt))						\
-		return PTR_ERR(txt);					\
+	if (!txt)						\
+		return -EFAULT;					\
 	memcpy_fromio(&reg_value, txt + offset, sizeof(u##size));	\
 	iounmap(txt);							\
 	snprintf(msg_buffer, msg_size, fmt, reg_value);			\
@@ -147,83 +140,79 @@ static const struct file_operations sl_evtlog_ops = {
 	.llseek	= default_llseek,
 };
 
-static struct dentry *fs_entries[SL_FS_ENTRIES];
-
 struct sfs_file {
-	int parent;
 	const char *name;
 	const struct file_operations *fops;
 };
 
-static const struct sfs_file sl_files[] = {
-	{ SL_TXT_DIR_ENTRY, "sts", &sts_ops },
-	{ SL_TXT_DIR_ENTRY, "ests", &ests_ops },
-	{ SL_TXT_DIR_ENTRY, "errorcode", &errorcode_ops },
-	{ SL_TXT_DIR_ENTRY, "didvid", &didvid_ops },
-	{ SL_TXT_DIR_ENTRY, "ver_emif", &ver_emif_ops },
-	{ SL_TXT_DIR_ENTRY, "scratchpad", &scratchpad_ops },
-	{ SL_TXT_DIR_ENTRY, "e2sts", &e2sts_ops }
+#define SL_TXT_ENTRY_COUNT	7
+static const struct sfs_file sl_txt_files[] = {
+	{ "sts", &sts_ops },
+	{ "ests", &ests_ops },
+	{ "errorcode", &errorcode_ops },
+	{ "didvid", &didvid_ops },
+	{ "ver_emif", &ver_emif_ops },
+	{ "scratchpad", &scratchpad_ops },
+	{ "e2sts", &e2sts_ops }
 };
 
-static int sl_create_file(int entry, int parent, const char *name,
-			  const struct file_operations *ops)
-{
-	if (entry < 0 || entry > SL_TXT_DIR_ENTRY)
-		return -EINVAL;
-	fs_entries[entry] =
-		 securityfs_create_file(name, 0440,
-					fs_entries[parent], NULL, ops);
-	if (IS_ERR(fs_entries[entry])) {
-		pr_err("Error creating securityfs %s file\n", name);
-		return PTR_ERR(fs_entries[entry]);
-	}
-	return 0;
-}
+/* sysfs file handles */
+static struct dentry *slaunch_dir;
+static struct dentry *event_file;
+static struct dentry *txt_dir;
+static struct dentry *txt_entries[SL_TXT_ENTRY_COUNT];
 
 static long slaunch_expose_securityfs(void)
 {
 	long ret = 0;
-	int i = 0;
+	int i;
 
-	fs_entries[SL_ROOT_DIR_ENTRY] = securityfs_create_dir("slaunch", NULL);
-	if (IS_ERR(fs_entries[SL_ROOT_DIR_ENTRY])) {
-		pr_err("Error creating securityfs slaunch root directory\n");
-		ret = PTR_ERR(fs_entries[SL_ROOT_DIR_ENTRY]);
-		goto err;
-	}
+	slaunch_dir = securityfs_create_dir("slaunch", NULL);
+	if (IS_ERR(slaunch_dir))
+		return PTR_ERR(slaunch_dir);
 
 	if (slaunch_get_flags() & SL_FLAG_ARCH_TXT) {
-		fs_entries[SL_TXT_DIR_ENTRY] =
-			securityfs_create_dir("txt",
-					      fs_entries[SL_ROOT_DIR_ENTRY]);
-		if (IS_ERR(fs_entries[SL_TXT_DIR_ENTRY])) {
-			pr_err("Error creating securityfs txt directory\n");
-			ret = PTR_ERR(fs_entries[SL_TXT_DIR_ENTRY]);
-			goto err_dir;
+		txt_dir = securityfs_create_dir("txt", slaunch_dir);
+		if (IS_ERR(txt_dir)) {
+			ret = PTR_ERR(txt_dir);
+			goto remove_slaunch;
 		}
 
-		for (i = 0; i < SL_TXT_ENTRY_COUNT; i++) {
-			ret = sl_create_file(SL_TXT_FILE_FIRST - i,
-					     sl_files[i].parent, sl_files[i].name,
-					     sl_files[i].fops);
-			if (ret)
-				goto err_dir;
+		for (i = 0; i < ARRAY_SIZE(sl_txt_files); i++) {
+			txt_entries[i] = securityfs_create_file(
+						sl_txt_files[i].name, 0440,
+						txt_dir, NULL,
+						sl_txt_files[i].fops);
+			if (IS_ERR(txt_entries[i])) {
+				ret = PTR_ERR(txt_entries[i]);
+				goto remove_files;
+			}
 		}
+
 	}
 
 	if (sl_evtlog.addr > 0) {
-		ret = sl_create_file(0, SL_ROOT_DIR_ENTRY, sl_evtlog.name,
-				     &sl_evtlog_ops);
-		if (ret)
-			goto err_dir;
+		event_file = securityfs_create_file(
+					sl_evtlog.name, 0440,
+					slaunch_dir, NULL,
+					&sl_evtlog_ops);
+		if (IS_ERR(event_file)) {
+			ret = PTR_ERR(event_file);
+			goto remove_files;
+		}
 	}
 
 	return 0;
 
-err_dir:
-	for (i = 0; i <= SL_ROOT_DIR_ENTRY; i++)
-		securityfs_remove(fs_entries[i]);
-err:
+remove_files:
+	if (slaunch_get_flags() & SL_FLAG_ARCH_TXT) {
+		while (--i >= 0)
+			securityfs_remove(txt_entries[i]);
+		securityfs_remove(txt_dir);
+	}
+remove_slaunch:
+	securityfs_remove(slaunch_dir);
+
 	return ret;
 }
 
@@ -231,20 +220,26 @@ static void slaunch_teardown_securityfs(void)
 {
 	int i;
 
-	for (i = 0; i < SL_FS_ENTRIES; i++)
-		securityfs_remove(fs_entries[i]);
+	securityfs_remove(event_file);
+	if (sl_evtlog.addr) {
+		memunmap(sl_evtlog.addr);
+		sl_evtlog.addr = NULL;
+	}
+	sl_evtlog.size = 0;
 
 	if (slaunch_get_flags() & SL_FLAG_ARCH_TXT) {
-		if (sl_evtlog.addr) {
-			memunmap(sl_evtlog.addr);
-			sl_evtlog.addr = NULL;
-		}
-		sl_evtlog.size = 0;
+		for (i = 0; i < ARRAY_SIZE(sl_txt_files); i++) {
+			securityfs_remove(txt_entries[i]);
+
+		securityfs_remove(txt_dir);
+
 		if (txt_heap) {
 			memunmap(txt_heap);
 			txt_heap = NULL;
 		}
 	}
+
+	securityfs_remove(slaunch_dir);
 }
 
 static void slaunch_intel_evtlog(void __iomem *txt)
