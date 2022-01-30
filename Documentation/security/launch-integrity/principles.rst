@@ -232,7 +232,7 @@ Glossary
     Guarding against improper information modification or destruction, and
     includes ensuring information non-repudiation and authenticity.
 
-    - NIST CNSSI No. 4009 - https://www.cnss.gov/CNSS/openDoc.cfm?aBitGWcn8GFy1MtxuwFVHQ==
+    - NIST CNSSI No. 4009 - https://www.cnss.gov/CNSS/issuances/Instructions.cfm
 
   mechanism
     A process or system that is used to produce a particular result.
@@ -251,12 +251,12 @@ Glossary
     A device or function designed to provide one or more security services
     usually rated in terms of strength of service and assurance of the design.
 
-    - NIST CNSSI No. 4009 - https://www.cnss.gov/CNSS/openDoc.cfm?aBitGWcn8GFy1MtxuwFVHQ==
+    - NIST CNSSI No. 4009 - https://www.cnss.gov/CNSS/issuances/Instructions.cfm
 
   Strength of Mechanism
     A scale for measuring the relative strength of a security mechanism
 
-    - NIST CNSSI No. 4009 - https://www.cnss.gov/CNSS/openDoc.cfm?aBitGWcn8GFy1MtxuwFVHQ==
+    - NIST CNSSI No. 4009 - https://www.cnss.gov/CNSS/issuances/Instructions.cfm
 
   transitive trust
     Also known as "Inductive Trust", in this process a Root of Trust gives a
@@ -295,7 +295,7 @@ Glossary
     hardware, firmware, and software, the combination responsible for enforcing
     a security policy.
 
-    - NIST CNSSI No. 4009 - https://www.cnss.gov/CNSS/openDoc.cfm?aBitGWcn8GFy1MtxuwFVHQ==
+    - NIST CNSSI No. 4009 - https://www.cnss.gov/CNSS/issuances/Instructions.cfm
 
   trusted computer system
     A system that has the necessary security functions and assurance that the
@@ -303,11 +303,11 @@ Glossary
     information sensitivities (i.e. classified, controlled unclassified
     information (CUI), or unclassified public information) simultaneously.
 
-    - NIST CNSSI No. 4009 - https://www.cnss.gov/CNSS/openDoc.cfm?aBitGWcn8GFy1MtxuwFVHQ==
+    - NIST CNSSI No. 4009 - https://www.cnss.gov/CNSS/issuances/Instructions.cfm
 
   trustworthiness
     The attribute of a person or enterprise that provides confidence to others
     of the qualifications, capabilities, and reliability of that entity to
     perform specific tasks and fulfill assigned responsibilities.
 
-    - NIST CNSSI No. 4009 - https://www.cnss.gov/CNSS/openDoc.cfm?aBitGWcn8GFy1MtxuwFVHQ==
+    - NIST CNSSI No. 4009 - https://www.cnss.gov/CNSS/issuances/Instructions.cfm
