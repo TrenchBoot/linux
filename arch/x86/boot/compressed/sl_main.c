@@ -452,7 +452,7 @@ asmlinkage __visible void sl_main(void *bootparams)
 	/*
 	 * Sanitize them before measuring. Set the SLAUNCH_FLAG early since if
 	 * anything fails, the system will reset anyway.
- 	 */
+	 */
 	boot_params = (struct boot_params *)bootparams;
 	sanitize_boot_params(boot_params);
 	bp->hdr.loadflags |= SLAUNCH_FLAG;
