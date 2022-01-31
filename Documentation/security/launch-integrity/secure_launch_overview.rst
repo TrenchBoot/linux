@@ -203,12 +203,12 @@ FOSDEM 2021: Secure Upgrades with DRTM
 https://archive.fosdem.org/2021/schedule/event/firmware_suwd/
 
 .. [1]
-    MLE: Measured Launch Environment is the binary runtime that is measured and                                                                      
-    then run by the TXT SINIT ACM. The TXT MLE Development Guide describes the                                                                       
+    MLE: Measured Launch Environment is the binary runtime that is measured and
+    then run by the TXT SINIT ACM. The TXT MLE Development Guide describes the
     requirements for the MLE in detail.
 
 .. [2]
-    ACM: Intel's Authenticated Code Module. This is the 32b bit binary blob that                                                                     
-    is run securely by the GETSEC[SENTER] during a measured launch. It is described                                                                  
+    ACM: Intel's Authenticated Code Module. This is the 32b bit binary blob that
+    is run securely by the GETSEC[SENTER] during a measured launch. It is described
     in the Intel documentation on TXT and versions for various chipsets are
     signed and distributed by Intel.

@@ -243,7 +243,7 @@ Glossary
     A measure of the extent to which an entity is threatened by a potential
     circumstance or event, and typically a function of: (i) the adverse impacts
     that would arise if the circumstance or event occurs; and (ii) the
-    likelihood of occurrence. 
+    likelihood of occurrence.
 
     - NIST SP 800-30 Rev. 1 - https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-30r1.pdf
 
