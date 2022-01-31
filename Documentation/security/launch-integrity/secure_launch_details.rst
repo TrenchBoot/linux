@@ -526,14 +526,13 @@ Since only trusted entities are supposed to be writing the event log, this
 would indicate either a bug or a possible attack.
 
 .. [1]
-    MLE: Measured Launch Environment is the binary runtime that is measured and                                                                      
-    then run by the TXT SINIT ACM. The TXT MLE Development Guide describes the                                                                       
+    MLE: Measured Launch Environment is the binary runtime that is measured and
+    then run by the TXT SINIT ACM. The TXT MLE Development Guide describes the
     requirements for the MLE in detail.
 
 .. [2]
-    PMR: Intel VTd has a feature in the IOMMU called Protected Memory Registers.                                                                     
+    PMR: Intel VTd has a feature in the IOMMU called Protected Memory Registers.
     There are two of these registers and they allow all DMA to be blocked
-    to large areas of memory. The low PMR can cover all memory below 4Gb on 2Mb                                                                      
+    to large areas of memory. The low PMR can cover all memory below 4Gb on 2Mb
     boundaries. The high PMR can cover all RAM on the system, again on 2Mb
     boundaries. This feature is used during a Secure Launch by TXT.
-
