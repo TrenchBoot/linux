@@ -228,7 +228,7 @@ static void slaunch_teardown_securityfs(void)
 	sl_evtlog.size = 0;
 
 	if (slaunch_get_flags() & SL_FLAG_ARCH_TXT) {
-		for (i = 0; i < ARRAY_SIZE(sl_txt_files); i++) {
+		for (i = 0; i < ARRAY_SIZE(sl_txt_files); i++)
 			securityfs_remove(txt_entries[i]);
 
 		securityfs_remove(txt_dir);
