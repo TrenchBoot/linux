@@ -81,8 +81,8 @@ void __noreturn slaunch_txt_reset(void __iomem *txt,
 static void __init *txt_early_get_heap_table(void __iomem *txt, u32 type,
 					     u32 bytes)
 {
-	void *heap;
 	u64 base, size, offset = 0;
+	void *heap;
 	int i;
 
 	if (type > TXT_SINIT_TABLE_MAX)
@@ -142,9 +142,9 @@ static void __init txt_early_put_heap_table(void *addr, unsigned long size)
 static void __init slaunch_verify_pmrs(void __iomem *txt)
 {
 	struct txt_os_sinit_data *os_sinit_data;
-	unsigned long last_pfn;
 	u32 field_offset, err = 0;
 	const char *errmsg = "";
+	unsigned long last_pfn;
 
 	field_offset = offsetof(struct txt_os_sinit_data, lcp_po_base);
 	os_sinit_data = txt_early_get_heap_table(txt, TXT_OS_SINIT_DATA_TABLE,
@@ -234,9 +234,10 @@ static void __init slaunch_txt_reserve(void __iomem *txt)
 {
 	struct txt_sinit_memory_descriptor_record *mdr;
 	struct txt_sinit_mle_data *sinit_mle_data;
-	void *mdrs;
 	u64 base, size, heap_base, heap_size;
-	u32 field_offset, mdrnum, mdroffset, mdrslen, i;
+	u32 mdrnum, mdroffset, mdrslen;
+	u32 field_offset, i;
+	void *mdrs;
 
 	base = TXT_PRIV_CONFIG_REGS_BASE;
 	size = TXT_PUB_CONFIG_REGS_BASE - TXT_PRIV_CONFIG_REGS_BASE;
@@ -311,8 +312,8 @@ nomdr:
 static void __init slaunch_copy_dmar_table(void __iomem *txt)
 {
 	struct txt_sinit_mle_data *sinit_mle_data;
-	void *dmar;
 	u32 field_offset, dmar_size, dmar_offset;
+	void *dmar;
 
 	memset(&txt_dmar, 0, PAGE_SIZE);
 
@@ -381,8 +382,8 @@ static void __init slaunch_fetch_os_mle_fields(void __iomem *txt)
  */
 void __init slaunch_setup_txt(void)
 {
-	void __iomem *txt;
 	u64 one = TXT_REGVALUE_ONE, val;
+	void __iomem *txt;
 
 	if (!boot_cpu_has(X86_FEATURE_SMX))
 		return;
