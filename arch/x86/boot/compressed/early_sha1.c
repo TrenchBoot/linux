@@ -73,9 +73,9 @@ void early_sha1_update(struct sha1_state *sctx,
 void early_sha1_final(struct sha1_state *sctx, u8 *out)
 {
 	const int bit_offset = SHA1_BLOCK_SIZE - sizeof(__be64);
+	unsigned int partial = sctx->count % SHA1_BLOCK_SIZE;
 	__be64 *bits = (__be64 *)(sctx->buffer + bit_offset);
 	__be32 *digest = (__be32 *)out;
-	unsigned int partial = sctx->count % SHA1_BLOCK_SIZE;
 	int i;
 
 	sctx->buffer[partial++] = 0x80;
