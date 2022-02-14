@@ -103,8 +103,8 @@ static ssize_t sl_evtlog_read(struct file *file, char __user *buf,
 static ssize_t sl_evtlog_write(struct file *file, const char __user *buf,
 				size_t datalen, loff_t *ppos)
 {
-	char *data;
 	ssize_t result;
+	char *data;
 
 	if (!sl_evtlog.addr)
 		return 0;
@@ -291,9 +291,9 @@ static void slaunch_intel_evtlog(void __iomem *txt)
 static void slaunch_tpm20_extend_event(struct tpm_chip *tpm, void __iomem *txt,
 				       struct tcg_pcr_event2_head *event)
 {
-	struct tpm_digest *digests;
 	u16 *alg_id_field = (u16 *)((u8 *)event +
 				    sizeof(struct tcg_pcr_event2_head));
+	struct tpm_digest *digests;
 	u8 *dptr;
 	int ret;
 	u32 i, j;
@@ -348,15 +348,17 @@ static void slaunch_tpm20_extend_event(struct tpm_chip *tpm, void __iomem *txt,
 
 static void slaunch_tpm20_extend(struct tpm_chip *tpm, void __iomem *txt)
 {
-	struct tcg_pcr_event *event_header =
-		(struct tcg_pcr_event *)(sl_evtlog.addr +
-					 evtlog20->first_record_offset);
-	/* Skip first TPM 1.2 event to get to first TPM 2.0 event */
-	struct tcg_pcr_event2_head *event =
-		(struct tcg_pcr_event2_head *)((u8 *)event_header +
-					       sizeof(struct tcg_pcr_event) +
-					       event_header->event_size);
+	struct tcg_pcr_event *event_header;
+	struct tcg_pcr_event2_head *event;
 	int start = 0, end = 0, size;
+
+	event_header = (struct tcg_pcr_event *)(sl_evtlog.addr +
+						evtlog20->first_record_offset);
+
+	/* Skip first TPM 1.2 event to get to first TPM 2.0 event */
+	event = (struct tcg_pcr_event2_head *)((u8 *)event_header +
+						sizeof(struct tcg_pcr_event) +
+						event_header->event_size);
 
 	while ((void  *)event < sl_evtlog.addr + evtlog20->next_record_offset) {
 		size = __calc_tpm2_event_size(event, event_header, false);
@@ -392,13 +394,15 @@ next:
 
 static void slaunch_tpm12_extend(struct tpm_chip *tpm, void __iomem *txt)
 {
-	struct tpm12_event_log_header *event_header =
-		(struct tpm12_event_log_header *)sl_evtlog.addr;
-	struct tcg_pcr_event *event =
-		(struct tcg_pcr_event *)((u8 *)event_header +
-				sizeof(struct tpm12_event_log_header));
+	struct tpm12_event_log_header *event_header;
+	struct tcg_pcr_event *event;
 	struct tpm_digest digest;
-	int start = 0, end = 0, size, ret;
+	int start = 0, end = 0;
+	int size, ret;
+
+	event_header = (struct tpm12_event_log_header *)sl_evtlog.addr;
+	event = (struct tcg_pcr_event *)((u8 *)event_header +
+				sizeof(struct tpm12_event_log_header));
 
 	while ((void  *)event < sl_evtlog.addr + event_header->next_event_offset) {
 		size = sizeof(struct tcg_pcr_event) + event->event_size;
