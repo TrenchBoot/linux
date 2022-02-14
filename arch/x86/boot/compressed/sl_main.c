@@ -103,8 +103,8 @@ static u64 sl_rdmsr(u32 reg)
 
 static void sl_check_pmr_coverage(void *base, u32 size, bool allow_hi)
 {
-	void *end = base + size;
 	struct txt_os_sinit_data *os_sinit_data;
+	void *end = base + size;
 	void *txt_heap;
 
 	if (!(sl_cpu_type & SL_CPU_INTEL))
@@ -143,10 +143,11 @@ static void sl_check_pmr_coverage(void *base, u32 size, bool allow_hi)
  */
 static void sl_txt_validate_msrs(struct txt_os_mle_data *os_mle_data)
 {
-	u64 mtrr_caps, mtrr_def_type, mtrr_var, misc_en_msr;
-	u32 vcnt, i;
 	struct txt_mtrr_state *saved_bsp_mtrrs =
-		&(os_mle_data->saved_bsp_mtrrs);
+			&(os_mle_data->saved_bsp_mtrrs);
+	u64 mtrr_caps, mtrr_def_type, mtrr_var;
+	u64 misc_en_msr;
+	u32 vcnt, i;
 
 	mtrr_caps = sl_rdmsr(MSR_MTRRcap);
 	vcnt = (u32)(mtrr_caps & CAPS_VARIABLE_MTRR_COUNT_MASK);
@@ -176,8 +177,8 @@ static void sl_txt_validate_msrs(struct txt_os_mle_data *os_mle_data)
 
 static void sl_find_event_log(void)
 {
-	struct txt_os_mle_data *os_mle_data;
 	struct txt_os_sinit_data *os_sinit_data;
+	struct txt_os_mle_data *os_mle_data;
 	void *txt_heap;
 
 	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
@@ -209,11 +210,9 @@ static void sl_find_event_log(void)
 
 static void sl_validate_event_log_buffer(void)
 {
-	void *mle_base = (void *)(u64)sl_mle_start;
-	void *mle_end;
 	struct txt_os_sinit_data *os_sinit_data;
-	void *txt_heap;
-	void *txt_heap_end;
+	void *txt_heap, *txt_end;
+	void *mle_base, *mle_end;
 	void *evtlog_end;
 
 	if ((u64)evtlog_size > (LLONG_MAX - (u64)evtlog_base))
@@ -221,9 +220,10 @@ static void sl_validate_event_log_buffer(void)
 	evtlog_end = evtlog_base + evtlog_size;
 
 	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
-	txt_heap_end = txt_heap + sl_txt_read(TXT_CR_HEAP_SIZE);
+	txt_end = txt_heap + sl_txt_read(TXT_CR_HEAP_SIZE);
 	os_sinit_data = txt_os_sinit_data_start(txt_heap);
 
+	mle_base = (void *)(u64)sl_mle_start;
 	mle_end = mle_base + os_sinit_data->mle_size;
 
 	/*
@@ -246,7 +246,7 @@ pmr_check:
 	 * inside the TXT heap, there is no need for a PMR check.
 	 */
 	if ((evtlog_base > txt_heap) &&
-	    (evtlog_end < txt_heap_end))
+	    (evtlog_end < txt_end))
 		return;
 
 	sl_check_pmr_coverage(evtlog_base, evtlog_size, true);
@@ -270,11 +270,11 @@ static void sl_tpm12_log_event(u32 pcr, u32 event_type,
 			       const u8 *data, u32 length,
 			       const u8 *event_data, u32 event_size)
 {
+	u8 sha1_hash[SHA1_DIGEST_SIZE] = {0};
+	u8 log_buf[SL_TPM12_LOG_SIZE] = {0};
 	struct tcg_pcr_event *pcr_event;
 	struct sha1_state sctx = {0};
 	u32 total_size;
-	u8 log_buf[SL_TPM12_LOG_SIZE] = {0};
-	u8 sha1_hash[SHA1_DIGEST_SIZE] = {0};
 
 	pcr_event = (struct tcg_pcr_event *)log_buf;
 	pcr_event->pcr_idx = pcr;
@@ -300,16 +300,16 @@ static void sl_tpm20_log_event(u32 pcr, u32 event_type,
 			       const u8 *data, u32 length,
 			       const u8 *event_data, u32 event_size)
 {
+	u8 sha256_hash[SHA256_DIGEST_SIZE] = {0};
+	u8 sha1_hash[SHA1_DIGEST_SIZE] = {0};
+	u8 log_buf[SL_TPM20_LOG_SIZE] = {0};
+	struct sha256_state sctx256 = {0};
 	struct tcg_pcr_event2_head *head;
 	struct tcg_event_field *event;
 	struct sha1_state sctx1 = {0};
-	struct sha256_state sctx256 = {0};
 	u32 total_size;
 	u16 *alg_ptr;
 	u8 *dgst_ptr;
-	u8 log_buf[SL_TPM20_LOG_SIZE] = {0};
-	u8 sha1_hash[SHA1_DIGEST_SIZE] = {0};
-	u8 sha256_hash[SHA256_DIGEST_SIZE] = {0};
 
 	head = (struct tcg_pcr_event2_head *)log_buf;
 	head->pcr_idx = pcr;
@@ -373,8 +373,8 @@ static void sl_tpm_extend_evtlog(u32 pcr, u32 type,
 
 static struct setup_data *sl_handle_setup_data(struct setup_data *curr)
 {
-	struct setup_data *next;
 	struct setup_indirect *ind;
+	struct setup_data *next;
 
 	if (!curr)
 		return NULL;
@@ -414,11 +414,11 @@ asmlinkage __visible void sl_check_region(void *base, u32 size)
 asmlinkage __visible void sl_main(void *bootparams)
 {
 	struct boot_params *bp  = (struct boot_params *)bootparams;
-	struct setup_data *data;
 	struct txt_os_mle_data *os_mle_data;
 	struct txt_os_mle_data os_mle_tmp = {0};
-	const char *signature;
+	struct setup_data *data;
 	unsigned long mmap = 0;
+	const char *signature;
 	void *txt_heap;
 	u32 data_count;
 
