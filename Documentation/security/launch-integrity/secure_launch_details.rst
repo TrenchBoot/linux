@@ -60,8 +60,22 @@ IOMMU mode and this should be selected in the build configuration::
           "IOMMU default domain type" -->
               "(X) Translated - Strict"
 
+In addition, the Intel IOMMU should be on by default. The following sets this as the
+default in the build configuration::
+
+  "Device Drivers" -->
+      "IOMMU Hardware Support" -->
+          "Support for Intel IOMMU using DMA Remapping Devices [*]"
+
+and::
+
+  "Device Drivers" -->
+      "IOMMU Hardware Support" -->
+          "Support for Intel IOMMU using DMA Remapping Devices [*]" -->
+              "Enable Intel DMA Remapping Devices by default  [*]"
+
 It is recommended that no other command line options should be set to override
-the default above.
+the defaults above.
 
 Intel TXT Interface
 ===================
