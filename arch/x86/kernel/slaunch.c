@@ -18,6 +18,7 @@
 #include <asm/tlbflush.h>
 #include <asm/e820/api.h>
 #include <asm/setup.h>
+#include <linux/slr_table.h>
 #include <linux/slaunch.h>
 
 static u32 sl_flags;
@@ -352,15 +353,19 @@ static void __init slaunch_copy_dmar_table(void __iomem *txt)
 
 /*
  * The location of the safe AP wake code block is stored in the TXT heap.
- * Fetch it here in the early init code for later use in SMP startup.
+ * Fetch needed values here in the early init code for later use in SMP
+ * startup.
  *
- * Also get the TPM event log values that may have to be put on the
- * memblock reserve list later.
+ * Also get the TPM event log values are in the SLRT and have to be fetched.
+ * They will be put on the memblock reserve list later.
  */
-static void __init slaunch_fetch_os_mle_fields(void __iomem *txt)
+static void __init slaunch_fetch_values(void __iomem *txt)
 {
 	struct txt_os_mle_data *os_mle_data;
+	struct slr_entry_log_info *log_info;
+	struct slr_table *slrt;
 	u8 *jmp_offset;
+	u32 size;
 
 	os_mle_data = txt_early_get_heap_table(txt, TXT_OS_MLE_DATA_TABLE,
 					       sizeof(*os_mle_data));
@@ -371,8 +376,33 @@ static void __init slaunch_fetch_os_mle_fields(void __iomem *txt)
 	jmp_offset = os_mle_data->mle_scratch + SL_SCRATCH_AP_JMP_OFFSET;
 	ap_wake_info.ap_jmp_offset = *((u32 *)jmp_offset);
 
-	evtlog_addr = os_mle_data->evtlog_addr;
-	evtlog_size = os_mle_data->evtlog_size;
+	slrt = (struct slr_table *)early_memremap(os_mle_data->slrt, sizeof(*slrt));
+	if (!slrt)
+		slaunch_txt_reset(txt,
+			"Error early_memremap of SLRT failed\n",
+			SL_ERROR_SLRT_MAP);
+
+	size = slrt->size;
+	early_memunmap(slrt, sizeof(*slrt));
+
+	slrt = (struct slr_table *)early_memremap(os_mle_data->slrt, size);
+	if (!slrt)
+		slaunch_txt_reset(txt,
+			"Error early_memremap of SLRT failed\n",
+			SL_ERROR_SLRT_MAP);
+
+	log_info = (struct slr_entry_log_info *)
+		slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_LOG_INFO);
+
+	if (!log_info)
+		slaunch_txt_reset(txt,
+				  "SLRT missing logging info entry\n",
+				  SL_ERROR_SLRT_MISSING_ENTRY);
+
+	evtlog_addr = log_info->addr;
+	evtlog_size = log_info->size;
+
+	early_memunmap(slrt, size);
 
 	txt_early_put_heap_table(os_mle_data, sizeof(*os_mle_data));
 }
@@ -453,7 +483,7 @@ void __init slaunch_setup_txt(void)
 	memcpy_toio(txt + TXT_CR_CMD_OPEN_LOCALITY1, &one, sizeof(one));
 	memcpy_fromio(&val, txt + TXT_CR_E2STS, sizeof(val));
 
-	slaunch_fetch_os_mle_fields(txt);
+	slaunch_fetch_values(txt);
 
 	slaunch_verify_pmrs(txt);
 
