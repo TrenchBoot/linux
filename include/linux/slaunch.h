@@ -144,6 +144,9 @@
 #define SL_ERROR_TPM_NUMBER_ALGS	0xc000801f
 #define SL_ERROR_TPM_UNKNOWN_DIGEST	0xc0008020
 #define SL_ERROR_TPM_INVALID_EVENT	0xc0008021
+#define SL_ERROR_INVALID_SLRT		0xc0008022
+#define SL_ERROR_SLRT_MISSING_ENTRY	0xc0008023
+#define SL_ERROR_SLRT_MAP		0xc0008024
 
 /*
  * Secure Launch Defined Limits
@@ -222,31 +225,15 @@ struct txt_heap_event_log_pointer2_1_element {
 } __packed;
 
 /*
- * Secure Launch defined MTRR saving structures
- */
-struct txt_mtrr_pair {
-	u64 mtrr_physbase;
-	u64 mtrr_physmask;
-} __packed;
-
-struct txt_mtrr_state {
-	u64 default_mem_type;
-	u64 mtrr_vcnt;
-	struct txt_mtrr_pair mtrr_pair[TXT_OS_MLE_MAX_VARIABLE_MTRRS];
-} __packed;
-
-/*
  * Secure Launch defined OS/MLE TXT Heap table
  */
 struct txt_os_mle_data {
 	u32 version;
 	u32 boot_params_addr;
-	u64 saved_misc_enable_msr;
-	struct txt_mtrr_state saved_bsp_mtrrs;
+	u64 slrt;
+	u64 txt_info;
 	u32 ap_wake_block;
 	u32 ap_wake_block_size;
-	u64 evtlog_addr;
-	u32 evtlog_size;
 	u8 mle_scratch[64];
 } __packed;
 
@@ -421,7 +408,7 @@ static inline void *txt_sinit_mle_data_start(void *heap)
 {
 	return heap + txt_bios_data_size(heap) +
 		txt_os_mle_data_size(heap) +
-		txt_sinit_mle_data_size(heap) + sizeof(u64);
+		txt_os_sinit_data_size(heap) + sizeof(u64);
 }
 
 /*
@@ -502,11 +489,6 @@ static inline int tpm20_log_event(struct txt_heap_event_log_pointer2_1_element *
 }
 
 /*
- * External functions avalailable in compressed kernel.
- */
-extern u32 slaunch_get_cpu_type(void);
-
-/*
  * External functions avalailable in mainline kernel.
  */
 extern void slaunch_setup_txt(void);
@@ -521,7 +503,6 @@ extern void slaunch_finalize(int do_sexit);
 
 #else
 
-#define slaunch_get_cpu_type()		0
 #define slaunch_setup_txt()		do { } while (0)
 #define slaunch_get_flags()		0
 #define slaunch_get_dmar_table(d)	(d)
