@@ -25,6 +25,7 @@
 #include <asm/segment.h>
 #include <asm/sections.h>
 #include <crypto/sha2.h>
+#include <linux/slr_table.h>
 #include <linux/slaunch.h>
 
 #define DECLARE_TXT_PUB_READ_U(size, fmt, msg_size)			\
@@ -244,7 +245,9 @@ static void slaunch_teardown_securityfs(void)
 
 static void slaunch_intel_evtlog(void __iomem *txt)
 {
+	struct slr_entry_log_info *log_info;
 	struct txt_os_mle_data *params;
+	struct slr_table *slrt;
 	void *os_sinit_data;
 	u64 base, size;
 
@@ -260,13 +263,37 @@ static void slaunch_intel_evtlog(void __iomem *txt)
 
 	params = (struct txt_os_mle_data *)txt_os_mle_data_start(txt_heap);
 
-	sl_evtlog.size = params->evtlog_size;
-	sl_evtlog.addr = memremap(params->evtlog_addr, params->evtlog_size,
+	/* Get the SLRT and remap it */
+	slrt = memremap(params->slrt, sizeof(*slrt), MEMREMAP_WB);
+	if (!slrt)
+		slaunch_txt_reset(txt,
+			"Error failed to memremap SLR Table\n",
+			SL_ERROR_SLRT_MAP);
+	size = slrt->size;
+	memunmap(slrt);
+
+	slrt = memremap(params->slrt, size, MEMREMAP_WB);
+	if (!slrt)
+		slaunch_txt_reset(txt,
+			"Error failed to memremap SLR Table\n",
+			SL_ERROR_SLRT_MAP);
+
+	log_info = (struct slr_entry_log_info *)
+			slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_LOG_INFO);
+	if (!log_info)
+		slaunch_txt_reset(txt,
+			"Error failed to memremap SLR Table\n",
+			SL_ERROR_SLRT_MISSING_ENTRY);
+
+	sl_evtlog.size = log_info->size;
+	sl_evtlog.addr = memremap(log_info->addr, log_info->size,
 				  MEMREMAP_WB);
 	if (!sl_evtlog.addr)
 		slaunch_txt_reset(txt,
 			"Error failed to memremap TPM event log\n",
 			SL_ERROR_EVENTLOG_MAP);
+
+	memunmap(slrt);
 
 	/* Determine if this is TPM 1.2 or 2.0 event log */
 	if (memcmp(sl_evtlog.addr + sizeof(struct tcg_pcr_event),
