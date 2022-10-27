@@ -17,6 +17,7 @@
 #include <asm/asm-offsets.h>
 #include <asm/bootparam.h>
 #include <asm/bootparam_utils.h>
+#include <linux/slr_table.h>
 #include <linux/slaunch.h>
 #include <crypto/sha1.h>
 #include <crypto/sha2.h>
@@ -45,25 +46,8 @@ static struct txt_heap_event_log_pointer2_1_element *log20_elem;
 static u32 tpm_log_ver = SL_TPM12_LOG;
 struct tcg_efi_specid_event_algs tpm_algs[SL_TPM20_MAX_ALGS] = {0};
 
-#if !IS_ENABLED(CONFIG_SECURE_LAUNCH_ALT_DLME_AUTHORITY)
-static u32 pcr_dlme_authority = SL_DEF_DLME_AUTHORITY_PCR18;
-#else
-static u32 pcr_dlme_authority = SL_ALT_DLME_AUTHORITY_PCR19;
-#endif
-
-#if !IS_ENABLED(CONFIG_SECURE_LAUNCH_ALT_DLME_DETAIL)
-static u32 pcr_dlme_detail = SL_DEF_DLME_DETAIL_PCR17;
-#else
-static u32 pcr_dlme_detail = SL_ALT_DLME_DETAIL_PCR20;
-#endif
-
 extern u32 sl_cpu_type;
 extern u32 sl_mle_start;
-
-u32 slaunch_get_cpu_type(void)
-{
-	return sl_cpu_type;
-}
 
 static u64 sl_txt_read(u32 reg)
 {
@@ -97,6 +81,29 @@ static u64 sl_rdmsr(u32 reg)
 	asm volatile ("rdmsr" : "=a" (lo), "=d" (hi) : "c" (reg));
 
 	return (hi << 32) | lo;
+}
+
+static struct slr_table *sl_locate_and_validate_slrt(void)
+{
+	struct txt_os_mle_data *os_mle_data;
+	struct slr_table *slrt;
+	void *txt_heap;
+
+	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
+	os_mle_data = txt_os_mle_data_start(txt_heap);
+
+	if (!os_mle_data->slrt)
+		sl_txt_reset(SL_ERROR_INVALID_SLRT);
+
+	slrt = (struct slr_table *)os_mle_data->slrt;
+
+	if (slrt->magic != SLR_TABLE_MAGIC)
+		sl_txt_reset(SL_ERROR_INVALID_SLRT);
+
+	if (slrt->architecture != SLR_INTEL_TXT)
+		sl_txt_reset(SL_ERROR_INVALID_SLRT);
+
+	return slrt;
 }
 
 static void sl_check_pmr_coverage(void *base, u32 size, bool allow_hi)
@@ -141,11 +148,14 @@ static void sl_check_pmr_coverage(void *base, u32 size, bool allow_hi)
  */
 static void sl_txt_validate_msrs(struct txt_os_mle_data *os_mle_data)
 {
-	struct txt_mtrr_state *saved_bsp_mtrrs =
-			&(os_mle_data->saved_bsp_mtrrs);
+	struct txt_mtrr_state *saved_bsp_mtrrs;
 	u64 mtrr_caps, mtrr_def_type, mtrr_var;
+	struct slr_entry_intel_info *txt_info;
 	u64 misc_en_msr;
 	u32 vcnt, i;
+
+	txt_info = (struct slr_entry_intel_info *)os_mle_data->txt_info;
+	saved_bsp_mtrrs = &(txt_info->saved_bsp_mtrrs);
 
 	mtrr_caps = sl_rdmsr(MSR_MTRRcap);
 	vcnt = (u32)(mtrr_caps & CAPS_VARIABLE_MTRR_COUNT_MASK);
@@ -169,21 +179,25 @@ static void sl_txt_validate_msrs(struct txt_os_mle_data *os_mle_data)
 	}
 
 	misc_en_msr = sl_rdmsr(MSR_IA32_MISC_ENABLE);
-	if (os_mle_data->saved_misc_enable_msr != misc_en_msr)
+	if (txt_info->saved_misc_enable_msr != misc_en_msr)
 		sl_txt_reset(SL_ERROR_MSR_INV_MISC_EN);
 }
 
-static void sl_find_event_log(void)
+static void sl_find_event_log(struct slr_table *slrt)
 {
 	struct txt_os_sinit_data *os_sinit_data;
-	struct txt_os_mle_data *os_mle_data;
+	struct slr_entry_log_info *log_info;
 	void *txt_heap;
 
-	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
+	log_info = (struct slr_entry_log_info *)
+			slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_LOG_INFO);
+	if (!log_info)
+		sl_txt_reset(SL_ERROR_SLRT_MISSING_ENTRY);
 
-	os_mle_data = txt_os_mle_data_start(txt_heap);
-	evtlog_base = (void *)os_mle_data->evtlog_addr;
-	evtlog_size = os_mle_data->evtlog_size;
+	evtlog_base = (void *)log_info->addr;
+	evtlog_size = log_info->size;
+
+	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
 
 	/*
 	 * For TPM 2.0, the event log 2.1 extended data structure has to also
@@ -369,7 +383,8 @@ static void sl_tpm_extend_evtlog(u32 pcr, u32 type,
 				   (const u8 *)desc, strlen(desc));
 }
 
-static struct setup_data *sl_handle_setup_data(struct setup_data *curr)
+static struct setup_data *sl_handle_setup_data(struct setup_data *curr,
+					       struct slr_policy_entry *entry)
 {
 	struct setup_indirect *ind;
 	struct setup_data *next;
@@ -386,9 +401,9 @@ static struct setup_data *sl_handle_setup_data(struct setup_data *curr)
 
 		sl_check_pmr_coverage((void *)ind->addr, ind->len, true);
 
-		sl_tpm_extend_evtlog(pcr_dlme_authority, TXT_EVTYPE_SLAUNCH,
+		sl_tpm_extend_evtlog(entry->pcr, TXT_EVTYPE_SLAUNCH,
 				     (void *)ind->addr, ind->len,
-				     "Measured Kernel setup_indirect");
+				     entry->evt_info);
 
 		return next;
 	}
@@ -396,12 +411,97 @@ static struct setup_data *sl_handle_setup_data(struct setup_data *curr)
 	sl_check_pmr_coverage(((u8 *)curr) + sizeof(struct setup_data),
 			      curr->len, true);
 
-	sl_tpm_extend_evtlog(pcr_dlme_authority, TXT_EVTYPE_SLAUNCH,
+	sl_tpm_extend_evtlog(entry->pcr, TXT_EVTYPE_SLAUNCH,
 			     ((u8 *)curr) + sizeof(struct setup_data),
 			     curr->len,
-			     "Measured Kernel setup_data");
+			     entry->evt_info);
 
 	return next;
+}
+
+static void sl_extend_setup_data(struct slr_policy_entry *entry)
+{
+	struct setup_data *data;
+
+	/*
+	 * Measuring the boot params measured the fixed e820 memory map.
+	 * Measure any setup_data entries including e820 extended entries.
+	 */
+	data = (struct setup_data *)(unsigned long)entry->entity;
+	while (data)
+		data = sl_handle_setup_data(data, entry);
+}
+
+static void sl_extend_slrt(struct slr_policy_entry *entry)
+{
+	struct slr_table *slrt = (struct slr_table *)entry->entity;
+	struct slr_entry_intel_info *intel_info;
+
+	/*
+	 * In revision one of the SLRT, the only table that needs to be
+	 * measured is the Intel info table. Everything else is meta-data,
+	 * addresses and sizes.
+	 */
+	if (slrt->revision == 1) {
+		intel_info = (struct slr_entry_intel_info *)
+				slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_INTEL_INFO);
+		if (!intel_info)
+			sl_txt_reset(SL_ERROR_SLRT_MISSING_ENTRY);
+
+		sl_tpm_extend_evtlog(entry->pcr, TXT_EVTYPE_SLAUNCH,
+				     (void *)entry->entity, entry->size,
+				     entry->evt_info);
+	}
+}
+
+static void sl_extend_txt_os2mle(struct slr_policy_entry *entry)
+{
+	struct txt_os_mle_data *os_mle_data;
+	void *txt_heap;
+
+	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
+	os_mle_data = txt_os_mle_data_start(txt_heap);
+
+	/*
+	 * Version 1 of the OS-MLE heap structure has no fields to measure. It just
+	 * has addresses and sizes and a scratch buffer.
+	 */
+	if (os_mle_data->version == 1)
+		return;
+}
+
+static void sl_process_extend_policy(struct slr_table *slrt)
+{
+	struct slr_entry_policy *policy;
+	struct slr_policy_entry *entry;
+	u16 i = 0;
+
+	policy =(struct slr_entry_policy *)
+		slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_ENTRY_POLICY);
+	if (!policy)
+		sl_txt_reset(SL_ERROR_SLRT_MISSING_ENTRY);
+
+	entry = (struct slr_policy_entry *)((u8 *)policy + sizeof(*policy));
+
+	for ( ; i < policy->nr_entries; i++, entry++) {
+		switch (entry->entity_type) {
+		case SLR_ET_SETUP_DATA:
+			sl_extend_setup_data(entry);
+			break;
+		case SLR_ET_SLRT:
+			sl_extend_slrt(entry);
+			break;
+		case SLR_ET_TXT_OS2MLE:
+			sl_extend_txt_os2mle(entry);
+			break;
+		case SLR_ET_UNUSED:
+			continue;
+		default:
+			sl_tpm_extend_evtlog(entry->pcr, TXT_EVTYPE_SLAUNCH,
+					     (void *)entry->entity, entry->size,
+					     entry->evt_info);
+		}
+	}
 }
 
 asmlinkage __visible void sl_check_region(void *base, u32 size)
@@ -413,12 +513,8 @@ asmlinkage __visible void sl_main(void *bootparams)
 {
 	struct boot_params *bp  = (struct boot_params *)bootparams;
 	struct txt_os_mle_data *os_mle_data;
-	struct txt_os_mle_data os_mle_tmp = {0};
-	struct setup_data *data;
-	unsigned long mmap = 0;
-	const char *signature;
+	struct slr_table *slrt;
 	void *txt_heap;
-	u32 data_count;
 
 	/*
 	 * Ensure loadflags do not indicate a secure launch was done
@@ -434,8 +530,10 @@ asmlinkage __visible void sl_main(void *bootparams)
 	if (!(sl_cpu_type & SL_CPU_INTEL))
 		return;
 
+	slrt = sl_locate_and_validate_slrt();
+
 	/* Locate the TPM event log. */
-	sl_find_event_log();
+	sl_find_event_log(slrt);
 
 	/* Validate the location of the event log buffer before using it */
 	sl_validate_event_log_buffer();
@@ -455,96 +553,19 @@ asmlinkage __visible void sl_main(void *bootparams)
 	sanitize_boot_params(boot_params);
 	bp->hdr.loadflags |= SLAUNCH_FLAG;
 
-	/* Place event log NO_ACTION tags before and after measurements */
-	sl_tpm_extend_evtlog(17, TXT_EVTYPE_SLAUNCH_START, NULL, 0, "");
-
 	sl_check_pmr_coverage(bootparams, PAGE_SIZE, false);
 
-	/* Measure the zero page/boot params (safe to use after this) */
-	sl_tpm_extend_evtlog(pcr_dlme_authority, TXT_EVTYPE_SLAUNCH,
-			     bootparams, PAGE_SIZE,
-			     "Measured boot parameters");
+	/* Place event log SL specific tags before and after measurements */
+	sl_tpm_extend_evtlog(17, TXT_EVTYPE_SLAUNCH_START, NULL, 0, "");
 
-	/* Measure the command line */
-	if (bp->hdr.cmdline_size > 0) {
-		u64 cmdline = (u64)bp->hdr.cmd_line_ptr;
-
-		if (bp->ext_cmd_line_ptr > 0)
-			cmdline = cmdline | ((u64)bp->ext_cmd_line_ptr << 32);
-
-		sl_check_pmr_coverage((void *)cmdline,
-				      bp->hdr.cmdline_size, true);
-
-		sl_tpm_extend_evtlog(pcr_dlme_authority, TXT_EVTYPE_SLAUNCH,
-				     (u8 *)cmdline,
-				     bp->hdr.cmdline_size,
-				     "Measured Kernel command line");
-	}
-
-	/*
-	 * Measuring the boot params measured the fixed e820 memory map.
-	 * Measure any setup_data entries including e820 extended entries.
-	 */
-	data = (struct setup_data *)(unsigned long)bp->hdr.setup_data;
-	while (data)
-		data = sl_handle_setup_data(data);
-
-	/* If bootloader was EFI, measure the memory map passed across */
-	signature =
-		(const char *)&bp->efi_info.efi_loader_signature;
-
-	if (!strncmp(signature, EFI32_LOADER_SIGNATURE, 4))
-		mmap =  bp->efi_info.efi_memmap;
-	else if (!strncmp(signature, EFI64_LOADER_SIGNATURE, 4))
-		mmap = (bp->efi_info.efi_memmap |
-			((u64)bp->efi_info.efi_memmap_hi << 32));
-
-	if (mmap)
-		sl_tpm_extend_evtlog(pcr_dlme_authority, TXT_EVTYPE_SLAUNCH,
-				     (void *)mmap,
-				     bp->efi_info.efi_memmap_size,
-				     "Measured EFI memory map");
-
-	/* Measure any external initrd */
-	if (bp->hdr.ramdisk_image != 0 && bp->hdr.ramdisk_size != 0) {
-		u64 ramdisk = (u64)bp->hdr.ramdisk_image;
-
-		if (bp->ext_ramdisk_size > 0)
-			sl_txt_reset(SL_ERROR_INITRD_TOO_BIG);
-
-		if (bp->ext_ramdisk_image > 0)
-			ramdisk = ramdisk |
-				  ((u64)bp->ext_ramdisk_image << 32);
-
-		sl_check_pmr_coverage((void *)ramdisk,
-				      bp->hdr.ramdisk_size, true);
-
-		sl_tpm_extend_evtlog(pcr_dlme_detail, TXT_EVTYPE_SLAUNCH,
-				     (u8 *)(ramdisk),
-				     bp->hdr.ramdisk_size,
-				     "Measured initramfs");
-	}
-
-	/*
-	 * Some extra work to do on Intel, have to measure the OS-MLE
-	 * heap area.
-	 */
-	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
-	os_mle_data = txt_os_mle_data_start(txt_heap);
-
-	/* Measure only portions of OS-MLE data, not addresses/sizes etc. */
-	os_mle_tmp.version = os_mle_data->version;
-	os_mle_tmp.saved_misc_enable_msr = os_mle_data->saved_misc_enable_msr;
-	os_mle_tmp.saved_bsp_mtrrs = os_mle_data->saved_bsp_mtrrs;
-
-	/* No PMR check is needed, the TXT heap is covered by the DPR */
-
-	sl_tpm_extend_evtlog(pcr_dlme_authority, TXT_EVTYPE_SLAUNCH,
-			     (u8 *)&os_mle_tmp,
-			     sizeof(struct txt_os_mle_data),
-			     "Measured TXT OS-MLE data");
+	/* Process all policy entries and extend the measurements to the evtlog */
+	sl_process_extend_policy(slrt);
 
 	sl_tpm_extend_evtlog(17, TXT_EVTYPE_SLAUNCH_END, NULL, 0, "");
+
+	/* No PMR check is needed, the TXT heap is covered by the DPR */
+	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
+	os_mle_data = txt_os_mle_data_start(txt_heap);
 
 	/*
 	 * Now that the OS-MLE data is measured, ensure the MTRR and

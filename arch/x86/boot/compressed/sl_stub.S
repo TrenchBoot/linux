@@ -15,6 +15,7 @@
 #include <asm/bootparam.h>
 #include <asm/page_types.h>
 #include <asm/irq_vectors.h>
+#include <linux/slr_table.h>
 #include <linux/slaunch.h>
 
 /* CPUID: leaf 1, ECX, SMX feature bit */
@@ -178,11 +179,14 @@ SYM_FUNC_START(sl_stub_entry)
 	 */
 	call	sl_txt_wake_aps
 
+	/* Restore OS-MLE in %eax */
+	popl	%eax
+
 	/*
-	 * Pop OS-MLE base address (was in %eax above) for call to load
-	 * MTRRs/MISC MSR
+	 * %edi is used by this routine to find the MTRRs which are in the SLRT
+	 * in the Intel info.
 	 */
-	popl	%edi
+	movl	SL_txt_info(%eax), %edi
 	call	sl_txt_load_regs
 
 	jmp	.Lcpu_setup_done
@@ -319,8 +323,9 @@ SYM_FUNC_START(sl_txt_ap_entry)
 
 	/* Saved %ebx from the BSP and stash OS-MLE pointer */
 	movl	(SL_mle_scratch + SL_SCRATCH_AP_EBX)(%eax), %ebx
-	/* Save OS-MLE base in %edi for call to sl_txt_load_regs */
-	movl	%eax, %edi
+
+	/* Save TXT info ptr in %edi for call to sl_txt_load_regs */
+	movl	SL_txt_info(%eax), %edi
 
 	/* Lock and get our stack index */
 	movl	$1, %ecx
