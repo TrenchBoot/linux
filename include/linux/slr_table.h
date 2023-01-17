@@ -19,6 +19,10 @@
 #define SLR_INTEL_TXT		1
 #define SLR_AMD_SKINIT		2
 
+/* SLR defined bootloaders */
+#define SLR_BOOTLOADER_INVALID	0
+#define SLR_BOOTLOADER_GRUB	1
+
 /* Log formats */
 #define SLR_DRTM_TPM12_LOG	1
 #define SLR_DRTM_TPM20_LOG	2
@@ -77,11 +81,22 @@ struct slr_entry_hdr {
 } __packed;
 
 /*
+ * Boot loader context
+ */
+struct slr_bl_context
+{
+	u16 bootloader;
+	u16 reserved;
+	u64 context;
+} __packed;
+
+/*
  * DRTM Dynamic Launch Configuration
  */
 struct slr_entry_dl_info {
 	struct slr_entry_hdr hdr;
 	u64 dl_handler;
+	struct slr_bl_context bl_context;
 	u64 dce_base;
 	u32 dce_size;
 	u64 dlme_entry;
