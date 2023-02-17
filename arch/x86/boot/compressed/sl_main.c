@@ -504,6 +504,26 @@ static void sl_process_extend_policy(struct slr_table *slrt)
 	}
 }
 
+static void sl_process_extend_efi_config(struct slr_table *slrt)
+{
+	struct slr_entry_efi_config *efi_config;
+	struct efi_cfg_entry *efi_entry;
+	u64 i;
+
+	efi_config =(struct slr_entry_efi_config *)
+		slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_EFI_CONFIG);
+	if (!efi_config)
+		sl_txt_reset(SL_ERROR_SLRT_MISSING_ENTRY);
+
+	efi_entry = (struct efi_cfg_entry *)((u8 *)efi_config + sizeof(*efi_config));
+
+	for ( ; i < efi_config->nr_entries; i++, efi_entry++) {
+		sl_tpm_extend_evtlog(efi_entry->pcr, TXT_EVTYPE_SLAUNCH,
+				     (void *)efi_entry->cfg, efi_entry->size,
+				     efi_entry->evt_info);
+	}
+}
+
 asmlinkage __visible void sl_check_region(void *base, u32 size)
 {
 	sl_check_pmr_coverage(base, size, false);
@@ -560,6 +580,9 @@ asmlinkage __visible void sl_main(void *bootparams)
 
 	/* Process all policy entries and extend the measurements to the evtlog */
 	sl_process_extend_policy(slrt);
+
+	/* Process all EFI config entries and extend the measurements to the evtlog */
+	sl_process_extend_efi_config(slrt);
 
 	sl_tpm_extend_evtlog(17, TXT_EVTYPE_SLAUNCH_END, NULL, 0, "");
 
