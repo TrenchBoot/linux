@@ -9,6 +9,7 @@
 #include <linux/efi.h>
 #include <linux/pci.h>
 #include <linux/stddef.h>
+#include <linux/slr_table.h>
 
 #include <asm/efi.h>
 #include <asm/e820/types.h>
@@ -770,6 +771,57 @@ static efi_status_t exit_boot(struct boot_params *boot_params, void *handle)
 	return EFI_SUCCESS;
 }
 
+static void efi_secure_launch(struct boot_params *boot_params)
+{
+	struct slr_entry_efi_config *efi_config;
+	struct slr_efi_cfg_entry *efi_entry;
+	struct slr_entry_dl_info *dlinfo;
+	efi_guid_t guid = SLR_TABLE_GUID;
+	struct slr_table *slrt;
+	u64 memmap_hi;
+	void *table;
+	u8 buf[64] = {0};
+
+	table = get_efi_config_table(guid);
+
+	/*
+	 * The presence of this table indicated a Secure Launch
+	 * is being requested.
+	 */
+	if (!table)
+		return;
+
+	slrt = (struct slr_table *)table;
+
+	if (slrt->magic != SLR_TABLE_MAGIC)
+		return;
+
+	/* Add config information to measure the EFI memory map */
+	efi_config = (struct slr_entry_efi_config *)buf;
+	efi_config->hdr.tag = SLR_ENTRY_EFI_CONFIG;
+	efi_config->hdr.size = sizeof(*efi_config) + sizeof(*efi_entry);
+	efi_config->revision = SLR_EFI_CONFIG_REVISION;
+	efi_config->nr_entries = 1;
+	efi_entry = (struct slr_efi_cfg_entry *)(buf + sizeof(*efi_config));
+	efi_entry->pcr = 18;
+	efi_entry->cfg = boot_params->efi_info.efi_memmap;
+	memmap_hi = boot_params->efi_info.efi_memmap_hi;
+	efi_entry->cfg |= memmap_hi << 32;
+	efi_entry->size = boot_params->efi_info.efi_memmap_size;
+	memcpy(&efi_entry->evt_info[0], "Measured EFI memory map",
+		strlen("Measured EFI memory map"));
+
+	if (slr_add_entry(slrt, (struct slr_entry_hdr *)efi_config))
+		return;
+
+	/* Jump through DL stub to initiate Secure Launch */
+	dlinfo = (struct slr_entry_dl_info *)
+		slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_DL_INFO);
+
+	asm volatile ("jmp *%%rax"
+		      : : "a" (dlinfo->dl_handler), "D" (&dlinfo->bl_context));
+}
+
 /*
  * On success, we return the address of startup_32, which has potentially been
  * relocated by efi_relocate_kernel.
@@ -913,6 +965,9 @@ unsigned long efi_main(efi_handle_t handle,
 		efi_err("exit_boot() failed!\n");
 		goto fail;
 	}
+
+	/* If a secure launch is in progress, this never returns */
+	efi_secure_launch(boot_params);
 
 	return bzimage_addr;
 fail:
