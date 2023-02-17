@@ -2,7 +2,7 @@
 /*
  * Secure Launch Resource Table
  *
- * Copyright (c) 2022, Oracle and/or its affiliates.
+ * Copyright (c) 2023, Oracle and/or its affiliates.
  */
 
 #ifndef _LINUX_SLR_TABLE_H
@@ -95,8 +95,8 @@ struct slr_bl_context
  */
 struct slr_entry_dl_info {
 	struct slr_entry_hdr hdr;
-	u64 dl_handler;
 	struct slr_bl_context bl_context;
+	u64 dl_handler;
 	u64 dce_base;
 	u32 dce_size;
 	u64 dlme_entry;
@@ -182,6 +182,8 @@ struct slr_entry_efi_config {
 } __packed;
 
 struct efi_cfg_entry {
+	u16 pcr;
+	u16 reserved;
 	u64 cfg; /* address or value */
 	u32 size;
 	char evt_info[TPM_EVENT_INFO_LENGTH];
