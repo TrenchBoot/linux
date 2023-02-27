@@ -22,6 +22,7 @@
 #include <linux/kmemleak.h>
 #include <linux/cc_platform.h>
 #include <linux/iopoll.h>
+#include <linux/slaunch.h>
 #include <asm/pci-direct.h>
 #include <asm/iommu.h>
 #include <asm/apic.h>
@@ -3346,6 +3347,17 @@ int __init amd_iommu_enable(void)
 	ret = iommu_go_to_state(IOMMU_ENABLED);
 	if (ret)
 		return ret;
+
+#if IS_ENABLED(CONFIG_SECURE_LAUNCH)
+	if (slaunch_is_skinit_psp()) {
+		/* Initialize PSP access to SKINIT DRTM functions */
+		slaunch_psp_setup();
+
+		/* Release the Trusted Memory Region since IOMMU is configured */
+		if (!slaunch_psp_tmr_release())
+			return -ENODEV;
+	}
+#endif
 
 	irq_remapping_enabled = 1;
 	return amd_iommu_xt_mode;

@@ -701,13 +701,15 @@ static void slaunch_finalize_txt(int do_sexit)
 }
 
 /*
- * Used during kexec and on reboot paths to finalize the SKINIT.
+ * Used during kexec and on reboot paths to finalize the SKINIT PSP state.
  */
 static void slaunch_finalize_skinit(void)
 {
 	/* AMD CPUs with PSP-supported DRTM */
 	if (!slaunch_is_skinit_psp())
 		return;
+
+	slaunch_psp_finalize();
 }
 
 void slaunch_finalize(int do_sexit)
