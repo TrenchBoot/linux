@@ -15,6 +15,10 @@
 #define SLR_TABLE_MAGIC		0x4452544d
 #define SLR_TABLE_REVISION	1
 
+/* Current revisions for the policy and EFI config */
+#define SLR_POLICY_REVISION	1
+#define SLR_EFI_CONFIG_REVISION	1
+
 /* SLR defined architectures */
 #define SLR_INTEL_TXT		1
 #define SLR_AMD_SKINIT		2
@@ -54,7 +58,7 @@
 #define SLR_ET_SETUP_DATA	0x0003
 #define SLR_ET_CMDLINE		0x0004
 #define SLR_ET_EFI_MEMMAP	0x0005
-#define SLR_ET_INITRD		0x0006
+#define SLR_ET_RAMDISK		0x0006
 #define SLR_ET_TXT_OS2MLE	0x0010
 #define SLR_ET_UNUSED		0xffff
 
@@ -83,8 +87,7 @@ struct slr_entry_hdr {
 /*
  * Boot loader context
  */
-struct slr_bl_context
-{
+struct slr_bl_context {
 	u16 bootloader;
 	u16 reserved;
 	u64 context;
@@ -139,15 +142,15 @@ struct slr_policy_entry {
 /*
  * Secure Launch defined MTRR saving structures
  */
-struct txt_mtrr_pair {
+struct slr_txt_mtrr_pair {
 	u64 mtrr_physbase;
 	u64 mtrr_physmask;
 } __packed;
 
-struct txt_mtrr_state {
+struct slr_txt_mtrr_state {
 	u64 default_mem_type;
 	u64 mtrr_vcnt;
-	struct txt_mtrr_pair mtrr_pair[TXT_VARIABLE_MTRRS_LENGTH];
+	struct slr_txt_mtrr_pair mtrr_pair[TXT_VARIABLE_MTRRS_LENGTH];
 } __packed;
 
 /*
@@ -156,7 +159,7 @@ struct txt_mtrr_state {
 struct slr_entry_intel_info {
 	struct slr_entry_hdr hdr;
 	u64 saved_misc_enable_msr;
-	struct txt_mtrr_state saved_bsp_mtrrs;
+	struct slr_txt_mtrr_state saved_bsp_mtrrs;
 } __packed;
 
 /*
@@ -175,13 +178,12 @@ struct slr_entry_arm_info {
 
 struct slr_entry_efi_config {
 	struct slr_entry_hdr hdr;
-	u32 identifier;
-	u16 reserved;
+	u16 revision;
 	u16 nr_entries;
 	/* efi_cfg_entries[] */
 } __packed;
 
-struct efi_cfg_entry {
+struct slr_efi_cfg_entry {
 	u16 pcr;
 	u16 reserved;
 	u64 cfg; /* address or value */
@@ -233,11 +235,17 @@ static inline int
 slr_add_entry(struct slr_table *table,
 	      struct slr_entry_hdr *entry)
 {
+	struct slr_entry_hdr *end;
+
 	if ((table->size + entry->size) > table->max_size)
 		return -1;
 
-	memcpy((u8 *)table + table->size, entry, entry->size);
+	memcpy((u8 *)table + table->size - sizeof(*end), entry, entry->size);
 	table->size += entry->size;
+
+	end  = (struct slr_entry_hdr *)((u8 *)table + table->size - sizeof(*end));
+	end->tag = SLR_ENTRY_END;
+	end->size = sizeof(*end);
 
 	return 0;
 }
@@ -245,11 +253,16 @@ slr_add_entry(struct slr_table *table,
 static inline void
 slr_init_table(struct slr_table *slrt, u16 architecture, u32 max_size)
 {
+	struct slr_entry_hdr *end;
+
 	slrt->magic = SLR_TABLE_MAGIC;
 	slrt->revision = SLR_TABLE_REVISION;
 	slrt->architecture = architecture;
-	slrt->size = sizeof(*slrt);
+	slrt->size = sizeof(*slrt) + sizeof(*end);
 	slrt->max_size = max_size;
+	end = (struct slr_entry_hdr *)((u8 *)slrt + sizeof(*slrt));
+	end->tag = SLR_ENTRY_END;
+	end->size = sizeof(*end);
 }
 
 #endif /* !__ASSEMBLY */
