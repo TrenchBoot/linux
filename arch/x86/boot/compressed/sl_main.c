@@ -148,7 +148,7 @@ static void sl_check_pmr_coverage(void *base, u32 size, bool allow_hi)
  */
 static void sl_txt_validate_msrs(struct txt_os_mle_data *os_mle_data)
 {
-	struct txt_mtrr_state *saved_bsp_mtrrs;
+	struct slr_txt_mtrr_state *saved_bsp_mtrrs;
 	u64 mtrr_caps, mtrr_def_type, mtrr_var;
 	struct slr_entry_intel_info *txt_info;
 	u64 misc_en_msr;
@@ -507,15 +507,17 @@ static void sl_process_extend_policy(struct slr_table *slrt)
 static void sl_process_extend_efi_config(struct slr_table *slrt)
 {
 	struct slr_entry_efi_config *efi_config;
-	struct efi_cfg_entry *efi_entry;
+	struct slr_efi_cfg_entry *efi_entry;
 	u64 i;
 
 	efi_config =(struct slr_entry_efi_config *)
 		slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_EFI_CONFIG);
-	if (!efi_config)
-		sl_txt_reset(SL_ERROR_SLRT_MISSING_ENTRY);
 
-	efi_entry = (struct efi_cfg_entry *)((u8 *)efi_config + sizeof(*efi_config));
+	/* Optionally here depending on how SL kernel was booted */
+	if (!efi_config)
+		return;
+
+	efi_entry = (struct slr_efi_cfg_entry *)((u8 *)efi_config + sizeof(*efi_config));
 
 	for ( ; i < efi_config->nr_entries; i++, efi_entry++) {
 		sl_tpm_extend_evtlog(efi_entry->pcr, TXT_EVTYPE_SLAUNCH,
