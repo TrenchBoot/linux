@@ -15,9 +15,9 @@
 #define SLR_TABLE_MAGIC		0x4452544d
 #define SLR_TABLE_REVISION	1
 
-/* Current revisions for the policy and EFI config */
-#define SLR_POLICY_REVISION	1
-#define SLR_EFI_CONFIG_REVISION	1
+/* Current revisions for the policy and UEFI config */
+#define SLR_POLICY_REVISION		1
+#define SLR_UEFI_CONFIG_REVISION	1
 
 /* SLR defined architectures */
 #define SLR_INTEL_TXT		1
@@ -47,8 +47,8 @@
 #define SLR_ENTRY_INTEL_INFO	0x0004
 #define SLR_ENTRY_AMD_INFO	0x0005
 #define SLR_ENTRY_ARM_INFO	0x0006
-#define SLR_ENTRY_EFI_INFO	0x0007
-#define SLR_ENTRY_EFI_CONFIG	0x0008
+#define SLR_ENTRY_UEFI_INFO	0x0007
+#define SLR_ENTRY_UEFI_CONFIG	0x0008
 #define SLR_ENTRY_END		0xffff
 
 /* Entity Types */
@@ -57,7 +57,7 @@
 #define SLR_ET_BOOT_PARAMS	0x0002
 #define SLR_ET_SETUP_DATA	0x0003
 #define SLR_ET_CMDLINE		0x0004
-#define SLR_ET_EFI_MEMMAP	0x0005
+#define SLR_ET_UEFI_MEMMAP	0x0005
 #define SLR_ET_RAMDISK		0x0006
 #define SLR_ET_TXT_OS2MLE	0x0010
 #define SLR_ET_UNUSED		0xffff
@@ -176,14 +176,14 @@ struct slr_entry_arm_info {
 	struct slr_entry_hdr hdr;
 } __packed;
 
-struct slr_entry_efi_config {
+struct slr_entry_uefi_config {
 	struct slr_entry_hdr hdr;
 	u16 revision;
 	u16 nr_entries;
-	/* efi_cfg_entries[] */
+	/* uefi_cfg_entries[] */
 } __packed;
 
-struct slr_efi_cfg_entry {
+struct slr_uefi_cfg_entry {
 	u16 pcr;
 	u16 reserved;
 	u64 cfg; /* address or value */
