@@ -773,8 +773,8 @@ static efi_status_t exit_boot(struct boot_params *boot_params, void *handle)
 
 static void efi_secure_launch(struct boot_params *boot_params)
 {
-	struct slr_entry_efi_config *efi_config;
-	struct slr_efi_cfg_entry *efi_entry;
+	struct slr_entry_uefi_config *uefi_config;
+	struct slr_uefi_cfg_entry *uefi_entry;
 	struct slr_entry_dl_info *dlinfo;
 	efi_guid_t guid = SLR_TABLE_GUID;
 	struct slr_table *slrt;
@@ -796,22 +796,22 @@ static void efi_secure_launch(struct boot_params *boot_params)
 	if (slrt->magic != SLR_TABLE_MAGIC)
 		return;
 
-	/* Add config information to measure the EFI memory map */
-	efi_config = (struct slr_entry_efi_config *)buf;
-	efi_config->hdr.tag = SLR_ENTRY_EFI_CONFIG;
-	efi_config->hdr.size = sizeof(*efi_config) + sizeof(*efi_entry);
-	efi_config->revision = SLR_EFI_CONFIG_REVISION;
-	efi_config->nr_entries = 1;
-	efi_entry = (struct slr_efi_cfg_entry *)(buf + sizeof(*efi_config));
-	efi_entry->pcr = 18;
-	efi_entry->cfg = boot_params->efi_info.efi_memmap;
+	/* Add config information to measure the UEFI memory map */
+	uefi_config = (struct slr_entry_uefi_config *)buf;
+	uefi_config->hdr.tag = SLR_ENTRY_UEFI_CONFIG;
+	uefi_config->hdr.size = sizeof(*uefi_config) + sizeof(*uefi_entry);
+	uefi_config->revision = SLR_UEFI_CONFIG_REVISION;
+	uefi_config->nr_entries = 1;
+	uefi_entry = (struct slr_uefi_cfg_entry *)(buf + sizeof(*uefi_config));
+	uefi_entry->pcr = 18;
+	uefi_entry->cfg = boot_params->efi_info.efi_memmap;
 	memmap_hi = boot_params->efi_info.efi_memmap_hi;
-	efi_entry->cfg |= memmap_hi << 32;
-	efi_entry->size = boot_params->efi_info.efi_memmap_size;
-	memcpy(&efi_entry->evt_info[0], "Measured EFI memory map",
-		strlen("Measured EFI memory map"));
+	uefi_entry->cfg |= memmap_hi << 32;
+	uefi_entry->size = boot_params->efi_info.efi_memmap_size;
+	memcpy(&uefi_entry->evt_info[0], "Measured UEFI memory map",
+		strlen("Measured UEFI memory map"));
 
-	if (slr_add_entry(slrt, (struct slr_entry_hdr *)efi_config))
+	if (slr_add_entry(slrt, (struct slr_entry_hdr *)uefi_config))
 		return;
 
 	/* Jump through DL stub to initiate Secure Launch */
