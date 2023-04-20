@@ -504,25 +504,25 @@ static void sl_process_extend_policy(struct slr_table *slrt)
 	}
 }
 
-static void sl_process_extend_efi_config(struct slr_table *slrt)
+static void sl_process_extend_uefi_config(struct slr_table *slrt)
 {
-	struct slr_entry_efi_config *efi_config;
-	struct slr_efi_cfg_entry *efi_entry;
+	struct slr_entry_uefi_config *uefi_config;
+	struct slr_uefi_cfg_entry *uefi_entry;
 	u64 i;
 
-	efi_config =(struct slr_entry_efi_config *)
-		slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_EFI_CONFIG);
+	uefi_config =(struct slr_entry_uefi_config *)
+		slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_UEFI_CONFIG);
 
 	/* Optionally here depending on how SL kernel was booted */
-	if (!efi_config)
+	if (!uefi_config)
 		return;
 
-	efi_entry = (struct slr_efi_cfg_entry *)((u8 *)efi_config + sizeof(*efi_config));
+	uefi_entry = (struct slr_uefi_cfg_entry *)((u8 *)uefi_config + sizeof(*uefi_config));
 
-	for ( ; i < efi_config->nr_entries; i++, efi_entry++) {
-		sl_tpm_extend_evtlog(efi_entry->pcr, TXT_EVTYPE_SLAUNCH,
-				     (void *)efi_entry->cfg, efi_entry->size,
-				     efi_entry->evt_info);
+	for ( ; i < uefi_config->nr_entries; i++, uefi_entry++) {
+		sl_tpm_extend_evtlog(uefi_entry->pcr, TXT_EVTYPE_SLAUNCH,
+				     (void *)uefi_entry->cfg, uefi_entry->size,
+				     uefi_entry->evt_info);
 	}
 }
 
@@ -584,7 +584,7 @@ asmlinkage __visible void sl_main(void *bootparams)
 	sl_process_extend_policy(slrt);
 
 	/* Process all EFI config entries and extend the measurements to the evtlog */
-	sl_process_extend_efi_config(slrt);
+	sl_process_extend_uefi_config(slrt);
 
 	sl_tpm_extend_evtlog(17, TXT_EVTYPE_SLAUNCH_END, NULL, 0, "");
 
