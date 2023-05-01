@@ -77,6 +77,16 @@ and::
 It is recommended that no other command line options should be set to override
 the defaults above.
 
+Secure Launch Resource Table
+============================
+
+The Secure Launch Resource Table (SLRT) is a platform-agnostic, standard format
+for providing information for the pre-launch environment and to pass
+information to the post-launch environment. The table is populated by one or
+more bootloaders in the boot chain and used by Secure Launch on how to setup
+the environment during post-launch. The details for the SLRT are documented
+in the TrenchBoot Secure Launch Specifcation [3]_.
+
 Intel TXT Interface
 ===================
 
@@ -88,35 +98,15 @@ The TXT heap is described in Appendix C of the TXT MLE [1]_ Development
 Guide. Most of the TXT heap is predefined in the specification. The heap is
 initialized by firmware and the pre-launch environment and is subsequently used
 by the SINIT ACM. One section, called the OS to MLE Data Table, is reserved for
-software to define. This table is the Secure Launch binary interface between
-the pre- and post-launch environments and is defined as follows::
-
-        /*
-         * Secure Launch defined MTRR saving structures
-         */
-        struct txt_mtrr_pair {
-                u64 mtrr_physbase;
-                u64 mtrr_physmask;
-        } __packed;
-
-        struct txt_mtrr_state {
-                u64 default_mem_type;
-                u64 mtrr_vcnt;
-                struct txt_mtrr_pair mtrr_pair[TXT_OS_MLE_MAX_VARIABLE_MTRRS];
-        } __packed;
+software to define. This table is set up per the recommendation detailed in
+Appendix B of the TrenchBoot Secure Launch Specification::
 
         /*
          * Secure Launch defined OS/MLE TXT Heap table
          */
         struct txt_os_mle_data {
                 u32 version;
-                u32 boot_params_addr;
-                u64 saved_misc_enable_msr;
-                struct txt_mtrr_state saved_bsp_mtrrs;
-                u32 ap_wake_block;
-                u32 ap_wake_block_size;
-                u64 evtlog_addr;
-                u32 evtlog_size;
+                struct slr_table *slrt;
                 u8 mle_scratch[64];
         } __packed;
 
@@ -126,21 +116,7 @@ Description of structure:
 Field                  Use
 =====================  ========================================================================
 version                Structure version, current value 1
-boot_params_addr       Physical address of the zero page/kernel boot params
-saved_misc_enable_msr  Original Misc Enable MSR (0x1a0) value stored by the pre-launch
-                       environment. This value needs to be restored post launch - this is a
-                       requirement.
-saved_bsp_mtrrs        Original Fixed and Variable MTRR values stored by the pre-launch
-                       environment. These values need to be restored post launch - this is a
-                       requirement.
-ap_wake_block          Pre-launch allocated memory block to wake up and park the APs post
-                       launch until SMP support is ready. This block is validated by the MLE
-                       before use.
-ap_wake_block_size     Size of the ap_wake_block. A minimum of 16384b (4x4K pages) is required.
-evtlog_addr            Pre-launch allocated memory block for the TPM event log. The event
-                       log is formatted both by the pre-launch environment and the SINIT
-                       ACM. This block is validated by the MLE before use.
-evtlog_size            Size of the evtlog_addr block.
+slrt                   Physical address of the Secure Launch Resource Table
 mle_scratch            Scratch area used post-launch by the MLE kernel. Fields:
  
                         - SL_SCRATCH_AP_EBX area to share %ebx base pointer among CPUs
@@ -550,3 +526,6 @@ would indicate either a bug or a possible attack.
     to large areas of memory. The low PMR can cover all memory below 4Gb on 2Mb
     boundaries. The high PMR can cover all RAM on the system, again on 2Mb
     boundaries. This feature is used during a Secure Launch by TXT.
+
+.. [3]
+    Secure Launch Specification: https://trenchboot.org/specifications/Secure_Launch/

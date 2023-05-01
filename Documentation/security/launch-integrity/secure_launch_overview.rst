@@ -33,7 +33,7 @@ Goals
 
 The first use case that the TrenchBoot project focused on was the ability for
 the Linux kernel to be started by a dynamic launch, in particular as part of an
-early launch sequence. In this case the dynamic launch will be initiated by a
+early launch sequence. In this case the dynamic launch will be initiated by any
 boot loader with associated support added to it, for example the first targeted
 boot loader in this case was GRUB2. An integral part of establishing a
 measurement-based launch integrity involves measuring everything that is
@@ -111,14 +111,22 @@ the mainline kernel where the TPM driver would be available.
 Basic Boot Flow
 ===============
 
-Pre-launch: *Phase where the environment is prepared and configured to initiate the
-secure launch in the GRUB bootloader.*
+Outlined here is summary of the boot flow for Secure Launch. A more detailed
+review of Secure Launch process can be found in the Secure Launch
+Specification, a link is located in the `Resources`_ section.
 
- - Prepare the CPU and the TPM for the launch.
+Pre-launch: *Phase where the environment is prepared and configured to initiate the
+secure launch by the boot chain.*
+
+ - The SLRT is initialized and dl_stub is placed in memory.
  - Load the kernel, initrd and ACM [2]_ into memory.
  - Setup the TXT heap and page tables describing the MLE [1]_ per the
    specification.
- - Initiate the secure launch with the GETSET[SENTER] instruction.
+ - If non-UEFI platform, dl_stub is called.
+ - If UEFI platforms, SLRT registered with UEFI and efi-stub called.
+ - Upon completion, efi-stub will call EBS followed by dl_stub.
+ - The dl_stub will prepare the CPU and the TPM for the launch.
+ - The secure launch is then initiated with the GETSET[SENTER] instruction.
 
 Post-launch: *Phase where control is passed from the ACM to the MLE and the secure
 kernel begins execution.*
@@ -154,29 +162,27 @@ The TCG DRTM architecture there are three PCRs defined for usage, PCR.Details
 understanding of Detail and Authorities it is recommended to review the TCG
 DRTM architecture.
 
-Primarily the Authorities is expected to be in the form of a cryptographic
-signature of a component in the DRTM chain. A challenge for Linux kernel is
-that it may or may not have an authoritative signature associated with it and
-Secure Launch intends to support a maximum number of configurations. To support
-the Details/Authority scheme Secure Launch is built with the concept that
-the runtime configuration of a kernel is the "authority" under which the user
-executed the kernel. By default the authority for the kernel is extended into
-PCR.Authorities with a Kconfig option to have it extended into PCR.DLME_Authority.
-
-An extension Secure Launch introduces is the PCR.DLME_Detail (PCR20) PCR.
-Enabling the usage of this PCR is set through Kconfig and results in any DRTM
-components measured by the kernel, e.g. external initrd image, to be extended
-into the PCR. When combined with Secure Launch's user authority being stored in
-PCR.DLME_Authority allows the ability to seal/attest to different variations of
-platform details/authorities with user details/authorities. An example of this
-was presented in the FOSDEM - 2021 talk "Secure Upgrades with DRTM".
+To determine PCR usage, Linux Secure Launch follows the TrenchBoot Secure
+Launch Specification of using a measurement policy stored in the SLRT. The
+policy details what should be measured and the PCR in which to store the
+measurement. The measurement policy provides the ability to select the
+PCR.DLME_Detail (PCR20) PCR as the location for the DRTM components measured by
+the kernel, e.g. external initrd image. This can then be combined with storing
+the user authority in the PCR.DLME_Authority PCR to seal/attest to different
+variations of platform details/authorities and user details/authorities. An
+example of how this can be achieved was presented in the FOSDEM - 2021 talk
+"Secure Upgrades with DRTM".
 
 Resources
 =========
 
-The TrenchBoot project including documentation:
+The TrenchBoot project:
 
-https://github.com/trenchboot
+https://trenchboot.org
+
+Secure Launch Specification:
+
+https://trenchboot.org/specifications/Secure_Launch/
 
 Trusted Computing Group's D-RTM Architecture:
 
@@ -194,9 +200,9 @@ AMD SKINIT documentation in the System Programming manual:
 
 https://www.amd.com/system/files/TechDocs/24593.pdf
 
-GRUB pre-launch support patchset (WIP):
+GRUB Secure Launch support:
 
-https://lists.gnu.org/archive/html/grub-devel/2020-05/msg00011.html
+https://github.com/TrenchBoot/grub/tree/grub-sl-fc-38-dlstub
 
 FOSDEM 2021: Secure Upgrades with DRTM
 
