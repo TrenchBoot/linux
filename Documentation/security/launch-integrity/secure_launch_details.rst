@@ -10,13 +10,7 @@ The settings to enable Secure Launch using Kconfig are under::
   "Processor type and features" --> "Secure Launch support"
 
 A kernel with this option enabled can still be booted using other supported
-methods. There are two Kconfig options for Secure Launch::
-
-  "Secure Launch Alternate Authority usage"
-  "Secure Launch Alternate Detail usage"
-
-The help indicates their usage as alternate post launch PCRs to separate
-measurements for more flexibility (both disabled by default).
+methods.
 
 To reduce the Trusted Computing Base (TCB) of the MLE [1]_, the build
 configuration should be pared down as narrowly as one's use case allows.
@@ -106,7 +100,11 @@ Appendix B of the TrenchBoot Secure Launch Specification::
          */
         struct txt_os_mle_data {
                 u32 version;
+                u32 boot_params_addr;
                 struct slr_table *slrt;
+                u64 txt_info;
+                u32 ap_wake_block;
+                u32 ap_wake_block_size;
                 u8 mle_scratch[64];
         } __packed;
 
@@ -116,7 +114,11 @@ Description of structure:
 Field                  Use
 =====================  ========================================================================
 version                Structure version, current value 1
+boot_params_addr       Physical base address of the Linux boot parameters
 slrt                   Physical address of the Secure Launch Resource Table
+txt_info               Pointer into the SLRT for easily locating TXT specific table
+ap_wake_block          Physical address of the block of memory for parking APs after a launch
+ap_wake_block_size     Size of the AP wake block
 mle_scratch            Scratch area used post-launch by the MLE kernel. Fields:
  
                         - SL_SCRATCH_AP_EBX area to share %ebx base pointer among CPUs
@@ -514,6 +516,37 @@ Description:
 An invalid/malformed event was found in the TPM event log while reading it.
 Since only trusted entities are supposed to be writing the event log, this
 would indicate either a bug or a possible attack.
+
+======  =====================
+Name:   SL_ERROR_INVALID_SLRT
+Value:  0xc0008022
+======  =====================
+
+Description:
+
+The Secure Launch Resource Table is invalid or malformed and is unusable.
+This implies the pre-launch code did not properly setup the SLRT.
+
+======  ===========================
+Name:   SL_ERROR_SLRT_MISSING_ENTRY
+Value:  0xc0008023
+======  ===========================
+
+Description:
+
+The Secure Launch Resource Table is missing a required entry within it.
+This implies the pre-launch code did not properly setup the SLRT.
+
+======  =================
+Name:   SL_ERROR_SLRT_MAP
+Value:  0xc0008024
+======  =================
+
+Description:
+
+An error occurred in the Secure Launch module while mapping the Secure Launch
+Resource table. The underlying issue is memremap() failure, most likely due to
+a resource shortage.
 
 .. [1]
     MLE: Measured Launch Environment is the binary runtime that is measured and
