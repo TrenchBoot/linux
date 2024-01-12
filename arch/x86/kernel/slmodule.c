@@ -467,10 +467,17 @@ static void slaunch_pcr_extend(void __iomem *txt)
 	if (!tpm)
 		slaunch_txt_reset(txt, "Could not get default TPM chip\n",
 				  SL_ERROR_TPM_INIT);
+
+	if (!tpm_preferred_locality(tpm, 2))
+		slaunch_txt_reset(txt, "Could not set TPM chip locality 2\n",
+				  SL_ERROR_TPM_INIT);
+
 	if (evtlog20)
 		slaunch_tpm20_extend(tpm, txt);
 	else
 		slaunch_tpm12_extend(tpm, txt);
+
+	tpm_preferred_locality(tpm, 0);
 }
 
 static int __init slaunch_module_init(void)
