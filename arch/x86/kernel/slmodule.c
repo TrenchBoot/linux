@@ -260,8 +260,7 @@ static void slaunch_intel_evtlog(void __iomem *txt)
 	/* now map TXT heap */
 	txt_heap = memremap(base, size, MEMREMAP_WB);
 	if (!txt_heap)
-		slaunch_txt_reset(txt,
-				  "Error failed to memremap TXT heap\n",
+		slaunch_txt_reset(txt, "Error failed to memremap TXT heap\n",
 				  SL_ERROR_HEAP_MAP);
 
 	params = (struct txt_os_mle_data *)txt_os_mle_data_start(txt_heap);
@@ -269,30 +268,26 @@ static void slaunch_intel_evtlog(void __iomem *txt)
 	/* Get the SLRT and remap it */
 	slrt = memremap(params->slrt, sizeof(*slrt), MEMREMAP_WB);
 	if (!slrt)
-		slaunch_txt_reset(txt,
-				  "Error failed to memremap SLR Table\n",
+		slaunch_txt_reset(txt, "Error failed to memremap SLR Table\n",
 				  SL_ERROR_SLRT_MAP);
 	size = slrt->size;
 	memunmap(slrt);
 
 	slrt = memremap(params->slrt, size, MEMREMAP_WB);
 	if (!slrt)
-		slaunch_txt_reset(txt,
-				  "Error failed to memremap SLR Table\n",
+		slaunch_txt_reset(txt, "Error failed to memremap SLR Table\n",
 				  SL_ERROR_SLRT_MAP);
 
 	log_info = (struct slr_entry_log_info *)slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_LOG_INFO);
 	if (!log_info)
-		slaunch_txt_reset(txt,
-				  "Error failed to memremap SLR Table\n",
+		slaunch_txt_reset(txt, "Error failed to memremap SLR Table\n",
 				  SL_ERROR_SLRT_MISSING_ENTRY);
 
 	sl_evtlog.size = log_info->size;
 	sl_evtlog.addr = memremap(log_info->addr, log_info->size,
 				  MEMREMAP_WB);
 	if (!sl_evtlog.addr)
-		slaunch_txt_reset(txt,
-				  "Error failed to memremap TPM event log\n",
+		slaunch_txt_reset(txt, "Error failed to memremap TPM event log\n",
 				  SL_ERROR_EVENTLOG_MAP);
 
 	memunmap(slrt);
@@ -312,8 +307,7 @@ static void slaunch_intel_evtlog(void __iomem *txt)
 	 * events to the log will fail.
 	 */
 	if (!evtlog20)
-		slaunch_txt_reset(txt,
-				  "Error failed to find TPM20 event log element\n",
+		slaunch_txt_reset(txt, "Error failed to find TPM20 event log element\n",
 				  SL_ERROR_TPM_INVALID_LOG20);
 }
 
@@ -323,14 +317,13 @@ static void slaunch_tpm20_extend_event(struct tpm_chip *tpm, void __iomem *txt,
 	u16 *alg_id_field = (u16 *)((u8 *)event + sizeof(struct tcg_pcr_event2_head));
 	struct tpm_digest *digests;
 	u8 *dptr;
-	int ret;
 	u32 i, j;
+	int ret;
 
 	digests = kcalloc(tpm->nr_allocated_banks, sizeof(*digests),
 			  GFP_KERNEL);
 	if (!digests)
-		slaunch_txt_reset(txt,
-				  "Failed to allocate array of digests\n",
+		slaunch_txt_reset(txt, "Failed to allocate array of digests\n",
 				  SL_ERROR_GENERIC);
 
 	for (i = 0; i < tpm->nr_allocated_banks; i++)
@@ -365,8 +358,7 @@ static void slaunch_tpm20_extend_event(struct tpm_chip *tpm, void __iomem *txt,
 	ret = tpm_pcr_extend(tpm, event->pcr_idx, digests);
 	if (ret) {
 		pr_err("Error extending TPM20 PCR, result: %d\n", ret);
-		slaunch_txt_reset(txt,
-				  "Failed to extend TPM20 PCR\n",
+		slaunch_txt_reset(txt, "Failed to extend TPM20 PCR\n",
 				  SL_ERROR_TPM_EXTEND);
 	}
 
@@ -390,8 +382,7 @@ static void slaunch_tpm20_extend(struct tpm_chip *tpm, void __iomem *txt)
 	while ((void  *)event < sl_evtlog.addr + evtlog20->next_record_offset) {
 		size = __calc_tpm2_event_size(event, event_header, false);
 		if (!size)
-			slaunch_txt_reset(txt,
-					  "TPM20 invalid event in event log\n",
+			slaunch_txt_reset(txt, "TPM20 invalid event in event log\n",
 					  SL_ERROR_TPM_INVALID_EVENT);
 
 		/*
@@ -414,8 +405,7 @@ next:
 	}
 
 	if (!start || !end)
-		slaunch_txt_reset(txt,
-				  "Missing start or end events for extending TPM20 PCRs\n",
+		slaunch_txt_reset(txt, "Missing start or end events for extending TPM20 PCRs\n",
 				  SL_ERROR_TPM_EXTEND);
 }
 
@@ -455,8 +445,7 @@ static void slaunch_tpm12_extend(struct tpm_chip *tpm, void __iomem *txt)
 			ret = tpm_pcr_extend(tpm, event->pcr_idx, &digest);
 			if (ret) {
 				pr_err("Error extending TPM12 PCR, result: %d\n", ret);
-				slaunch_txt_reset(txt,
-						  "Failed to extend TPM12 PCR\n",
+				slaunch_txt_reset(txt, "Failed to extend TPM12 PCR\n",
 						  SL_ERROR_TPM_EXTEND);
 			}
 		}
@@ -466,8 +455,7 @@ next:
 	}
 
 	if (!start || !end)
-		slaunch_txt_reset(txt,
-				  "Missing start or end events for extending TPM12 PCRs\n",
+		slaunch_txt_reset(txt, "Missing start or end events for extending TPM12 PCRs\n",
 				  SL_ERROR_TPM_EXTEND);
 }
 
@@ -477,8 +465,7 @@ static void slaunch_pcr_extend(void __iomem *txt)
 
 	tpm = tpm_default_chip();
 	if (!tpm)
-		slaunch_txt_reset(txt,
-				  "Could not get default TPM chip\n",
+		slaunch_txt_reset(txt, "Could not get default TPM chip\n",
 				  SL_ERROR_TPM_INIT);
 	if (evtlog20)
 		slaunch_tpm20_extend(tpm, txt);
