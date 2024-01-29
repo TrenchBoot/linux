@@ -526,7 +526,7 @@ void __init slaunch_setup_txt(void)
 
 static inline void smx_getsec_sexit(void)
 {
-	asm volatile (".byte 0x0f,0x37\n"
+	asm volatile ("getsec\n"
 		      : : "a" (SMX_X86_GETSEC_SEXIT));
 }
 
@@ -588,7 +588,7 @@ void slaunch_finalize(int do_sexit)
 	if (smp_processor_id() != 0)
 		panic("Error TXT SEXIT must be called on CPU 0\n");
 
-	/* Disable SMX mode */
+	/* In case SMX mode was disabled, enable it for SEXIT */
 	cr4_set_bits(X86_CR4_SMXE);
 
 	/* Do the SEXIT SMX operation */
