@@ -368,8 +368,8 @@ static void __init slaunch_fetch_values(void __iomem *txt)
 {
 	struct txt_os_mle_data *os_mle_data;
 	struct slr_entry_log_info *log_info;
-	struct slr_table *slrt;
 	u8 *jmp_offset, *stacks_offset;
+	struct slr_table *slrt;
 	u32 size;
 
 	os_mle_data = txt_early_get_heap_table(txt, TXT_OS_MLE_DATA_TABLE,
