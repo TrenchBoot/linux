@@ -113,6 +113,7 @@ $(obj)/sbat.o: $(CONFIG_EFI_SBAT_FILE)
 endif
 
 slaunch-objs += $(obj)/sha1.o
+slaunch-objs += $(obj)/sha256.o
 
 vmlinux-objs-$(CONFIG_SECURE_LAUNCH) += $(slaunch-objs)
 
