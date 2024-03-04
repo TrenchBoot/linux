@@ -2,7 +2,7 @@
 /*
  * Main Secure Launch header file.
  *
- * Copyright (c) 2022, Oracle and/or its affiliates.
+ * Copyright (c) 2024, Oracle and/or its affiliates.
  */
 
 #ifndef _LINUX_SLAUNCH_H
