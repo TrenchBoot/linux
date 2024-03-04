@@ -2,9 +2,9 @@
 /*
  * Secure Launch late validation/setup, securityfs exposure and finalization.
  *
- * Copyright (c) 2022 Apertus Solutions, LLC
- * Copyright (c) 2021 Assured Information Security, Inc.
- * Copyright (c) 2022, Oracle and/or its affiliates.
+ * Copyright (c) 2024 Apertus Solutions, LLC
+ * Copyright (c) 2024 Assured Information Security, Inc.
+ * Copyright (c) 2024, Oracle and/or its affiliates.
  *
  * Co-developed-by: Garnet T. Grimm <grimmg@ainfosec.com>
  * Signed-off-by: Garnet T. Grimm <grimmg@ainfosec.com>
