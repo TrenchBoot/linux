@@ -21,6 +21,7 @@
 #include <linux/uaccess.h>
 #include <linux/security.h>
 #include <linux/memblock.h>
+#include <linux/tpm.h>
 #include <asm/segment.h>
 #include <asm/sections.h>
 #include <crypto/sha2.h>
@@ -349,6 +350,7 @@ static void slaunch_tpm20_extend_event(struct tpm_chip *tpm, void __iomem *txt,
 				       SHA1_DIGEST_SIZE);
 				alg_id_field = (u16 *)((u8 *)alg_id_field +
 					SHA1_DIGEST_SIZE + sizeof(u16));
+				break;
 			default:
 				break;
 			}
