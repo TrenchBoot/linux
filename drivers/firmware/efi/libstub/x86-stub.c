@@ -863,8 +863,7 @@ static void efi_secure_launch(struct boot_params *boot_params)
 	dlinfo = (struct slr_entry_dl_info *)
 		slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_DL_INFO);
 
-	asm volatile ("jmp *%%rax"
-		      : : "a" (dlinfo->dl_handler), "D" (&dlinfo->bl_context));
+	asm ("jmp *%0"::"r" (dlinfo->dl_handler), "D" (&dlinfo->bl_context));
 }
 
 static void __noreturn enter_kernel(unsigned long kernel_addr,
