@@ -65,7 +65,7 @@
 #ifndef __ASSEMBLY__
 
 /*
- * Primary SLR Table Header
+ * Primary Secure Launch Resource Table Header
  */
 struct slr_table {
 	u32 magic;
@@ -73,7 +73,7 @@ struct slr_table {
 	u16 architecture;
 	u32 size;
 	u32 max_size;
-	/* entries[] */
+	/* table entries */
 } __packed;
 
 /*
@@ -89,20 +89,27 @@ struct slr_entry_hdr {
  */
 struct slr_bl_context {
 	u16 bootloader;
-	u16 reserved;
+	u16 reserved[3];
 	u64 context;
 } __packed;
+
+/*
+ * Dynamic Launch Callback Function type
+ */
+typedef void (*dl_handler_func)(struct slr_bl_context *bl_context);
 
 /*
  * DRTM Dynamic Launch Configuration
  */
 struct slr_entry_dl_info {
 	struct slr_entry_hdr hdr;
+	u32 dce_size;
+	u64 dce_base;
+	u64 dlme_size;
+	u64 dlme_base;
+	u64 dlme_entry;
 	struct slr_bl_context bl_context;
 	u64 dl_handler;
-	u64 dce_base;
-	u32 dce_size;
-	u64 dlme_entry;
 } __packed;
 
 /*
@@ -111,19 +118,9 @@ struct slr_entry_dl_info {
 struct slr_entry_log_info {
 	struct slr_entry_hdr hdr;
 	u16 format;
-	u16 reserved;
-	u64 addr;
+	u16 reserved[3];
 	u32 size;
-} __packed;
-
-/*
- * DRTM Measurement Policy
- */
-struct slr_entry_policy {
-	struct slr_entry_hdr hdr;
-	u16 revision;
-	u16 nr_entries;
-	/* policy_entries[] */
+	u64 addr;
 } __packed;
 
 /*
@@ -134,9 +131,19 @@ struct slr_policy_entry {
 	u16 entity_type;
 	u16 flags;
 	u16 reserved;
-	u64 entity;
 	u64 size;
+	u64 entity;
 	char evt_info[TPM_EVENT_INFO_LENGTH];
+} __packed;
+
+/*
+ * DRTM Measurement Policy
+ */
+struct slr_entry_policy {
+	struct slr_entry_hdr hdr;
+	u16 revision;
+	u16 nr_entries;
+	struct slr_policy_entry policy_entries[];
 } __packed;
 
 /*
@@ -158,52 +165,45 @@ struct slr_txt_mtrr_state {
  */
 struct slr_entry_intel_info {
 	struct slr_entry_hdr hdr;
+	u16 reserved[2];
 	u64 saved_misc_enable_msr;
 	struct slr_txt_mtrr_state saved_bsp_mtrrs;
 } __packed;
 
 /*
- * AMD SKINIT Info table
+ * UEFI config measurement entry
  */
-struct slr_entry_amd_info {
-	struct slr_entry_hdr hdr;
+struct slr_uefi_cfg_entry {
+	u16 pcr;
+	u16 reserved;
+	u32 size;
+	u64 cfg; /* address or value */
+	char evt_info[TPM_EVENT_INFO_LENGTH];
 } __packed;
 
 /*
- * ARM DRTM Info table
+ * UEFI config measurements
  */
-struct slr_entry_arm_info {
-	struct slr_entry_hdr hdr;
-} __packed;
-
 struct slr_entry_uefi_config {
 	struct slr_entry_hdr hdr;
 	u16 revision;
 	u16 nr_entries;
-	/* uefi_cfg_entries[] */
+	struct slr_uefi_cfg_entry uefi_cfg_entries[];
 } __packed;
 
-struct slr_uefi_cfg_entry {
-	u16 pcr;
-	u16 reserved;
-	u64 cfg; /* address or value */
-	u32 size;
-	char evt_info[TPM_EVENT_INFO_LENGTH];
-} __packed;
-
-static inline void *slr_end_of_entrys(struct slr_table *table)
+static inline void *slr_end_of_entries(struct slr_table *table)
 {
-	return (((void *)table) + table->size);
+	return (void *)table + table->size;
 }
 
-static inline struct slr_entry_hdr *
+static inline void *
 slr_next_entry(struct slr_table *table,
 	       struct slr_entry_hdr *curr)
 {
 	struct slr_entry_hdr *next = (struct slr_entry_hdr *)
 				((u8 *)curr + curr->size);
 
-	if ((void *)next >= slr_end_of_entrys(table))
+	if ((void *)next >= slr_end_of_entries(table))
 		return NULL;
 	if (next->tag == SLR_ENTRY_END)
 		return NULL;
@@ -211,7 +211,7 @@ slr_next_entry(struct slr_table *table,
 	return next;
 }
 
-static inline struct slr_entry_hdr *
+static inline void *
 slr_next_entry_by_tag(struct slr_table *table,
 		      struct slr_entry_hdr *entry,
 		      u16 tag)
