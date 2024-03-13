@@ -184,8 +184,7 @@ static void sl_find_drtm_event_log(struct slr_table *slrt)
 	struct slr_entry_log_info *log_info;
 	void *txt_heap;
 
-	log_info = (struct slr_entry_log_info *)
-		    slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_LOG_INFO);
+	log_info = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_LOG_INFO);
 	if (!log_info)
 		sl_txt_reset(SL_ERROR_SLRT_MISSING_ENTRY);
 
@@ -429,7 +428,7 @@ static void sl_extend_slrt(struct slr_policy_entry *entry)
 	 * to sort out.
 	 */
 	if (slrt->revision == 1) {
-		intel_info = (struct slr_entry_intel_info *)slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_INTEL_INFO);
+		intel_info = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_INTEL_INFO);
 		if (!intel_info)
 			sl_txt_reset(SL_ERROR_SLRT_MISSING_ENTRY);
 
@@ -458,32 +457,30 @@ static void sl_extend_txt_os2mle(struct slr_policy_entry *entry)
 static void sl_process_extend_policy(struct slr_table *slrt)
 {
 	struct slr_entry_policy *policy;
-	struct slr_policy_entry *entry;
 	u16 i;
 
-	policy = (struct slr_entry_policy *)slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_ENTRY_POLICY);
+	policy = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_ENTRY_POLICY);
 	if (!policy)
 		sl_txt_reset(SL_ERROR_SLRT_MISSING_ENTRY);
 
-	entry = (struct slr_policy_entry *)((u8 *)policy + sizeof(*policy));
-
-	for (i = 0; i < policy->nr_entries; i++, entry++) {
-		switch (entry->entity_type) {
+	for (i = 0; i < policy->nr_entries; i++) {
+		switch (policy->policy_entries[i].entity_type) {
 		case SLR_ET_SETUP_DATA:
-			sl_extend_setup_data(entry);
+			sl_extend_setup_data(&policy->policy_entries[i]);
 			break;
 		case SLR_ET_SLRT:
-			sl_extend_slrt(entry);
+			sl_extend_slrt(&policy->policy_entries[i]);
 			break;
 		case SLR_ET_TXT_OS2MLE:
-			sl_extend_txt_os2mle(entry);
+			sl_extend_txt_os2mle(&policy->policy_entries[i]);
 			break;
 		case SLR_ET_UNUSED:
 			continue;
 		default:
-			sl_tpm_extend_evtlog(entry->pcr, TXT_EVTYPE_SLAUNCH,
-					     (void *)entry->entity, entry->size,
-					     entry->evt_info);
+			sl_tpm_extend_evtlog(policy->policy_entries[i].pcr, TXT_EVTYPE_SLAUNCH,
+					     (void *)policy->policy_entries[i].entity,
+					     policy->policy_entries[i].size,
+					     policy->policy_entries[i].evt_info);
 		}
 	}
 }
@@ -491,21 +488,19 @@ static void sl_process_extend_policy(struct slr_table *slrt)
 static void sl_process_extend_uefi_config(struct slr_table *slrt)
 {
 	struct slr_entry_uefi_config *uefi_config;
-	struct slr_uefi_cfg_entry *uefi_entry;
-	u64 i;
+	u16 i;
 
-	uefi_config =(struct slr_entry_uefi_config *)slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_UEFI_CONFIG);
+	uefi_config = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_UEFI_CONFIG);
 
 	/* Optionally here depending on how SL kernel was booted */
 	if (!uefi_config)
 		return;
 
-	uefi_entry = (struct slr_uefi_cfg_entry *)((u8 *)uefi_config + sizeof(*uefi_config));
-
-	for (i = 0; i < uefi_config->nr_entries; i++, uefi_entry++) {
-		sl_tpm_extend_evtlog(uefi_entry->pcr, TXT_EVTYPE_SLAUNCH,
-				     (void *)uefi_entry->cfg, uefi_entry->size,
-				     uefi_entry->evt_info);
+	for (i = 0; i < uefi_config->nr_entries; i++) {
+		sl_tpm_extend_evtlog(uefi_config->uefi_cfg_entries[i].pcr, TXT_EVTYPE_SLAUNCH,
+				     (void *)uefi_config->uefi_cfg_entries[i].cfg,
+				     uefi_config->uefi_cfg_entries[i].size,
+				     uefi_config->uefi_cfg_entries[i].evt_info);
 	}
 }
 
