@@ -818,52 +818,45 @@ static efi_status_t efi_decompress_kernel(unsigned long *kernel_entry)
 
 static void efi_secure_launch(struct boot_params *boot_params)
 {
-	struct slr_entry_uefi_config *uefi_config;
-	struct slr_uefi_cfg_entry *uefi_entry;
+	static struct slr_entry_uefi_config cfg = {
+		.hdr.tag             = SLR_ENTRY_UEFI_CONFIG,
+		.hdr.size            = sizeof(cfg) + sizeof(struct slr_uefi_cfg_entry),
+		.revision            = SLR_UEFI_CONFIG_REVISION,
+		.nr_entries          = 1,
+		.uefi_cfg_entries[0] = {
+			.pcr = 18,
+		},
+	};
 	struct slr_entry_dl_info *dlinfo;
 	efi_guid_t guid = SLR_TABLE_GUID;
+	dl_handler_func handler_callback;
 	struct slr_table *slrt;
-	u64 memmap_hi;
-	void *table;
-	u8 buf[64] = {0};
-
-	table = get_efi_config_table(guid);
 
 	/*
 	 * The presence of this table indicated a Secure Launch
 	 * is being requested.
 	 */
-	if (!table)
+	slrt = (struct slr_table *)get_efi_config_table(guid);
+	if (!slrt || slrt->magic != SLR_TABLE_MAGIC)
 		return;
 
-	slrt = (struct slr_table *)table;
+	cfg.uefi_cfg_entries[0].cfg = boot_params->efi_info.efi_memmap |
+				      (u64)boot_params->efi_info.efi_memmap_hi << 32;
+	cfg.uefi_cfg_entries[0].size = boot_params->efi_info.efi_memmap_size;
+	memcpy(cfg.uefi_cfg_entries[0].evt_info, "Measured UEFI memory map",
+	       strlen("Measured UEFI memory map"));
 
-	if (slrt->magic != SLR_TABLE_MAGIC)
-		return;
-
-	/* Add config information to measure the UEFI memory map */
-	uefi_config = (struct slr_entry_uefi_config *)buf;
-	uefi_config->hdr.tag = SLR_ENTRY_UEFI_CONFIG;
-	uefi_config->hdr.size = sizeof(*uefi_config) + sizeof(*uefi_entry);
-	uefi_config->revision = SLR_UEFI_CONFIG_REVISION;
-	uefi_config->nr_entries = 1;
-	uefi_entry = (struct slr_uefi_cfg_entry *)(buf + sizeof(*uefi_config));
-	uefi_entry->pcr = 18;
-	uefi_entry->cfg = boot_params->efi_info.efi_memmap;
-	memmap_hi = boot_params->efi_info.efi_memmap_hi;
-	uefi_entry->cfg |= memmap_hi << 32;
-	uefi_entry->size = boot_params->efi_info.efi_memmap_size;
-	memcpy(&uefi_entry->evt_info[0], "Measured UEFI memory map",
-		strlen("Measured UEFI memory map"));
-
-	if (slr_add_entry(slrt, (struct slr_entry_hdr *)uefi_config))
+	if (slr_add_entry(slrt, &cfg.hdr))
 		return;
 
 	/* Jump through DL stub to initiate Secure Launch */
-	dlinfo = (struct slr_entry_dl_info *)
-		slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_DL_INFO);
+	dlinfo = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_DL_INFO);
 
-	asm ("jmp *%0"::"r" (dlinfo->dl_handler), "D" (&dlinfo->bl_context));
+	handler_callback = (dl_handler_func)dlinfo->dl_handler;
+
+	handler_callback(&dlinfo->bl_context);
+
+	unreachable();
 }
 
 static void __noreturn enter_kernel(unsigned long kernel_addr,
