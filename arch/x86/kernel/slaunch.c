@@ -397,7 +397,7 @@ static void __init slaunch_fetch_values(void __iomem *txt)
 		slaunch_txt_reset(txt, "Error early_memremap of SLRT failed\n",
 				  SL_ERROR_SLRT_MAP);
 
-	log_info = (struct slr_entry_log_info *)slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_LOG_INFO);
+	log_info = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_LOG_INFO);
 
 	if (!log_info)
 		slaunch_txt_reset(txt, "SLRT missing logging info entry\n",
