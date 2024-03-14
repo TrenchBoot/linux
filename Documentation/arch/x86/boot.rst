@@ -484,7 +484,7 @@ Protocol:	2.00+
 
   Bit 2 (kernel internal): SLAUNCH_FLAG
 
-	- Used internally by the compressed kernel to communicate
+	- Used internally by the setup kernel to communicate
 	  Secure Launch status to kernel proper.
 
 	    - If 1, Secure Launch enabled.
