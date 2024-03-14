@@ -983,8 +983,10 @@ void __noreturn efi_stub_entry(efi_handle_t handle,
 		goto fail;
 	}
 
+#if (IS_ENABLED(CONFIG_SECURE_LAUNCH))
 	/* If a Secure Launch is in progress, this never returns */
 	efi_secure_launch(boot_params);
+#endif
 
 	/*
 	 * Call the SEV init code while still running with the firmware's
