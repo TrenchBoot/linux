@@ -416,14 +416,10 @@ SYM_CODE_START(startup_64)
 	popfq
 
 #ifdef CONFIG_SECURE_LAUNCH
-	pushq	%rsi
-
-	/* Ensure the relocation region coverd by a PMR */
+	/* Ensure the relocation region is coverd by a PMR */
 	movq	%rbx, %rdi
 	movl	$(_bss - startup_32), %esi
 	callq	sl_check_region
-
-	popq	%rsi
 #endif
 
 /*
@@ -484,7 +480,7 @@ SYM_FUNC_START_LOCAL_NOALIGN(.Lrelocated)
 	movq	%r15, %rdi
 	callq	sl_main
 
-	/* Ensure the decompression location is coverd by a PMR */
+	/* Ensure the decompression location is covered by a PMR */
 	movq	%rbp, %rdi
 	movq	output_len(%rip), %rsi
 	callq	sl_check_region
