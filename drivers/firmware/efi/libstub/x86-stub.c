@@ -10,6 +10,7 @@
 #include <linux/pci.h>
 #include <linux/stddef.h>
 #include <linux/slr_table.h>
+#include <linux/slaunch.h>
 
 #include <asm/efi.h>
 #include <asm/e820/types.h>
@@ -816,17 +817,66 @@ static efi_status_t efi_decompress_kernel(unsigned long *kernel_entry)
 	return efi_adjust_memory_range_protection(addr, kernel_total_size);
 }
 
+#if (IS_ENABLED(CONFIG_SECURE_LAUNCH))
+static bool efi_secure_launch_update_boot_params(struct slr_table *slrt,
+						 struct boot_params *boot_params)
+{
+	struct slr_entry_intel_info *txt_info;
+	struct slr_entry_policy *policy;
+	struct txt_os_mle_data *os_mle;
+	bool updated = false;
+	int i;
+
+	txt_info = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_INTEL_INFO);
+	if (!txt_info)
+		return false;
+
+	os_mle = txt_os_mle_data_start((void *)txt_info->txt_heap);
+	if (!os_mle)
+		return false;
+
+	os_mle->boot_params_addr = (u32)(u64)boot_params;
+
+	policy = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_ENTRY_POLICY);
+	if (!policy)
+		return false;
+
+	for (i = 0; i < policy->nr_entries; i++) {
+		if (policy->policy_entries[i].entity_type == SLR_ET_BOOT_PARAMS) {
+			policy->policy_entries[i].entity = (u64)boot_params;
+			updated = true;
+			break;
+		}
+	}
+
+	/*
+	 * If this is a PE entry into EFI stub the mocked up boot params will
+	 * be missing some of the setup header data needed for the second stage
+	 * of the Secure Launch boot.
+	 */
+	if (image) {
+		struct setup_header *hdr = (struct setup_header *)((u8 *)image->image_base + 0x1f1);
+		u64 cmdline_ptr, hi_val;
+
+		boot_params->hdr.setup_sects = hdr->setup_sects;
+		boot_params->hdr.syssize = hdr->syssize;
+		boot_params->hdr.version = hdr->version;
+		boot_params->hdr.loadflags = hdr->loadflags;
+		boot_params->hdr.kernel_alignment = hdr->kernel_alignment;
+		boot_params->hdr.min_alignment = hdr->min_alignment;
+		boot_params->hdr.xloadflags = hdr->xloadflags;
+		boot_params->hdr.init_size = hdr->init_size;
+		boot_params->hdr.kernel_info_offset = hdr->kernel_info_offset;
+		hi_val = boot_params->ext_cmd_line_ptr;
+		cmdline_ptr = boot_params->hdr.cmd_line_ptr | hi_val << 32;
+		boot_params->hdr.cmdline_size = strlen((const char *)cmdline_ptr);;
+	}
+
+	return updated;
+}
+
 static void efi_secure_launch(struct boot_params *boot_params)
 {
-	static struct slr_entry_uefi_config cfg = {
-		.hdr.tag             = SLR_ENTRY_UEFI_CONFIG,
-		.hdr.size            = sizeof(cfg) + sizeof(struct slr_uefi_cfg_entry),
-		.revision            = SLR_UEFI_CONFIG_REVISION,
-		.nr_entries          = 1,
-		.uefi_cfg_entries[0] = {
-			.pcr = 18,
-		},
-	};
 	struct slr_entry_dl_info *dlinfo;
 	efi_guid_t guid = SLR_TABLE_GUID;
 	dl_handler_func handler_callback;
@@ -840,13 +890,11 @@ static void efi_secure_launch(struct boot_params *boot_params)
 	if (!slrt || slrt->magic != SLR_TABLE_MAGIC)
 		return;
 
-	cfg.uefi_cfg_entries[0].cfg = boot_params->efi_info.efi_memmap |
-				      (u64)boot_params->efi_info.efi_memmap_hi << 32;
-	cfg.uefi_cfg_entries[0].size = boot_params->efi_info.efi_memmap_size;
-	memcpy(cfg.uefi_cfg_entries[0].evt_info, "Measured UEFI memory map",
-	       strlen("Measured UEFI memory map"));
-
-	if (slr_add_entry(slrt, &cfg.hdr))
+	/*
+	 * Since the EFI stub library creates its own boot_params on entry, the
+	 * SLRT and TXT heap have to be updated with this version.
+	 */
+	if (!efi_secure_launch_update_boot_params(slrt, boot_params))
 		return;
 
 	/* Jump through DL stub to initiate Secure Launch */
@@ -858,6 +906,7 @@ static void efi_secure_launch(struct boot_params *boot_params)
 
 	unreachable();
 }
+#endif
 
 static void __noreturn enter_kernel(unsigned long kernel_addr,
 				    struct boot_params *boot_params)
