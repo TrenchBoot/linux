@@ -220,6 +220,7 @@ SYM_FUNC_END(sl_find_mle_base)
 SYM_FUNC_START(sl_check_buffer_mle_overlap)
 	/* %ecx: buffer begin %edx: buffer end */
 	/* %ebx: MLE begin %edi: MLE end */
+	/* %eax: region may be inside MLE */
 
 	cmpl	%edi, %ecx
 	jb	.Lnext_check
@@ -229,10 +230,19 @@ SYM_FUNC_START(sl_check_buffer_mle_overlap)
 
 .Lnext_check:
 	cmpl	%ebx, %edx
-	ja	.Linvalid
+	ja	.Linside_check
 	cmpl	%ebx, %ecx
-	jae	.Linvalid
+	jae	.Linside_check
 	jmp	.Lvalid /* Buffer below MLE */
+
+.Linside_check:
+	cmpl	$0, %eax
+	jz	.Linvalid
+	cmpl	%ebx, %ecx
+	jb	.Linvalid
+	cmpl	%edi, %edx
+	ja	.Linvalid
+	jmp	.Lvalid /* Buffer in MLE */
 
 .Linvalid:
 	TXT_RESET $(SL_ERROR_MLE_BUFFER_OVERLAP)
@@ -272,16 +282,26 @@ SYM_FUNC_START(sl_txt_verify_os_mle_struct)
 	movl	SL_ap_wake_block_size(%eax), %edx
 	addl	%ecx, %edx
 	jc	.Loverflow_detected
+	pushl	%eax
+	xorl	%eax, %eax
 	call	sl_check_buffer_mle_overlap
+	popl	%eax
 	cmpl	%esi, %edx
 	ja	.Lbuffer_beyond_pmr
 
-	/* Check the boot params */
+	/*
+	 * Check the boot params. Note during a UEFI boot, the boot
+	 * params will be inside the MLE image. Test for this case
+	 * in the overlap case.
+	 */
 	movl	SL_boot_params_addr(%eax), %ecx
 	movl	$(PAGE_SIZE), %edx
 	addl	%ecx, %edx
 	jc	.Loverflow_detected
+	pushl	%eax
+	movl	$1, %eax
 	call	sl_check_buffer_mle_overlap
+	popl	%eax
 	cmpl	%esi, %edx
 	ja	.Lbuffer_beyond_pmr
 
