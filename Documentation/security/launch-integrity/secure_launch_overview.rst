@@ -140,7 +140,7 @@ kernel begins execution.*
  - Entry from the dynamic launch jumps to the SL stub.
  - SL stub fixes up the world on the BSP.
  - For TXT, SL stub wakes the APs, fixes up their worlds.
- - For TXT, APs are left halted waiting for an NMI to wake them.
+ - For TXT, APs are left halted using MONITOR/MWAIT intructions.
  - SL stub jumps to startup_32.
  - SL main does validation of buffers and memory locations. It sets
    the boot parameter loadflag value SLAUNCH_FLAG to inform the main
@@ -150,8 +150,9 @@ kernel begins execution.*
  - Kernel boot proceeds normally from this point.
  - During early setup, slaunch_setup() runs to finish some validation
    and setup tasks.
- - The SMP bring up code is modified to wake the waiting APs. APs vector
-   to rmpiggy and start up normally from that point.
+ - The SMP bring up code is modified to wake the waiting APs via the monitor
+   address.
+ - APs vector to rmpiggy and start up normally from that point.
  - SL platform module is registered as a late initcall module. It reads
    the TPM event log and extends the measurements taken into the TPM PCRs.
  - SL platform module initializes the securityfs interface to allow
