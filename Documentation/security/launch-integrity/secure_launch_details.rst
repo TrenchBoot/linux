@@ -35,8 +35,11 @@ KASLR Configuration
 Due to Secure Launch hardware implementation details and how KASLR functions,
 Secure Launch is not able to interoperate with KASLR at this time. Attempts to
 enable KASLR in a kernel started using Secure Launch may result in crashes and
-other instabilities at boot. If possible, a kernel being used as an MLE should
-be built with KASLR disabled::
+other instabilities at boot. Even in cases where Secure Launch and KASLR work
+together, it is still recommended that KASLR be disabled to avoid introducing
+security concerns with unprotected kernel memory.
+
+If possible, a kernel being used as an MLE should be built with KASLR disabled::
 
   "Processor type and features" -->
       "Build a relocatable kernel" -->
@@ -51,7 +54,7 @@ The kernel parameter is as follows::
   nokaslr
 
 .. note::
-    Should KASLR be made capabile of reading/using only the protected page
+    Should KASLR be made capable of reading/using only the protected page
     regions set up by the memory protection mechanisms used by the hardware
     DRTM capability, then it would become possible to use KASLR with Secure
     Launch.
@@ -121,7 +124,7 @@ Appendix B of the TrenchBoot Secure Launch Specification::
         struct txt_os_mle_data {
                 u32 version;
                 u32 boot_params_addr;
-                struct slr_table *slrt;
+                u64 slrt;
                 u64 txt_info;
                 u32 ap_wake_block;
                 u32 ap_wake_block_size;
