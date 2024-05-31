@@ -14,11 +14,14 @@
  */
 #define SL_FLAG_ACTIVE		0x00000001
 #define SL_FLAG_ARCH_TXT	0x00000002
+#define SL_FLAG_ARCH_SKINIT	0x00000004
+#define SL_FLAG_SKINIT_PSP	0x00000008
 
 /*
  * Secure Launch CPU Type
  */
 #define SL_CPU_INTEL	1
+#define SL_CPU_AMD	2
 
 #define __SL32_CS	0x0008
 #define __SL32_DS	0x0010
@@ -146,6 +149,8 @@
 #define SL_ERROR_INVALID_SLRT		0xc0008022
 #define SL_ERROR_SLRT_MISSING_ENTRY	0xc0008023
 #define SL_ERROR_SLRT_MAP		0xc0008024
+#define SL_ERROR_MISSING_EVENT_LOG	0xc0008025
+#define SL_ERROR_MAP_SETUP_DATA		0xc0008026
 
 /*
  * Secure Launch Defined Limits
@@ -326,9 +331,25 @@ struct smx_rlp_mle_join {
 	u32 rlp_entry_point; /* phys addr */
 } __packed;
 
+/* The TCG original Spec ID structure defined for TPM 1.2 */
+#define TCG_SPECID_SIG00 "Spec ID Event00"
+
+struct tpm_tcg_specid_event_head {
+	char signature[16];
+	u32  platform_class;
+	u8   spec_ver_minor;
+	u8   spec_ver_major;
+	u8   errata;
+	u8   uintn_size;	/* reserved (must be 0) for 1.21 */
+	u8   vendor_info_size;
+	/* vendor_info[]; */
+} __packed;
+
 /*
- * TPM event log structures defined in both the TXT specification and
- * the TCG documentation.
+ * TPM event log structures defined by the TXT specification derived
+ * from the TCG documentation. For TXT this is setup as the conainter
+ * header. On AMD this header is embedded in to vendor information
+ * after the TCG spec ID header.
  */
 #define TPM_EVTLOG_SIGNATURE "TXT Event Container"
 
@@ -343,6 +364,25 @@ struct tpm_event_log_header {
 	u32 pcr_events_offset;
 	u32 next_event_offset;
 	/* PCREvents[] */
+} __packed;
+
+/* TPM Event Log Size Macros */
+#define TCG_PCClientSpecIDEventStruct_SIZE			\
+		(sizeof(struct tpm_tcg_specid_event_head))
+#define TCG_EfiSpecIdEvent_SIZE(n) \
+		((n) * sizeof(struct tcg_efi_specid_event_algs)	\
+		 + sizeof(struct tcg_efi_specid_event_head)	\
+		 + sizeof(u8) /* vendorInfoSize */)
+#define TPM2_HASH_COUNT(base) (*((u32 *)(base)			\
+		+ (offsetof(struct tcg_efi_specid_event_head, num_algs) >> 2)))
+
+/* AMD Specific Structures and Definitions */
+struct sl_header {
+	u16 skl_entry_point;
+	u16 length;
+	u8 reserved[62];
+	u16 skl_info_offset;
+	u16 bootloader_data_offset;
 } __packed;
 
 /*
@@ -501,20 +541,22 @@ void slaunch_fixup_jump_vector(void);
 u32 slaunch_get_flags(void);
 struct sl_ap_wake_info *slaunch_get_ap_wake_info(void);
 struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table_header *dmar);
+void slaunch_cpu_setup_skinit(void);
+void __noreturn slaunch_skinit_reset(const char *msg, u64 error);
 void __noreturn slaunch_txt_reset(void __iomem *txt,
 					 const char *msg, u64 error);
 void slaunch_finalize(int do_sexit);
-
-static inline bool slaunch_is_txt_launch(void)
-{
-	u32 mask =  SL_FLAG_ACTIVE | SL_FLAG_ARCH_TXT;
-
-	return (slaunch_get_flags() & mask) == mask;
-}
+bool slaunch_psp_tmr_release(void);
+void slaunch_psp_setup(void);
+void slaunch_psp_finalize(void);
 
 #else
 
 static inline void slaunch_setup_txt(void)
+{
+}
+
+static inline void slaunch_cpu_setup_skinit(void)
 {
 }
 
@@ -534,14 +576,31 @@ static inline struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table
 
 static inline void slaunch_finalize(int do_sexit)
 {
-}
-
-static inline bool slaunch_is_txt_launch(void)
-{
-	return false;
+	(void)do_sexit;
 }
 
 #endif /* !IS_ENABLED(CONFIG_SECURE_LAUNCH) */
+
+static inline bool slaunch_is_txt_launch(void)
+{
+	u32 mask = SL_FLAG_ACTIVE | SL_FLAG_ARCH_TXT;
+
+	return (slaunch_get_flags() & mask) == mask;
+}
+
+static inline bool slaunch_is_skinit_launch(void)
+{
+	u32 mask = SL_FLAG_ACTIVE | SL_FLAG_ARCH_SKINIT;
+
+	return (slaunch_get_flags() & mask) == mask;
+}
+
+static inline bool slaunch_is_skinit_psp(void)
+{
+	u32 mask = SL_FLAG_ACTIVE | SL_FLAG_ARCH_SKINIT | SL_FLAG_SKINIT_PSP;
+
+	return (slaunch_get_flags() & mask) == mask;
+}
 
 #endif /* !__ASSEMBLY */
 
