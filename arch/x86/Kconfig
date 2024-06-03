@@ -2061,11 +2061,12 @@ config SECURE_LAUNCH
 	depends on X86_64 && X86_X2APIC && TCG_TPM && CRYPTO_LIB_SHA1 && CRYPTO_LIB_SHA256
 	help
 	   The Secure Launch feature allows a kernel to be loaded
-	   directly through an Intel TXT measured launch. Intel TXT
+	   directly through a dynamic launch. Intel TXT or AMD SKINIT
 	   establishes a Dynamic Root of Trust for Measurement (DRTM)
-	   where the CPU measures the kernel image. This feature then
-	   continues the measurement chain over kernel configuration
-	   information and init images.
+	   where the CPU or a Dynamic Configuration Environment (DCE)
+	   measures the kernel image. This feature then continues the
+	   measurement chain over kernel configuration information and
+	   init images.
 
 source "kernel/Kconfig.hz"
 
