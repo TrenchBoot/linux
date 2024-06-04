@@ -94,6 +94,20 @@ void __noreturn slaunch_txt_reset(void __iomem *txt,
 }
 
 /*
+ * SKINIT has no sticky register to set an error code or a DRTM reset
+ * facility. The best that can be done is to trace an error and trigger
+ * a system reset using the undefined instruction.
+ */
+void __noreturn slaunch_skinit_reset(const char *msg, u64 error)
+{
+	pr_err("%s - error: 0x%llx", msg, error);
+
+	asm volatile ("ud2");
+
+	unreachable();
+}
+
+/*
  * The TXT heap is too big to map all at once with early_ioremap
  * so it is done a table at a time.
  */
