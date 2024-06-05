@@ -798,15 +798,21 @@ static bool efi_secure_launch_update_boot_params(struct slr_table *slrt,
 						 struct boot_params *boot_params)
 {
 	struct slr_entry_intel_info *txt_info;
+	struct slr_entry_amd_info *skinit_info;
 	struct slr_entry_policy *policy;
 	bool updated = false;
 	int i;
 
 	txt_info = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_INTEL_INFO);
-	if (!txt_info)
-		return false;
+	if (txt_info)
+		txt_info->boot_params_addr = (u64)boot_params;
 
-	txt_info->boot_params_addr = (u64)boot_params;
+	skinit_info = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_AMD_INFO);
+	if (skinit_info)
+		skinit_info->boot_params_addr = (u64)boot_params;
+
+	if (!txt_info && !skinit_info)
+		return false;
 
 	policy = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_ENTRY_POLICY);
 	if (!policy)
