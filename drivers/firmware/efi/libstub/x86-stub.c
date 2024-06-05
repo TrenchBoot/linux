@@ -929,21 +929,28 @@ static efi_status_t efi_decompress_kernel(unsigned long *kernel_entry)
 static bool efi_secure_launch_update_boot_params(struct slr_table *slrt,
 						 struct boot_params *boot_params)
 {
-	struct slr_entry_intel_info *txt_info;
+	struct slr_entry_intel_info *intel_info;
+	struct slr_entry_amd_info *amd_info;
 	struct slr_entry_policy *policy;
 	struct txt_os_mle_data *os_mle;
 	bool updated = false;
 	int i;
 
-	txt_info = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_INTEL_INFO);
-	if (!txt_info)
-		return false;
+	intel_info = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_INTEL_INFO);
+	if (intel_info) {
+		/* If Intel info table is present, this indicates it is a TXT launch */
+		os_mle = txt_os_mle_data_start((void *)intel_info->txt_heap);
+		if (!os_mle)
+			return false;
 
-	os_mle = txt_os_mle_data_start((void *)txt_info->txt_heap);
-	if (!os_mle)
-		return false;
+		os_mle->boot_params_addr = (u64)boot_params;
+	}
 
-	os_mle->boot_params_addr = (u64)boot_params;
+	amd_info = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_AMD_INFO);
+	if (amd_info) {
+		/* If AMD info table is present, this indicates it is a SKINIT launch */
+		amd_info->boot_params_base = (u64)boot_params;
+	}
 
 	policy = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_ENTRY_POLICY);
 	if (!policy)
