@@ -80,8 +80,8 @@ struct slr_table {
  * Common SLRT Table Header
  */
 struct slr_entry_hdr {
-	u16 tag;
-	u16 size;
+	u32 tag;
+	u32 size;
 } __packed;
 
 /*
@@ -103,7 +103,7 @@ typedef void (*dl_handler_func)(struct slr_bl_context *bl_context);
  */
 struct slr_entry_dl_info {
 	struct slr_entry_hdr hdr;
-	u32 dce_size;
+	u64 dce_size;
 	u64 dce_base;
 	u64 dlme_size;
 	u64 dlme_base;
@@ -118,7 +118,7 @@ struct slr_entry_dl_info {
 struct slr_entry_log_info {
 	struct slr_entry_hdr hdr;
 	u16 format;
-	u16 reserved[3];
+	u16 reserved;
 	u32 size;
 	u64 addr;
 } __packed;
@@ -141,6 +141,7 @@ struct slr_policy_entry {
  */
 struct slr_entry_policy {
 	struct slr_entry_hdr hdr;
+	u16 reserved[2];
 	u16 revision;
 	u16 nr_entries;
 	struct slr_policy_entry policy_entries[];
@@ -165,7 +166,6 @@ struct slr_txt_mtrr_state {
  */
 struct slr_entry_intel_info {
 	struct slr_entry_hdr hdr;
-	u16 reserved[2];
 	u64 txt_heap;
 	u64 saved_misc_enable_msr;
 	struct slr_txt_mtrr_state saved_bsp_mtrrs;
@@ -187,6 +187,7 @@ struct slr_uefi_cfg_entry {
  */
 struct slr_entry_uefi_config {
 	struct slr_entry_hdr hdr;
+	u16 reserved[2];
 	u16 revision;
 	u16 nr_entries;
 	struct slr_uefi_cfg_entry uefi_cfg_entries[];
@@ -201,8 +202,7 @@ static inline void *
 slr_next_entry(struct slr_table *table,
 	       struct slr_entry_hdr *curr)
 {
-	struct slr_entry_hdr *next = (struct slr_entry_hdr *)
-				((u8 *)curr + curr->size);
+	struct slr_entry_hdr *next = (struct slr_entry_hdr *)((u8 *)curr + curr->size);
 
 	if ((void *)next >= slr_end_of_entries(table))
 		return NULL;
