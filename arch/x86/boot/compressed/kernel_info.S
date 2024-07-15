@@ -2,17 +2,14 @@
 
 #include <linux/linkage.h>
 #include <asm/bootparam.h>
-#include "kernel_info.h"
 
 /*
- * If a field needs to hold the offset of a symbol from the start
- * of the image, use the macro below, eg
- *	.long	rva(symbol)
- * This will avoid creating run-time relocations, which are not
- * allowed in the compressed kernel.
+ * The kernel_info structure is not placed at a fixed offest in the
+ * kernel image. So this macro and the support in the linker file
+ * allow the relative offsets for the MLE header within the kernel
+ * image to be configured at build time.
  */
-
-#define rva(X) (((X) - kernel_info) + KERNEL_INFO_OFFSET)
+#define roffset(X) ((X) - kernel_info)
 
 	.section ".rodata.kernel_info", "a"
 
@@ -30,7 +27,7 @@ SYM_DATA_START(kernel_info)
 
 	/* Offset to the MLE header structure */
 #if IS_ENABLED(CONFIG_SECURE_LAUNCH)
-	.long	rva(mle_header)
+	.long	roffset(mle_header_offset)
 #else
 	.long	0
 #endif
@@ -56,10 +53,10 @@ SYM_DATA_START(mle_header)
 	.long	0x42b651cb  /* UUID3 */
 	.long	0x00000034  /* MLE header size */
 	.long	0x00020002  /* MLE version 2.2 */
-	.long	rva(sl_stub_entry) /* Linear entry point of MLE (virt. address) */
+	.long	roffset(sl_stub_entry_offset) /* Linear entry point of MLE (virt. address) */
 	.long	0x00000000  /* First valid page of MLE */
 	.long	0x00000000  /* Offset within binary of first byte of MLE */
-	.long	rva(_edata) /* Offset within binary of last byte + 1 of MLE */
+	.long	roffset(_edata_offset) /* Offset within binary of last byte + 1 of MLE */
 	.long	0x00000227  /* Bit vector of MLE-supported capabilities */
 	.long	0x00000000  /* Starting linear address of command line (unused) */
 	.long	0x00000000  /* Ending linear address of command line (unused) */
