@@ -309,16 +309,16 @@ static ssize_t tpm_version_major_show(struct device *dev,
 }
 static DEVICE_ATTR_RO(tpm_version_major);
 
-static ssize_t preferred_locality_show(struct device *dev,
-				       struct device_attribute *attr, char *buf)
+static ssize_t default_locality_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
 {
 	struct tpm_chip *chip = to_tpm_chip(dev);
 
-	return sprintf(buf, "%d\n", chip->pref_locality);
+	return sprintf(buf, "%d\n", chip->default_locality);
 }
 
-static ssize_t preferred_locality_store(struct device *dev, struct device_attribute *attr,
-					const char *buf, size_t count)
+static ssize_t default_locality_store(struct device *dev, struct device_attribute *attr,
+				      const char *buf, size_t count)
 {
 	struct tpm_chip *chip = to_tpm_chip(dev);
 	unsigned int locality;
@@ -329,13 +329,13 @@ static ssize_t preferred_locality_store(struct device *dev, struct device_attrib
 	if (locality >= TPM_MAX_LOCALITY)
 		return -ERANGE;
 
-	if (tpm_chip_preferred_locality(chip, (int)locality))
+	if (tpm_chip_set_default_locality(chip, (int)locality))
 		return count;
 	else
 		return 0;
 }
 
-static DEVICE_ATTR_RW(preferred_locality);
+static DEVICE_ATTR_RW(default_locality);
 
 static struct attribute *tpm1_dev_attrs[] = {
 	&dev_attr_pubek.attr,
@@ -349,13 +349,13 @@ static struct attribute *tpm1_dev_attrs[] = {
 	&dev_attr_durations.attr,
 	&dev_attr_timeouts.attr,
 	&dev_attr_tpm_version_major.attr,
-	&dev_attr_preferred_locality.attr,
+	&dev_attr_default_locality.attr,
 	NULL,
 };
 
 static struct attribute *tpm2_dev_attrs[] = {
 	&dev_attr_tpm_version_major.attr,
-	&dev_attr_preferred_locality.attr,
+	&dev_attr_default_locality.attr,
 	NULL
 };
 
