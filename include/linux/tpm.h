@@ -178,7 +178,7 @@ struct tpm_chip {
 	int locality;
 
 	/* preferred locality - default 0 */
-	int pref_locality;
+	int default_locality;
 };
 
 #define TPM_HEADER_SIZE		10
@@ -430,9 +430,9 @@ static inline u32 tpm2_rc_value(u32 rc)
 #if defined(CONFIG_TCG_TPM) || defined(CONFIG_TCG_TPM_MODULE)
 
 extern int tpm_is_tpm2(struct tpm_chip *chip);
-extern bool tpm_preferred_locality(struct tpm_chip *chip, int locality);
 extern __must_check int tpm_try_get_ops(struct tpm_chip *chip);
 extern void tpm_put_ops(struct tpm_chip *chip);
+extern bool tpm_chip_set_default_locality(struct tpm_chip *chip, int locality);
 extern ssize_t tpm_transmit_cmd(struct tpm_chip *chip, struct tpm_buf *buf,
 				size_t min_rsp_body_length, const char *desc);
 extern int tpm_pcr_read(struct tpm_chip *chip, u32 pcr_idx,

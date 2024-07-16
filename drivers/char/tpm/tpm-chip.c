@@ -44,7 +44,7 @@ static int tpm_request_locality(struct tpm_chip *chip)
 	if (!chip->ops->request_locality)
 		return 0;
 
-	rc = chip->ops->request_locality(chip, chip->pref_locality);
+	rc = chip->ops->request_locality(chip, chip->default_locality);
 	if (rc < 0)
 		return rc;
 
@@ -144,25 +144,25 @@ void tpm_chip_stop(struct tpm_chip *chip)
 EXPORT_SYMBOL_GPL(tpm_chip_stop);
 
 /**
- * tpm_chip_preferred_locality() - set the TPM chip preferred locality to open
+ * tpm_chip_set_default_locality() - set the TPM chip default locality to open
  * @chip:	a TPM chip to use
- * @locality:   the preferred locality
+ * @locality:   the default locality to set
  *
  * Return:
  * * true      - Preferred locality set
  * * false     - Invalid locality specified
  */
-bool tpm_chip_preferred_locality(struct tpm_chip *chip, int locality)
+bool tpm_chip_set_default_locality(struct tpm_chip *chip, int locality)
 {
 	if (locality < 0 || locality >=TPM_MAX_LOCALITY)
 		return false;
 
 	mutex_lock(&chip->tpm_mutex);
-	chip->pref_locality = locality;
+	chip->default_locality = locality;
 	mutex_unlock(&chip->tpm_mutex);
 	return true;
 }
-EXPORT_SYMBOL_GPL(tpm_chip_preferred_locality);
+EXPORT_SYMBOL_GPL(tpm_chip_set_default_locality);
 
 /**
  * tpm_try_get_ops() - Get a ref to the tpm_chip
@@ -389,7 +389,7 @@ struct tpm_chip *tpm_chip_alloc(struct device *pdev,
 	}
 
 	chip->locality = -1;
-	chip->pref_locality = 0;
+	chip->default_locality = 0;
 	return chip;
 
 out:
