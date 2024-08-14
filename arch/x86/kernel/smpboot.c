@@ -871,15 +871,6 @@ int common_cpu_up(unsigned int cpu, struct task_struct *idle)
 
 #ifdef CONFIG_SECURE_LAUNCH
 
-static bool slaunch_is_txt_launch(void)
-{
-	if ((slaunch_get_flags() & (SL_FLAG_ACTIVE|SL_FLAG_ARCH_TXT)) ==
-	    (SL_FLAG_ACTIVE | SL_FLAG_ARCH_TXT))
-		return true;
-
-	return false;
-}
-
 /*
  * TXT AP startup is quite different than normal. The APs cannot have #INIT
  * asserted on them or receive SIPIs. The early Secure Launch code has parked
@@ -889,8 +880,8 @@ static bool slaunch_is_txt_launch(void)
  */
 static void slaunch_wakeup_cpu_from_txt(int cpu, int apicid)
 {
+	struct sl_ap_stack_and_monitor *stack_monitor;
 	struct sl_ap_wake_info *ap_wake_info;
-	struct sl_ap_stack_and_monitor *stack_monitor = NULL;
 
 	ap_wake_info = slaunch_get_ap_wake_info();
 
@@ -899,7 +890,6 @@ static void slaunch_wakeup_cpu_from_txt(int cpu, int apicid)
 
 	for (unsigned int i = TXT_MAX_CPUS - 1; i >= 0; i--) {
 		if (stack_monitor[i].apicid == apicid) {
-			/* Write the monitor */
 			stack_monitor[i].monitor = 1;
 			break;
 		}
@@ -907,11 +897,6 @@ static void slaunch_wakeup_cpu_from_txt(int cpu, int apicid)
 }
 
 #else
-
-static inline bool slaunch_is_txt_launch(void)
-{
-	return false;
-}
 
 static inline void slaunch_wakeup_cpu_from_txt(int cpu, int apicid)
 {
