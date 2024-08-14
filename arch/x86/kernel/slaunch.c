@@ -420,8 +420,7 @@ void __init slaunch_fixup_jump_vector(void)
 	struct sl_ap_wake_info *ap_wake_info;
 	u32 *ap_jmp_ptr;
 
-	if ((slaunch_get_flags() & (SL_FLAG_ACTIVE|SL_FLAG_ARCH_TXT)) !=
-	    (SL_FLAG_ACTIVE | SL_FLAG_ARCH_TXT))
+	if (!slaunch_is_txt_launch())
 		return;
 
 	ap_wake_info = slaunch_get_ap_wake_info();
@@ -539,8 +538,7 @@ void slaunch_finalize(int do_sexit)
 	u64 one = TXT_REGVALUE_ONE, val;
 	void __iomem *config;
 
-	if ((slaunch_get_flags() & (SL_FLAG_ACTIVE | SL_FLAG_ARCH_TXT)) !=
-	    (SL_FLAG_ACTIVE | SL_FLAG_ARCH_TXT))
+	if (!slaunch_is_txt_launch())
 		return;
 
 	config = ioremap(TXT_PRIV_CONFIG_REGS_BASE, TXT_NR_CONFIG_PAGES *
