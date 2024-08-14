@@ -139,46 +139,48 @@ EXPORT_SYMBOL(sha1_init);
 
 static void __sha1_transform(u32 *digest, const char *data)
 {
-       u32 ws[SHA1_WORKSPACE_WORDS];
+	u32 ws[SHA1_WORKSPACE_WORDS];
 
-       sha1_transform(digest, data, ws);
+	sha1_transform(digest, data, ws);
 
-       memzero_explicit(ws, sizeof(ws));
+	/* Ensure local data for generating digest is cleared in all cases */
+	memzero_explicit(ws, sizeof(ws));
 }
 
 static void sha1_update(struct sha1_state *sctx, const u8 *data, unsigned int len)
 {
 	unsigned int partial = sctx->count % SHA1_BLOCK_SIZE;
+	int blocks;
 
 	sctx->count += len;
 
-	if (likely((partial + len) >= SHA1_BLOCK_SIZE)) {
-		int blocks;
+	if (unlikely((partial + len) < SHA1_BLOCK_SIZE))
+		goto out;
 
-		if (partial) {
-			int p = SHA1_BLOCK_SIZE - partial;
 
-			memcpy(sctx->buffer + partial, data, p);
-			data += p;
-			len -= p;
+	if (partial) {
+		int p = SHA1_BLOCK_SIZE - partial;
 
-			__sha1_transform(sctx->state, sctx->buffer);
-		}
+		memcpy(sctx->buffer + partial, data, p);
+		data += p;
+		len -= p;
 
-		blocks = len / SHA1_BLOCK_SIZE;
-		len %= SHA1_BLOCK_SIZE;
-
-		if (blocks) {
-			while (blocks--) {
-				__sha1_transform(sctx->state, data);
-				data += SHA1_BLOCK_SIZE;
-			}
-		}
-		partial = 0;
+		__sha1_transform(sctx->state, sctx->buffer);
 	}
 
-	if (len)
-		memcpy(sctx->buffer + partial, data, len);
+	blocks = len / SHA1_BLOCK_SIZE;
+	len %= SHA1_BLOCK_SIZE;
+
+	if (blocks) {
+		while (blocks--) {
+			__sha1_transform(sctx->state, data);
+			data += SHA1_BLOCK_SIZE;
+		}
+	}
+	partial = 0;
+
+out:
+	memcpy(sctx->buffer + partial, data, len);
 }
 
 static void sha1_final(struct sha1_state *sctx, u8 *out)
@@ -212,7 +214,6 @@ void sha1(const u8 *data, unsigned int len, u8 *out)
 	struct sha1_state sctx = {0};
 
 	sha1_init(sctx.state);
-	sctx.count = 0;
 	sha1_update(&sctx, data, len);
 	sha1_final(&sctx, out);
 }
