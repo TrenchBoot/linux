@@ -23,24 +23,24 @@
 
 #define CAPS_VARIABLE_MTRR_COUNT_MASK	0xff
 
-#define SL_TPM12_LOG		1
-#define SL_TPM20_LOG		2
+#define SL_TPM_LOG		1
+#define SL_TPM2_LOG		2
 
-#define SL_TPM20_MAX_ALGS	2
+#define SL_TPM2_MAX_ALGS	2
 
 #define SL_MAX_EVENT_DATA	64
-#define SL_TPM12_LOG_SIZE	(sizeof(struct tcg_pcr_event) + \
+#define SL_TPM_LOG_SIZE		(sizeof(struct tcg_pcr_event) + \
 				SL_MAX_EVENT_DATA)
-#define SL_TPM20_LOG_SIZE	(sizeof(struct tcg_pcr_event2_head) + \
+#define SL_TPM2_LOG_SIZE	(sizeof(struct tcg_pcr_event2_head) + \
 				SHA1_DIGEST_SIZE + SHA256_DIGEST_SIZE + \
 				sizeof(struct tcg_event_field) + \
 				SL_MAX_EVENT_DATA)
 
 static void *evtlog_base;
 static u32 evtlog_size;
-static struct txt_heap_event_log_pointer2_1_element *log20_elem;
-static u32 tpm_log_ver = SL_TPM12_LOG;
-static struct tcg_efi_specid_event_algs tpm_algs[SL_TPM20_MAX_ALGS] = {0};
+static struct txt_heap_event_log_pointer2_1_element *log21_elem;
+static u32 tpm_log_ver = SL_TPM_LOG;
+static struct tcg_efi_specid_event_algs tpm_algs[SL_TPM2_MAX_ALGS] = {0};
 
 extern u32 sl_cpu_type;
 extern u32 sl_mle_start;
@@ -114,7 +114,7 @@ static void sl_check_pmr_coverage(void *base, u32 size, bool allow_hi)
 	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
 	os_sinit_data = txt_os_sinit_data_start(txt_heap);
 
-	if ((end >= (void *)0x100000000ULL) && (base < (void *)0x100000000ULL))
+	if ((u64)end >= SZ_4G && (u64)base < SZ_4G)
 		sl_txt_reset(SL_ERROR_REGION_STRADDLE_4GB);
 
 	/*
@@ -122,7 +122,7 @@ static void sl_check_pmr_coverage(void *base, u32 size, bool allow_hi)
 	 * all memory above 4G. At this point the code can only check that
 	 * regions are within the hi PMR but that is sufficient.
 	 */
-	if ((end > (void *)0x100000000ULL) && (base >= (void *)0x100000000ULL)) {
+	if ((u64)end > SZ_4G && (u64)base >= SZ_4G) {
 		if (allow_hi) {
 			if (end >= (void *)(os_sinit_data->vtd_pmr_hi_base +
 					   os_sinit_data->vtd_pmr_hi_size))
@@ -207,11 +207,11 @@ static void sl_find_drtm_event_log(struct slr_table *slrt)
 		sl_txt_reset(SL_ERROR_OS_SINIT_BAD_VERSION);
 
 	/* Find the TPM2.0 logging extended heap element */
-	log20_elem = tpm20_find_log2_1_element(os_sinit_data);
+	log21_elem = tpm2_find_log2_1_element(os_sinit_data);
 
-	/* If found, this implies TPM20 log and family */
-	if (log20_elem)
-		tpm_log_ver = SL_TPM20_LOG;
+	/* If found, this implies TPM2 log and family */
+	if (log21_elem)
+		tpm_log_ver = SL_TPM2_LOG;
 }
 
 static void sl_validate_event_log_buffer(void)
@@ -259,7 +259,7 @@ static void sl_find_event_log_algorithms(void)
 {
 	struct tcg_efi_specid_event_head *efi_head =
 		(struct tcg_efi_specid_event_head *)(evtlog_base +
-					log20_elem->first_record_offset +
+					log21_elem->first_record_offset +
 					sizeof(struct tcg_pcr_event));
 
 	if (efi_head->num_algs == 0 || efi_head->num_algs > 2)
@@ -269,12 +269,12 @@ static void sl_find_event_log_algorithms(void)
 	       sizeof(struct tcg_efi_specid_event_algs) * efi_head->num_algs);
 }
 
-static void sl_tpm12_log_event(u32 pcr, u32 event_type,
-			       const u8 *data, u32 length,
-			       const u8 *event_data, u32 event_size)
+static void sl_tpm_log_event(u32 pcr, u32 event_type,
+			     const u8 *data, u32 length,
+			     const u8 *event_data, u32 event_size)
 {
 	u8 sha1_hash[SHA1_DIGEST_SIZE] = {0};
-	u8 log_buf[SL_TPM12_LOG_SIZE] = {0};
+	u8 log_buf[SL_TPM_LOG_SIZE] = {0};
 	struct tcg_pcr_event *pcr_event;
 	u32 total_size;
 
@@ -292,17 +292,17 @@ static void sl_tpm12_log_event(u32 pcr, u32 event_type,
 
 	total_size = sizeof(struct tcg_pcr_event) + event_size;
 
-	if (tpm12_log_event(evtlog_base, evtlog_size, total_size, pcr_event))
+	if (tpm_log_event(evtlog_base, evtlog_size, total_size, pcr_event))
 		sl_txt_reset(SL_ERROR_TPM_LOGGING_FAILED);
 }
 
-static void sl_tpm20_log_event(u32 pcr, u32 event_type,
-			       const u8 *data, u32 length,
-			       const u8 *event_data, u32 event_size)
+static void sl_tpm2_log_event(u32 pcr, u32 event_type,
+			      const u8 *data, u32 length,
+			      const u8 *event_data, u32 event_size)
 {
 	u8 sha256_hash[SHA256_DIGEST_SIZE] = {0};
 	u8 sha1_hash[SHA1_DIGEST_SIZE] = {0};
-	u8 log_buf[SL_TPM20_LOG_SIZE] = {0};
+	u8 log_buf[SL_TPM2_LOG_SIZE] = {0};
 	struct sha256_state sctx256 = {0};
 	struct tcg_pcr_event2_head *head;
 	struct tcg_event_field *event;
@@ -352,19 +352,19 @@ static void sl_tpm20_log_event(u32 pcr, u32 event_type,
 		memcpy((u8 *)event + sizeof(struct tcg_event_field), event_data, event_size);
 	total_size += sizeof(struct tcg_event_field) + event_size;
 
-	if (tpm20_log_event(log20_elem, evtlog_base, evtlog_size, total_size, &log_buf[0]))
+	if (tpm2_log_event(log21_elem, evtlog_base, evtlog_size, total_size, &log_buf[0]))
 		sl_txt_reset(SL_ERROR_TPM_LOGGING_FAILED);
 }
 
 static void sl_tpm_extend_evtlog(u32 pcr, u32 type,
 				 const u8 *data, u32 length, const char *desc)
 {
-	if (tpm_log_ver == SL_TPM20_LOG)
-		sl_tpm20_log_event(pcr, type, data, length,
-				   (const u8 *)desc, strlen(desc));
+	if (tpm_log_ver == SL_TPM2_LOG)
+		sl_tpm2_log_event(pcr, type, data, length,
+				  (const u8 *)desc, strlen(desc));
 	else
-		sl_tpm12_log_event(pcr, type, data, length,
-				   (const u8 *)desc, strlen(desc));
+		sl_tpm_log_event(pcr, type, data, length,
+				 (const u8 *)desc, strlen(desc));
 }
 
 static struct setup_data *sl_handle_setup_data(struct setup_data *curr,
@@ -542,7 +542,7 @@ asmlinkage __visible void sl_main(void *bootparams)
 	 * Find the TPM hash algorithms used by the ACM and recorded in the
 	 * event log.
 	 */
-	if (tpm_log_ver == SL_TPM20_LOG)
+	if (tpm_log_ver == SL_TPM2_LOG)
 		sl_find_event_log_algorithms();
 
 	/*

@@ -421,7 +421,7 @@ SYM_CODE_START(startup_64)
 	popfq
 
 #ifdef CONFIG_SECURE_LAUNCH
-	/* Ensure the relocation region is coverd by a PMR */
+	/* Ensure the relocation region is covered by a PMR */
 	movq	%rbx, %rdi
 	movl	$(_bss - startup_32), %esi
 	callq	sl_check_region
