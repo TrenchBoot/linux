@@ -87,7 +87,7 @@ struct memfile {
 
 static struct memfile sl_evtlog = {"eventlog", NULL, 0};
 static void *txt_heap;
-static struct txt_heap_event_log_pointer2_1_element *evtlog20;
+static struct txt_heap_event_log_pointer2_1_element *evtlog21;
 static DEFINE_MUTEX(sl_evt_log_mutex);
 
 static ssize_t sl_evtlog_read(struct file *file, char __user *buf,
@@ -127,12 +127,12 @@ static ssize_t sl_evtlog_write(struct file *file, const char __user *buf,
 	}
 
 	mutex_lock(&sl_evt_log_mutex);
-	if (evtlog20)
-		result = tpm20_log_event(evtlog20, sl_evtlog.addr,
-					 sl_evtlog.size, datalen, data);
+	if (evtlog21)
+		result = tpm2_log_event(evtlog21, sl_evtlog.addr,
+					sl_evtlog.size, datalen, data);
 	else
-		result = tpm12_log_event(sl_evtlog.addr, sl_evtlog.size,
-					 datalen, data);
+		result = tpm_log_event(sl_evtlog.addr, sl_evtlog.size,
+				       datalen, data);
 	mutex_unlock(&sl_evt_log_mutex);
 
 	kfree(data);
@@ -301,19 +301,19 @@ static void slaunch_intel_evtlog(void __iomem *txt)
 	/* For TPM 2.0 logs, the extended heap element must be located */
 	os_sinit_data = txt_os_sinit_data_start(txt_heap);
 
-	evtlog20 = tpm20_find_log2_1_element(os_sinit_data);
+	evtlog21 = tpm2_find_log2_1_element(os_sinit_data);
 
 	/*
 	 * If this fails, things are in really bad shape. Any attempt to write
 	 * events to the log will fail.
 	 */
-	if (!evtlog20)
+	if (!evtlog21)
 		slaunch_txt_reset(txt, "Error failed to find TPM20 event log element\n",
 				  SL_ERROR_TPM_INVALID_LOG20);
 }
 
-static void slaunch_tpm20_extend_event(struct tpm_chip *tpm, void __iomem *txt,
-				       struct tcg_pcr_event2_head *event)
+static void slaunch_tpm2_extend_event(struct tpm_chip *tpm, void __iomem *txt,
+				      struct tcg_pcr_event2_head *event)
 {
 	u16 *alg_id_field = (u16 *)((u8 *)event + sizeof(struct tcg_pcr_event2_head));
 	struct tpm_digest *digests;
@@ -367,21 +367,21 @@ static void slaunch_tpm20_extend_event(struct tpm_chip *tpm, void __iomem *txt,
 	kfree(digests);
 }
 
-static void slaunch_tpm20_extend(struct tpm_chip *tpm, void __iomem *txt)
+static void slaunch_tpm2_extend(struct tpm_chip *tpm, void __iomem *txt)
 {
 	struct tcg_pcr_event *event_header;
 	struct tcg_pcr_event2_head *event;
 	int start = 0, end = 0, size;
 
 	event_header = (struct tcg_pcr_event *)(sl_evtlog.addr +
-						evtlog20->first_record_offset);
+						evtlog21->first_record_offset);
 
 	/* Skip first TPM 1.2 event to get to first TPM 2.0 event */
 	event = (struct tcg_pcr_event2_head *)((u8 *)event_header +
 						sizeof(struct tcg_pcr_event) +
 						event_header->event_size);
 
-	while ((void  *)event < sl_evtlog.addr + evtlog20->next_record_offset) {
+	while ((void  *)event < sl_evtlog.addr + evtlog21->next_record_offset) {
 		size = __calc_tpm2_event_size(event, event_header, false);
 		if (!size)
 			slaunch_txt_reset(txt, "TPM20 invalid event in event log\n",
@@ -400,7 +400,7 @@ static void slaunch_tpm20_extend(struct tpm_chip *tpm, void __iomem *txt)
 		}
 
 		if (start)
-			slaunch_tpm20_extend_event(tpm, txt, event);
+			slaunch_tpm2_extend_event(tpm, txt, event);
 
 next:
 		event = (struct tcg_pcr_event2_head *)((u8 *)event + size);
@@ -411,17 +411,17 @@ next:
 				  SL_ERROR_TPM_EXTEND);
 }
 
-static void slaunch_tpm12_extend(struct tpm_chip *tpm, void __iomem *txt)
+static void slaunch_tpm_extend(struct tpm_chip *tpm, void __iomem *txt)
 {
-	struct tpm12_event_log_header *event_header;
+	struct tpm_event_log_header *event_header;
 	struct tcg_pcr_event *event;
 	struct tpm_digest digest;
 	int start = 0, end = 0;
 	int size, ret;
 
-	event_header = (struct tpm12_event_log_header *)sl_evtlog.addr;
+	event_header = (struct tpm_event_log_header *)sl_evtlog.addr;
 	event = (struct tcg_pcr_event *)((u8 *)event_header +
-				sizeof(struct tpm12_event_log_header));
+				sizeof(struct tpm_event_log_header));
 
 	while ((void  *)event < sl_evtlog.addr + event_header->next_event_offset) {
 		size = sizeof(struct tcg_pcr_event) + event->event_size;
@@ -474,10 +474,10 @@ static void slaunch_pcr_extend(void __iomem *txt)
 		slaunch_txt_reset(txt, "Could not set TPM chip locality 2\n",
 				  SL_ERROR_TPM_INIT);
 
-	if (evtlog20)
-		slaunch_tpm20_extend(tpm, txt);
+	if (evtlog21)
+		slaunch_tpm2_extend(tpm, txt);
 	else
-		slaunch_tpm12_extend(tpm, txt);
+		slaunch_tpm_extend(tpm, txt);
 
 	tpm_chip_set_default_locality(tpm, 0);
 }
