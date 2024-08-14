@@ -856,7 +856,6 @@ static efi_status_t efi_decompress_kernel(unsigned long *kernel_entry)
 	return efi_adjust_memory_range_protection(addr, kernel_text_size);
 }
 
-#if (IS_ENABLED(CONFIG_SECURE_LAUNCH))
 static bool efi_secure_launch_update_boot_params(struct slr_table *slrt,
 						 struct boot_params *boot_params)
 {
@@ -874,7 +873,7 @@ static bool efi_secure_launch_update_boot_params(struct slr_table *slrt,
 	if (!os_mle)
 		return false;
 
-	os_mle->boot_params_addr = (u32)(u64)boot_params;
+	os_mle->boot_params_addr = (u64)boot_params;
 
 	policy = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_ENTRY_POLICY);
 	if (!policy)
@@ -894,8 +893,9 @@ static bool efi_secure_launch_update_boot_params(struct slr_table *slrt,
 	 * of the Secure Launch boot.
 	 */
 	if (image) {
-		struct setup_header *hdr = (struct setup_header *)((u8 *)image->image_base + 0x1f1);
-		u64 cmdline_ptr, hi_val;
+		struct setup_header *hdr = (struct setup_header *)((u8 *)image->image_base +
+					    offsetof(struct boot_params, hdr));
+		u64 cmdline_ptr;
 
 		boot_params->hdr.setup_sects = hdr->setup_sects;
 		boot_params->hdr.syssize = hdr->syssize;
@@ -906,9 +906,9 @@ static bool efi_secure_launch_update_boot_params(struct slr_table *slrt,
 		boot_params->hdr.xloadflags = hdr->xloadflags;
 		boot_params->hdr.init_size = hdr->init_size;
 		boot_params->hdr.kernel_info_offset = hdr->kernel_info_offset;
-		hi_val = boot_params->ext_cmd_line_ptr;
-		cmdline_ptr = boot_params->hdr.cmd_line_ptr | hi_val << 32;
-		boot_params->hdr.cmdline_size = strlen((const char *)cmdline_ptr);;
+		efi_set_u64_form(boot_params->hdr.cmd_line_ptr, boot_params->ext_cmd_line_ptr,
+				 &cmdline_ptr);
+		boot_params->hdr.cmdline_size = strlen((const char *)cmdline_ptr);
 	}
 
 	return updated;
@@ -920,6 +920,9 @@ static void efi_secure_launch(struct boot_params *boot_params)
 	efi_guid_t guid = SLR_TABLE_GUID;
 	dl_handler_func handler_callback;
 	struct slr_table *slrt;
+
+	if (!IS_ENABLED(CONFIG_SECURE_LAUNCH))
+		return;
 
 	/*
 	 * The presence of this table indicated a Secure Launch
@@ -945,7 +948,6 @@ static void efi_secure_launch(struct boot_params *boot_params)
 
 	unreachable();
 }
-#endif
 
 static void __noreturn enter_kernel(unsigned long kernel_addr,
 				    struct boot_params *boot_params)
@@ -1074,10 +1076,8 @@ void __noreturn efi_stub_entry(efi_handle_t handle,
 		goto fail;
 	}
 
-#if (IS_ENABLED(CONFIG_SECURE_LAUNCH))
 	/* If a Secure Launch is in progress, this never returns */
 	efi_secure_launch(boot_params);
-#endif
 
 	/*
 	 * Call the SEV init code while still running with the firmware's
