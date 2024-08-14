@@ -68,9 +68,10 @@ SYM_FUNC_START(sl_stub_entry)
 	cld
 
 	/*
-	 * On entry, %ebx has the entry abs offset to sl_stub_entry. This
-	 * will be correctly scaled using the rva macro and avoid causing
-	 * relocations. Only %cs and %ds segments are known good.
+	 * On entry, %ebx has the entry abs offset to sl_stub_entry. The rva()
+	 * macro is used to generate relative references using %ebx as a base, as
+	 * to avoid absolute relocations, which would require fixups at runtime.
+	 * Only %cs and %ds segments are known good.
 	 */
 
 	/* Load GDT, set segment regs and lret to __SL32_CS */
