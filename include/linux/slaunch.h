@@ -12,14 +12,12 @@
  * Secure Launch Defined State Flags
  */
 #define SL_FLAG_ACTIVE		0x00000001
-#define SL_FLAG_ARCH_SKINIT	0x00000002
-#define SL_FLAG_ARCH_TXT	0x00000004
+#define SL_FLAG_ARCH_TXT	0x00000002
 
 /*
  * Secure Launch CPU Type
  */
-#define SL_CPU_AMD	1
-#define SL_CPU_INTEL	2
+#define SL_CPU_INTEL	1
 
 #if IS_ENABLED(CONFIG_SECURE_LAUNCH)
 
@@ -164,14 +162,6 @@
 #define TXT_EVTYPE_SLAUNCH_END		(TXT_EVTYPE_BASE + 0x104)
 
 /*
- * Measured Launch PCRs
- */
-#define SL_DEF_DLME_DETAIL_PCR17	17
-#define SL_DEF_DLME_AUTHORITY_PCR18	18
-#define SL_ALT_DLME_AUTHORITY_PCR19	19
-#define SL_ALT_DLME_DETAIL_PCR20	20
-
-/*
  * MLE scratch area offsets
  */
 #define SL_SCRATCH_AP_EBX		0
@@ -240,7 +230,8 @@ struct txt_heap_event_log_pointer2_1_element {
  */
 struct txt_os_mle_data {
 	u32 version;
-	u32 boot_params_addr;
+	u32 reserved;
+	u64 boot_params_addr;
 	u64 slrt;
 	u64 txt_info;
 	u32 ap_wake_block;
@@ -338,9 +329,9 @@ struct smx_rlp_mle_join {
  * TPM event log structures defined in both the TXT specification and
  * the TCG documentation.
  */
-#define TPM12_EVTLOG_SIGNATURE "TXT Event Container"
+#define TPM_EVTLOG_SIGNATURE "TXT Event Container"
 
-struct tpm12_event_log_header {
+struct tpm_event_log_header {
 	char signature[20];
 	char reserved[12];
 	u8 container_ver_major;
@@ -426,7 +417,7 @@ static inline void *txt_sinit_mle_data_start(void *heap)
  * TPM event logging functions.
  */
 static inline struct txt_heap_event_log_pointer2_1_element*
-tpm20_find_log2_1_element(struct txt_os_sinit_data *os_sinit_data)
+tpm2_find_log2_1_element(struct txt_os_sinit_data *os_sinit_data)
 {
 	struct txt_heap_ext_data_element *ext_elem;
 
@@ -449,14 +440,14 @@ tpm20_find_log2_1_element(struct txt_os_sinit_data *os_sinit_data)
 	return NULL;
 }
 
-static inline int tpm12_log_event(void *evtlog_base, u32 evtlog_size,
-				  u32 event_size, void *event)
+static inline int tpm_log_event(void *evtlog_base, u32 evtlog_size,
+				u32 event_size, void *event)
 {
-	struct tpm12_event_log_header *evtlog =
-		(struct tpm12_event_log_header *)evtlog_base;
+	struct tpm_event_log_header *evtlog =
+		(struct tpm_event_log_header *)evtlog_base;
 
-	if (memcmp(evtlog->signature, TPM12_EVTLOG_SIGNATURE,
-		   sizeof(TPM12_EVTLOG_SIGNATURE)))
+	if (memcmp(evtlog->signature, TPM_EVTLOG_SIGNATURE,
+		   sizeof(TPM_EVTLOG_SIGNATURE)))
 		return -EINVAL;
 
 	if (evtlog->container_size > evtlog_size)
@@ -471,9 +462,9 @@ static inline int tpm12_log_event(void *evtlog_base, u32 evtlog_size,
 	return 0;
 }
 
-static inline int tpm20_log_event(struct txt_heap_event_log_pointer2_1_element *elem,
-				  void *evtlog_base, u32 evtlog_size,
-				  u32 event_size, void *event)
+static inline int tpm2_log_event(struct txt_heap_event_log_pointer2_1_element *elem,
+				 void *evtlog_base, u32 evtlog_size,
+				 u32 event_size, void *event)
 {
 	struct tcg_pcr_event *header =
 		(struct tcg_pcr_event *)evtlog_base;
@@ -509,7 +500,14 @@ struct sl_ap_wake_info *slaunch_get_ap_wake_info(void);
 struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table_header *dmar);
 void __noreturn slaunch_txt_reset(void __iomem *txt,
 					 const char *msg, u64 error);
-extern void slaunch_finalize(int do_sexit);
+void slaunch_finalize(int do_sexit);
+
+static inline bool slaunch_is_txt_launch(void)
+{
+	u32 mask =  SL_FLAG_ACTIVE | SL_FLAG_ARCH_TXT;
+
+	return (slaunch_get_flags() & mask) == mask;
+}
 
 #endif /* !__ASSEMBLY */
 
@@ -535,6 +533,11 @@ static inline struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table
 
 static inline void slaunch_finalize(int do_sexit)
 {
+}
+
+static inline bool slaunch_is_txt_launch(void)
+{
+	return false;
 }
 
 #endif /* !IS_ENABLED(CONFIG_SECURE_LAUNCH) */
