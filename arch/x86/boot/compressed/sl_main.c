@@ -454,6 +454,9 @@ static void sl_extend_txt_os2mle(struct slr_policy_entry *entry)
 		return;
 }
 
+/*
+ * Process all policy entries and extend the measurements to the evtlog
+ */
 static void sl_process_extend_policy(struct slr_table *slrt)
 {
 	struct slr_entry_policy *policy;
@@ -485,6 +488,9 @@ static void sl_process_extend_policy(struct slr_table *slrt)
 	}
 }
 
+/*
+ * Process all EFI config entries and extend the measurements to the evtlog
+ */
 static void sl_process_extend_uefi_config(struct slr_table *slrt)
 {
 	struct slr_entry_uefi_config *uefi_config;
@@ -557,10 +563,8 @@ asmlinkage __visible void sl_main(void *bootparams)
 	/* Place event log SL specific tags before and after measurements */
 	sl_tpm_extend_evtlog(17, TXT_EVTYPE_SLAUNCH_START, NULL, 0, "");
 
-	/* Process all policy entries and extend the measurements to the evtlog */
 	sl_process_extend_policy(slrt);
 
-	/* Process all EFI config entries and extend the measurements to the evtlog */
 	sl_process_extend_uefi_config(slrt);
 
 	sl_tpm_extend_evtlog(17, TXT_EVTYPE_SLAUNCH_END, NULL, 0, "");
