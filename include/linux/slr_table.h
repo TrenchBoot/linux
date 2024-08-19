@@ -1,7 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Secure Launch Resource Table
+ * TrenchBoot Secure Launch Resource Table
  *
+ * The Secure Launch Resource Table is TrenchBoot project defined
+ * specfication to provide cross-architecture compatibility. See
+ * TrenchBoot Secure Launch kernel documentation for details.
+ *
+ * Copyright (c) 2024 Apertus Solutions, LLC
  * Copyright (c) 2024, Oracle and/or its affiliates.
  */
 
