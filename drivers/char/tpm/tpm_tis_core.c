@@ -182,6 +182,8 @@ static int tpm_tis_relinquish_locality(struct tpm_chip *chip, int l)
 	mutex_lock(&priv->locality_count_mutex);
 	if (priv->locality_count > 0)
 		priv->locality_count--;
+	else
+		pr_info("Invalid: locality count dropped below zero\n");
 	if (priv->locality_count == 0)
 		__tpm_tis_relinquish_locality(priv, l);
 	mutex_unlock(&priv->locality_count_mutex);
