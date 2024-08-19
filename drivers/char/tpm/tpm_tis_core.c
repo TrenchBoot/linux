@@ -1176,8 +1176,8 @@ int tpm_tis_core_init(struct device *dev, struct tpm_tis_data *priv, int irq,
 	}
 
 	/*
-	 * There are environments, like Intel TXT, that may leave a TPM
-	 * locality open. Close all localities to start from a known state.
+	 * There are environments, for example, those that comply with the TCG D-RTM
+	 * specification that requires the TPM to be left in Locality 2.
 	 */
 	for (i = 0; i <= TPM_MAX_LOCALITY; i++) {
 		if (check_locality(chip, i))
