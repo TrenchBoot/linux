@@ -1,12 +1,12 @@
 .. SPDX-License-Identifier: GPL-2.0
-.. Copyright © 2019-2023 Daniel P. Smith <dpsmith@apertussolutions.com>
+.. Copyright © 2019-2024 Daniel P. Smith <dpsmith@apertussolutions.com>
 
 =======================
 System Launch Integrity
 =======================
 
 :Author: Daniel P. Smith
-:Date: October 2023
+:Date: August 2024
 
 This document serves to establish a common understanding of what is system
 launch, the integrity concern for system launch, and why using a Root of Trust
