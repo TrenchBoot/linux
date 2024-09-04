@@ -18,13 +18,13 @@ The settings to enable Secure Launch using Kconfig are under::
 A kernel with this option enabled can still be booted using other supported
 methods.
 
-To reduce the Trusted Computing Base (TCB) of the MLE [1]_, the build
+To reduce the Trusted Computing Base (TCB) of the DLME [1]_, the build
 configuration should be pared down as narrowly as one's use case allows.
 Fewer drivers (less active hardware) and features reduce the attack surface.
-As an example in the extreme, the MLE could only have local disk access with no
-other hardware supports except optional network access for remote attestation.
+As an example in the extreme, the DLME could only have local disk access with no
+other hardware supports, except optional network access for remote attestation.
 
-It is also desirable, if possible, to embed the initrd used with the MLE kernel
+It is also desirable, if possible, to embed the initrd used with the DLME kernel
 image to reduce complexity.
 
 The following are important configuration necessities to always consider:
@@ -39,7 +39,8 @@ other instabilities at boot. Even in cases where Secure Launch and KASLR work
 together, it is still recommended that KASLR be disabled to avoid introducing
 security concerns with unprotected kernel memory.
 
-If possible, a kernel being used as an MLE should be built with KASLR disabled::
+If possible, a kernel being used as an DLME should be built with KASLR
+disabled::
 
   "Processor type and features" -->
       "Build a relocatable kernel" -->
@@ -64,7 +65,7 @@ IOMMU Configuration
 
 When doing a Secure Launch, the IOMMU should always be enabled and the drivers
 loaded. However, IOMMU passthrough mode should never be used. This leaves the
-MLE completely exposed to DMA after the PMRs [2]_ are disabled. The current
+DLME completely exposed to DMA after the PMRs [2]_ are disabled. The current
 default mode is to use IOMMU in lazy translated mode, but strict translated
 mode is the preferred IOMMU mode and this should be selected in the build
 configuration::
@@ -109,9 +110,9 @@ Intel TXT Interface
 
 The primary interfaces between the various components in TXT are the TXT MMIO
 registers and the TXT heap. The MMIO register banks are described in Appendix B
-of the TXT MLE [1]_ Development Guide.
+of the TXT MLE Development Guide.
 
-The TXT heap is described in Appendix C of the TXT MLE [1]_ Development
+The TXT heap is described in Appendix C of the TXT MLE Development
 Guide. Most of the TXT heap is predefined in the specification. The heap is
 initialized by firmware and the pre-launch environment and is subsequently used
 by the SINIT ACM. One section, called the OS to MLE Data Table, is reserved for
@@ -572,10 +573,53 @@ An error occurred in the Secure Launch module while mapping the Secure Launch
 Resource table. The underlying issue is memremap() failure, most likely due to
 a resource shortage.
 
+AMD SKINIT Interface
+====================
+
+This DRTM implementation is noticeably simpler in its design than TXT. It
+defines only the bare minimum necessary to perform the DRTM and to pass some
+data from pre- to post-launch code.
+
+Passing of the information in this case is carried out by the SLRT which is
+allocated after the end of Secure Loader.
+
+Secure Loader (SL) image is a binary to which SKINIT instruction passes
+control. The binary must start with a short header defined in the second volume
+of AMD64 Architecture Programmer's Manual to have only two required
+fields which are presented here as a structure::
+
+        struct sl_header {
+                u16 entry_point;
+                u16 image_size;
+                /*
+                 * Any other fields, if present, are implementation-specific.
+                 */
+        } __packed;
+
+Secure Loader is loaded into Secure Loader Block (SLB) which is a 64 KiB area of
+RAM below 4 GiB that starts on a 64 KiB boundary. The smaller a particular SL
+image is, the more space is available for passing additional data which is to
+be placed after the image so it doesn't get measured by SKINIT.
+
+Description of the header:
+
+=====================  ========================================================================
+Field                  Use
+=====================  ========================================================================
+entry_point            Offset from the start of the image
+image_size             How much of the SLB area is actually occupied by the image
+=====================  ========================================================================
+
+Knowing where SLB starts is, therefore, enough to find extra data passed to it
+by computing where the image ends.
+
 .. [1]
-    MLE: Measured Launch Environment is the binary runtime that is measured and
-    then run by the TXT SINIT ACM. The TXT MLE Development Guide describes the
-    requirements for the MLE in detail.
+    DLME: Dynamic Launch Measured Environment (which Intel calls MLE for
+    Measured Launch Environment) is the binary runtime that is measured and
+    then run by the DCE. The TXT MLE Development Guide describes the
+    requirements for the MLE in detail. Because AMD SKINIT doesn't impose any
+    specific requirements of that sort, TXT's format of MLE is used on AMD
+    devices as well for simplicity.
 
 .. [2]
     PMR: Intel VTd has a feature in the IOMMU called Protected Memory Registers.

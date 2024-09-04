@@ -16,7 +16,7 @@ project supporting dynamic launch was Intel's tboot project to support their
 implementation of dynamic launch known as Intel Trusted eXecution Technology
 (TXT). The approach taken by tboot was to provide an exokernel that could
 handle the launch protocol implemented by the Intel provided loader, the SINIT
-Authenticated Code Module (ACM [2]_), and remained in memory to manage the SMX
+Authenticated Code Module (ACM [1]_), and remained in memory to manage the SMX
 CPU mode that a dynamic launch would put a system. While it is not precluded
 from being used for a late launch, tboot's primary use case was to be
 used as an early launch solution. As a result, the TrenchBoot project started
@@ -56,9 +56,8 @@ instruction provided by AMD's AMD-V. The documentation on these technologies
 can be readily found online; see the `Resources`_ section below for references.
 
 .. note::
-    Currently, only Intel TXT is supported in this first release of the Secure
-    Launch feature. AMD/Hygon SKINIT and Arm support will be added in a
-    subsequent release.
+    Currently, only Intel TXT and AMD/Hygon SKINIT are supported by the Secure
+    Launch feature.  Arm support will be added later.
 
 To enable the kernel to be launched by GETSEC a stub, the Secure Launch stub
 must be built into the setup section of the compressed kernel to handle the
@@ -125,22 +124,27 @@ Pre-launch: *Phase where the environment is prepared and configured to initiate
 the secure launch by the boot chain.*
 
  - The SLRT is initialized and dl_stub is placed in memory.
- - Load the kernel, initrd and ACM [2]_ into memory.
- - Set up the TXT heap and page tables describing the MLE [1]_ per the
+ - Load the kernel, initrd and DCE [1]_ into memory.
+ - For TXT, set up the TXT heap and page tables describing the DLME [2]_ per the
    specification.
  - If non-UEFI platform, dl_stub is called.
  - If UEFI platforms, SLRT registered with UEFI and efi-stub called.
  - Upon completion, efi-stub will call EBS followed by dl_stub.
  - The dl_stub will prepare the CPU and the TPM for the launch.
- - The secure launch is then initiated with the GETSET[SENTER] instruction.
+ - The secure launch is then initiated with either GETSEC[SENTER] (Intel) or
+   SKINIT (AMD) instruction.
 
-Post-launch: *Phase where control is passed from the ACM to the MLE and the secure
-kernel begins execution.*
+Post-launch: *Phase where control is passed from the DCE to the DLME and the
+secure kernel begins execution.*
 
  - Entry from the dynamic launch jumps to the SL stub.
- - SL stub fixes up the world on the BSP.
+ - For TXT, SL stub fixes up the world on the BSP.
  - For TXT, SL stub wakes the APs, fixes up their worlds.
  - For TXT, APs are left halted using MONITOR/MWAIT intructions.
+ - For SKINIT, APs are woken up mostly as usual with the exception that the
+   INIT IPIs aren't sent before Startup IPIs to avoid compromising security.
+   INIT IPIs were sent to APs in pre-launch before issuing SKINIT, thus halting
+   them.
  - SL stub jumps to startup_32.
  - SL main does validation of buffers and memory locations. It sets
    the boot parameter loadflag value SLAUNCH_FLAG to inform the main
@@ -150,15 +154,15 @@ kernel begins execution.*
  - Kernel boot proceeds normally from this point.
  - During early setup, slaunch_setup() runs to finish validation
    and setup tasks.
- - The SMP bring up code is modified to wake the waiting APs via the monitor
-   address.
+ - For TXT, the SMP bring up code is modified to wake the waiting APs via the
+   monitor address.
  - APs vector to rmpiggy and start up normally from that point.
  - SL platform module is registered as a late initcall module. It reads
    the TPM event log and extends the measurements taken into the TPM PCRs.
  - SL platform module initializes the securityfs interface to allow
-   access to the TPM event log and TXT public registers.
+   access to the TXT public registers on Intel and TPM event log everywhere.
  - Kernel boot finishes booting normally.
- - SEXIT support to leave SMX mode is present on the kexec path and
+ - For TXT, SEXIT support to leave SMX mode is present on the kexec path and
    the various reboot paths (poweroff, reset, halt).
 
 PCR Usage
@@ -236,17 +240,30 @@ GRUB Secure Launch support:
 
 https://github.com/TrenchBoot/grub/tree/grub-sl-fc-38-dlstub
 
+secure-kernel-loader (Secure Loader for AMD SKINIT, a kind of DCE):
+
+https://github.com/TrenchBoot/secure-kernel-loader/
+
 FOSDEM 2021: Secure Upgrades with DRTM
 
 https://archive.fosdem.org/2021/schedule/event/firmware_suwd/
 
 .. [1]
-    MLE: Measured Launch Environment is the binary runtime that is measured and
-    then run by the TXT SINIT ACM. The TXT MLE Development Guide describes the
-    requirements for the MLE in detail.
+    DCE: Dynamic Configuration Environment. Either ACM (Intel's Authenticated
+    Code Module) for TXT or SKL (secure-kernel-loader) for AMD SKINIT.
+
+    ACM is a 32-bit binary blob that is run securely by the GETSEC[SENTER]
+    during a measured launch. It is described in the Intel documentation on TXT
+    and versions for various chipsets are signed and distributed by Intel.
+
+    SKL is an implementation of SL (Secure Loader) which is started securely by
+    SKINIT instruction in a flat 32-bit protected mode without paging. See AMD's
+    System Programming manual for more details on the format and operation.
 
 .. [2]
-    ACM: Intel's Authenticated Code Module. This is the 32b bit binary blob that
-    is run securely by the GETSEC[SENTER] during a measured launch. It is described
-    in the Intel documentation on TXT and versions for various chipsets are
-    signed and distributed by Intel.
+    DLME: Dynamic Launch Measured Environment (which Intel calls MLE for
+    Measured Launch Environment) is the binary runtime that is measured and
+    then run by the DCE. The TXT MLE Development Guide describes the
+    requirements for the MLE in detail. Because AMD SKINIT doesn't impose any
+    specific requirements of that sort, TXT's format of MLE is used on AMD
+    devices as well for simplicity.
