@@ -863,6 +863,7 @@ static efi_status_t efi_decompress_kernel(unsigned long *kernel_entry)
 	return efi_adjust_memory_range_protection(addr, kernel_text_size);
 }
 
+#if (IS_ENABLED(CONFIG_SECURE_LAUNCH))
 static bool efi_secure_launch_update_boot_params(struct slr_table *slrt,
 						 struct boot_params *boot_params)
 {
@@ -928,9 +929,6 @@ static void efi_secure_launch(struct boot_params *boot_params)
 	dl_handler_func handler_callback;
 	struct slr_table *slrt;
 
-	if (!IS_ENABLED(CONFIG_SECURE_LAUNCH))
-		return;
-
 	/*
 	 * The presence of this table indicated a Secure Launch
 	 * is being requested.
@@ -955,6 +953,7 @@ static void efi_secure_launch(struct boot_params *boot_params)
 
 	unreachable();
 }
+#endif
 
 static void __noreturn enter_kernel(unsigned long kernel_addr,
 				    struct boot_params *boot_params)
@@ -1083,8 +1082,10 @@ void __noreturn efi_stub_entry(efi_handle_t handle,
 		goto fail;
 	}
 
+#if (IS_ENABLED(CONFIG_SECURE_LAUNCH))
 	/* If a Secure Launch is in progress, this never returns */
 	efi_secure_launch(boot_params);
+#endif
 
 	/*
 	 * Call the SEV init code while still running with the firmware's
