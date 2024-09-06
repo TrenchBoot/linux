@@ -19,15 +19,15 @@ A kernel with this option enabled can still be booted using other supported
 methods.
 
 To reduce the Trusted Computing Base (TCB) of the MLE [1]_, the build
-configuration should be pared down as narrowly as one's use case allows. The
-fewer drivers (less active hardware) and features reduces the attack surface.
+configuration should be pared down as narrowly as one's use case allows.
+Fewer drivers (less active hardware) and features reduce the attack surface.
 As an example in the extreme, the MLE could only have local disk access with no
-other hardware supports, except optional network access for remote attestation.
+other hardware supports except optional network access for remote attestation.
 
 It is also desirable, if possible, to embed the initrd used with the MLE kernel
 image to reduce complexity.
 
-The following are a few important configuration necessities to always consider:
+The following are important configuration necessities to always consider:
 
 KASLR Configuration
 -------------------
@@ -56,7 +56,7 @@ The kernel parameter is as follows::
 .. note::
     Should KASLR be made capable of reading/using only the protected page
     regions set up by the memory protection mechanisms used by the hardware
-    DRTM capability, then it would become possible to use KASLR with Secure
+    DRTM capability, it would then become possible to use KASLR with Secure
     Launch.
 
 IOMMU Configuration
@@ -64,7 +64,7 @@ IOMMU Configuration
 
 When doing a Secure Launch, the IOMMU should always be enabled and the drivers
 loaded. However, IOMMU passthrough mode should never be used. This leaves the
-MLE completely exposed to DMA after the PMR's [2]_ are disabled. The current
+MLE completely exposed to DMA after the PMRs [2]_ are disabled. The current
 default mode is to use IOMMU in lazy translated mode, but strict translated
 mode is the preferred IOMMU mode and this should be selected in the build
 configuration::
@@ -90,8 +90,8 @@ and::
 
 It is recommended that no other command line options should be set to override
 the defaults above. If there is a desire to run an alternate configuration,
-then that configuration should be evaluated for what benefits are attempting to
-be gained against the risks for DMA attacks for which the kernel is likely
+then that configuration should be evaluated for what benefits might
+be gained against the risks for DMA attacks to which the kernel is likely
 going to be exposed.
 
 Secure Launch Resource Table
@@ -191,12 +191,12 @@ Value:  0xc0008003
 
 Description:
 
-The Secure Launch code failed to find a valid event log descriptor for a
-version 2.0 TPM or the event log descriptor is malformed. Usually this
-indicates there are incompatible versions of the pre-launch environment and the
+Either the Secure Launch code failed to find a valid event log descriptor for a
+version 2.0 TPM, or the event log descriptor is malformed. Usually this
+indicates incompatible versions of the pre-launch environment and the
 MLE kernel. The pre-launch environment and the kernel share a structure in the
 TXT heap and if this structure (the OS-MLE table) is mismatched, this error is
-often seen. This TXT heap area is set up by the pre-launch environment, so the
+common. This TXT heap area is set up by the pre-launch environment, so the
 issue may originate there. It could also be the sign of an attempted attack.
 
 ======  ===========================
@@ -219,7 +219,7 @@ Value:  0xc0008005
 Description:
 
 During early validation, a buffer or region was found to straddle the 4GB
-boundary. Because of the way TXT does DMA memory protection, this is an unsafe
+boundary. Because of the way TXT provides DMA memory protection, this is an unsafe
 configuration and is flagged as an error. This is most likely a configuration
 issue in the pre-launch environment. It could also be the sign of an attempted
 attack.
@@ -299,7 +299,7 @@ Description:
 
 The application processors (APs) wait to be woken up by the SMP initialization
 code. The only interrupt that they expect is an NMI; all other interrupts
-should be masked. If an AP gets some other interrupt other than an NMI, it will
+should be masked. If an AP gets an interrupt other than an NMI, it will
 cause this error. This error is very unlikely to occur.
 
 ======  =========================
@@ -330,7 +330,7 @@ Value:  0xc000800f
 
 Description:
 
-This error is essentially the same as SL_ERROR_HEAP_WALK but occurred during the
+This error is essentially the same as SL_ERROR_HEAP_WALK, but occurred during the
 actual early_memremap() operation.
 
 ======  =========================

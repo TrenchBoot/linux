@@ -15,15 +15,15 @@ Prior to the start of the TrenchBoot project, the only active Open Source
 project supporting dynamic launch was Intel's tboot project to support their
 implementation of dynamic launch known as Intel Trusted eXecution Technology
 (TXT). The approach taken by tboot was to provide an exokernel that could
-handle the launch protocol implemented by Intel's special loader, the SINIT
-Authenticated Code Module (ACM [2]_) and remained in memory to manage the SMX
+handle the launch protocol implemented by the Intel provided loader, the SINIT
+Authenticated Code Module (ACM [2]_), and remained in memory to manage the SMX
 CPU mode that a dynamic launch would put a system. While it is not precluded
-from being used for doing a late launch, tboot's primary use case was to be
+from being used for a late launch, tboot's primary use case was to be
 used as an early launch solution. As a result, the TrenchBoot project started
 the development of Secure Launch kernel feature to provide a more generalized
-approach. The focus of the effort is twofold, the first is to make the Linux
+approach. The focus of the effort is twofold: first, to make the Linux
 kernel directly aware of the launch protocol used by Intel, AMD/Hygon, Arm, and
-potentially OpenPOWER. The second is to make the Linux kernel be able to
+potentially OpenPOWER; second, to make the Linux kernel able to
 initiate a dynamic launch. It is through this approach that the Secure Launch
 kernel feature creates a basis for the Linux kernel to be used in a variety of
 dynamic launch use cases.
@@ -40,16 +40,16 @@ Goals
 The first use case that the TrenchBoot project focused on was the ability for
 the Linux kernel to be started by a dynamic launch, in particular as part of an
 early launch sequence. In this case, the dynamic launch will be initiated by
-any bootloader with associated support added to it, for example the first
+any bootloader with associated support added to it. For example, the first
 targeted bootloader in this case was GRUB2. An integral part of establishing a
 measurement-based launch integrity involves measuring everything that is
 intended to be executed (kernel image, initrd, etc.) and everything that will
-configure that kernel to execute (command line, boot params, etc.). Then
+configure that kernel to execute (command line, boot params, etc.), then
 storing those measurements in a protected manner. Both the Intel and AMD
 dynamic launch implementations leverage the Trusted Platform Module (TPM) to
 store those measurements. The TPM itself has been designed such that a dynamic
 launch unlocks a specific set of Platform Configuration Registers (PCR) for
-holding measurement taken during the dynamic launch.  These are referred to as
+holding measurement taken during the dynamic launch. These are referred to as
 the DRTM PCRs, PCRs 17-22. Further details on this process can be found in the
 documentation for the GETSEC instruction provided by Intel's TXT and the SKINIT
 instruction provided by AMD's AMD-V. The documentation on these technologies
@@ -60,7 +60,7 @@ can be readily found online; see the `Resources`_ section below for references.
     Launch feature. AMD/Hygon SKINIT and Arm support will be added in a
     subsequent release.
 
-To enable the kernel to be launched by GETSEC a stub, the Secure Launch stub,
+To enable the kernel to be launched by GETSEC a stub, the Secure Launch stub
 must be built into the setup section of the compressed kernel to handle the
 specific state that the dynamic launch process leaves the BSP. Also, the Secure
 Launch stub must measure everything that is going to be used as early as
@@ -119,7 +119,7 @@ Basic Boot Flow
 
 Outlined here is a summary of the boot flow for Secure Launch. A more detailed
 review of Secure Launch process can be found in the Secure Launch
-Specification, a link is located in the `Resources`_ section.
+Specification (a link is located in the `Resources`_ section).
 
 Pre-launch: *Phase where the environment is prepared and configured to initiate
 the secure launch by the boot chain.*
@@ -148,7 +148,7 @@ kernel begins execution.*
  - SL main locates the TPM event log and writes the measurements of
    configuration and module information into it.
  - Kernel boot proceeds normally from this point.
- - During early setup, slaunch_setup() runs to finish some validation
+ - During early setup, slaunch_setup() runs to finish validation
    and setup tasks.
  - The SMP bring up code is modified to wake the waiting APs via the monitor
    address.
@@ -157,7 +157,7 @@ kernel begins execution.*
    the TPM event log and extends the measurements taken into the TPM PCRs.
  - SL platform module initializes the securityfs interface to allow
    access to the TPM event log and TXT public registers.
- - Kernel boot finishes booting normally
+ - Kernel boot finishes booting normally.
  - SEXIT support to leave SMX mode is present on the kexec path and
    the various reboot paths (poweroff, reset, halt).
 
