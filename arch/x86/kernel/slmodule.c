@@ -311,7 +311,7 @@ static void slaunch_intel_evtlog(void __iomem *txt)
 static void slaunch_tpm2_extend_event(struct tpm_chip *tpm, void __iomem *txt,
 				      struct tcg_pcr_event2_head *event)
 {
-	u16 *alg_id_field = (u16 *)((u8 *)event + sizeof(struct tcg_pcr_event2_head));
+	u16 *alg_id_field = (u16 *)((u8 *)event + sizeof(*event));
 	struct tpm_digest *digests;
 	u8 *dptr;
 	u32 i, j;
@@ -373,9 +373,8 @@ static void slaunch_tpm2_extend(struct tpm_chip *tpm, void __iomem *txt)
 						evtlog21->first_record_offset);
 
 	/* Skip first TPM 1.2 event to get to first TPM 2.0 event */
-	event = (struct tcg_pcr_event2_head *)((u8 *)event_header +
-						sizeof(struct tcg_pcr_event) +
-						event_header->event_size);
+	event = (struct tcg_pcr_event2_head *)((u8 *)event_header + sizeof(*event_header) +
+					       event_header->event_size);
 
 	while ((void  *)event < sl_evtlog.addr + evtlog21->next_record_offset) {
 		size = __calc_tpm2_event_size(event, event_header, false);
@@ -417,10 +416,10 @@ static void slaunch_tpm_extend(struct tpm_chip *tpm, void __iomem *txt)
 
 	event_header = (struct tpm_event_log_header *)sl_evtlog.addr;
 	event = (struct tcg_pcr_event *)((u8 *)event_header +
-				sizeof(struct tpm_event_log_header));
+				sizeof(*event_header));
 
 	while ((void  *)event < sl_evtlog.addr + event_header->next_event_offset) {
-		size = sizeof(struct tcg_pcr_event) + event->event_size;
+		size = sizeof(*event) + event->event_size;
 
 		/*
 		 * Marker events indicate where the Secure Launch early stub
