@@ -287,10 +287,10 @@ static void sl_tpm_log_event(u32 pcr, u32 event_type,
 	}
 	pcr_event->event_size = event_size;
 	if (event_size > 0)
-		memcpy((u8 *)pcr_event + sizeof(struct tcg_pcr_event),
+		memcpy((u8 *)pcr_event + sizeof(*pcr_event),
 		       event_data, event_size);
 
-	total_size = sizeof(struct tcg_pcr_event) + event_size;
+	total_size = sizeof(*pcr_event) + event_size;
 
 	if (tpm_log_event(evtlog_base, evtlog_size, total_size, pcr_event))
 		sl_txt_reset(SL_ERROR_TPM_LOGGING_FAILED);
@@ -306,51 +306,47 @@ static void sl_tpm2_log_event(u32 pcr, u32 event_type,
 	struct sha256_state sctx256 = {0};
 	struct tcg_pcr_event2_head *head;
 	struct tcg_event_field *event;
-	u32 total_size;
+	u32 total_size, alg_idx;
 	u16 *alg_ptr;
 	u8 *dgst_ptr;
 
 	head = (struct tcg_pcr_event2_head *)log_buf;
 	head->pcr_idx = pcr;
 	head->event_type = event_type;
-	total_size = sizeof(struct tcg_pcr_event2_head);
-	alg_ptr = (u16 *)(log_buf + sizeof(struct tcg_pcr_event2_head));
+	total_size = sizeof(*head);
+	alg_ptr = (u16 *)(log_buf + sizeof(*head));
 
-	for ( ; head->count < 2; head->count++) {
-		if (!tpm_algs[head->count].alg_id)
+	for (alg_idx = 0; alg_idx < SL_TPM2_MAX_ALGS; alg_idx++) {
+		if (!tpm_algs[alg_idx].alg_id)
 			break;
 
-		*alg_ptr = tpm_algs[head->count].alg_id;
+		*alg_ptr = tpm_algs[alg_idx].alg_id;
 		dgst_ptr = (u8 *)alg_ptr + sizeof(u16);
 
-		if (tpm_algs[head->count].alg_id == TPM_ALG_SHA256 &&
-		    length) {
+		if (tpm_algs[alg_idx].alg_id == TPM_ALG_SHA256) {
 			sha256_init(&sctx256);
 			sha256_update(&sctx256, data, length);
 			sha256_final(&sctx256, &sha256_hash[0]);
-		} else if (tpm_algs[head->count].alg_id == TPM_ALG_SHA1 &&
-			   length) {
-			sha1(data, length, &sha1_hash[0]);
-		}
-
-		if (tpm_algs[head->count].alg_id == TPM_ALG_SHA256) {
 			memcpy(dgst_ptr, &sha256_hash[0], SHA256_DIGEST_SIZE);
 			total_size += SHA256_DIGEST_SIZE + sizeof(u16);
 			alg_ptr = (u16 *)((u8 *)alg_ptr + SHA256_DIGEST_SIZE + sizeof(u16));
-		} else if (tpm_algs[head->count].alg_id == TPM_ALG_SHA1) {
+		} else if (tpm_algs[alg_idx].alg_id == TPM_ALG_SHA1) {
+			sha1(data, length, &sha1_hash[0]);
 			memcpy(dgst_ptr, &sha1_hash[0], SHA1_DIGEST_SIZE);
 			total_size += SHA1_DIGEST_SIZE + sizeof(u16);
 			alg_ptr = (u16 *)((u8 *)alg_ptr + SHA1_DIGEST_SIZE + sizeof(u16));
 		} else {
 			sl_txt_reset(SL_ERROR_TPM_UNKNOWN_DIGEST);
 		}
+
+		head->count++;
 	}
 
 	event = (struct tcg_event_field *)(log_buf + total_size);
 	event->event_size = event_size;
 	if (event_size > 0)
-		memcpy((u8 *)event + sizeof(struct tcg_event_field), event_data, event_size);
-	total_size += sizeof(struct tcg_event_field) + event_size;
+		memcpy((u8 *)event + sizeof(*event), event_data, event_size);
+	total_size += sizeof(*event) + event_size;
 
 	if (tpm2_log_event(log21_elem, evtlog_base, evtlog_size, total_size, &log_buf[0]))
 		sl_txt_reset(SL_ERROR_TPM_LOGGING_FAILED);
@@ -391,11 +387,11 @@ static struct setup_data *sl_handle_setup_data(struct setup_data *curr,
 		return next;
 	}
 
-	sl_check_pmr_coverage(((u8 *)curr) + sizeof(struct setup_data),
+	sl_check_pmr_coverage(((u8 *)curr) + sizeof(*curr),
 			      curr->len, true);
 
 	sl_tpm_extend_evtlog(entry->pcr, TXT_EVTYPE_SLAUNCH,
-			     ((u8 *)curr) + sizeof(struct setup_data),
+			     ((u8 *)curr) + sizeof(*curr),
 			     curr->len,
 			     entry->evt_info);
 
@@ -433,7 +429,7 @@ static void sl_extend_slrt(struct slr_policy_entry *entry)
 			sl_txt_reset(SL_ERROR_SLRT_MISSING_ENTRY);
 
 		sl_tpm_extend_evtlog(entry->pcr, TXT_EVTYPE_SLAUNCH,
-				     (void *)entry->entity, sizeof(struct slr_entry_intel_info),
+				     (void *)entry->entity, sizeof(*intel_info),
 				     entry->evt_info);
 	}
 }
