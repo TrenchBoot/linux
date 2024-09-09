@@ -277,7 +277,7 @@ static void __init slaunch_txt_reserve(void __iomem *txt)
 	if (!mdrnum)
 		goto nomdr;
 
-	mdrslen = mdrnum * sizeof(struct txt_sinit_memory_descriptor_record);
+	mdrslen = mdrnum * sizeof(*mdr);
 
 	mdrs = txt_early_get_heap_table(txt, TXT_SINIT_MLE_DATA_TABLE,
 					mdroffset + mdrslen - 8);
