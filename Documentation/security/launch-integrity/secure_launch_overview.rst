@@ -180,6 +180,31 @@ variations of platform details/authorities and user details/authorities. An
 example of how this can be achieved was presented in the FOSDEM - 2021 talk
 "Secure Upgrades with DRTM".
 
+SHA-1 Usage
+-----------
+
+Secure Launch is written to be compliant with the Intel TXT Measured Launch
+Developer's Guide. The MLE Guide dictates that the system can be configured to
+use both the SHA-1 and SHA-2 hashing algorithms. The choice is dictated by what
+hash algorithm banks firmware enabled at system start time.
+
+Regardless of the preference towards SHA-2, if the firmware elected to start
+with the SHA-1 and SHA-2 banks active and the dynamic launch was configured to
+include SHA-1, Secure Launch is obligated to record measurements for all
+algorithms requested in the launch configuration. If SHA-1 can be disabled in
+the firmware setup, then TXT and Secure Launch will only use the SHA-2 banks
+while establishing the launch environment.
+
+Ultimately, the security of an RTM solution is how and what measurements are
+used to assess the health of a system. If SHA-1 measurements are made but not
+used, i.e. the attestation enforcement only uses SHA-2, then it has zero impact
+on the security of the system.
+
+Finally, there are older systems with TPM 1.2 chips that only support SHA-1. If
+the system integrator (whether that be the OEM, employer, distro maintainer,
+system administrator, or end user) chooses to use older hardware that only has
+a TPM 1.2 chip, then they are accepting the risk it creates in their solution.
+
 Resources
 =========
 
