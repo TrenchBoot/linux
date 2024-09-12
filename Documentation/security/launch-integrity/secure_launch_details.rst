@@ -123,7 +123,8 @@ Appendix B of the TrenchBoot Secure Launch Specification::
          */
         struct txt_os_mle_data {
                 u32 version;
-                u32 boot_params_addr;
+                u32 reserved;
+                u64 boot_params_addr;
                 u64 slrt;
                 u64 txt_info;
                 u32 ap_wake_block;
