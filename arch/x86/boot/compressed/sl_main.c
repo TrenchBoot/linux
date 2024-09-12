@@ -262,7 +262,7 @@ static void sl_find_event_log_algorithms(void)
 					log21_elem->first_record_offset +
 					sizeof(struct tcg_pcr_event));
 
-	if (efi_head->num_algs == 0 || efi_head->num_algs > 2)
+	if (efi_head->num_algs == 0 || efi_head->num_algs > SL_TPM2_MAX_ALGS)
 		sl_txt_reset(SL_ERROR_TPM_NUMBER_ALGS);
 
 	memcpy(&tpm_algs[0], &efi_head->digest_sizes[0],
