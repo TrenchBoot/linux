@@ -437,20 +437,10 @@ void __init slaunch_fixup_jump_vector(void)
  * Intel TXT specific late stub setup and validation called from within
  * x86 specific setup_arch().
  */
-void __init slaunch_setup_txt(void)
+static void __init slaunch_setup_txt(void)
 {
 	u64 one = TXT_REGVALUE_ONE, val;
 	void __iomem *txt;
-
-	if (!boot_cpu_has(X86_FEATURE_SMX))
-		return;
-
-	/*
-	 * If booted through secure launch entry point, the loadflags
-	 * option will be set.
-	 */
-	if (!(boot_params.hdr.loadflags & SLAUNCH_FLAG))
-		return;
 
 	/*
 	 * See if SENTER was done by reading the status register in the
@@ -523,6 +513,44 @@ void __init slaunch_setup_txt(void)
 	pr_info("Intel TXT setup complete\n");
 }
 
+/*
+ * AMD SKINIT specific late stub setup and validation called from within
+ * x86 specific setup_arch().
+ */
+static void __init slaunch_setup_skinit(void)
+{
+	u64 val;
+
+	/*
+	 * If the platform is performing a Secure Launch via SKINIT
+	 * INIT_REDIRECTION flag will be active.
+	 */
+	rdmsrl(MSR_VM_CR, val);
+	if (!(val & (1 << SVM_VM_CR_INIT_REDIRECTION)))
+		return;
+
+	/* Set flags on BSP so subsequent code knows it was a SKINIT launch */
+	if (!(sl_flags & SL_FLAG_ARCH_SKINIT)) {
+		sl_flags |= (SL_FLAG_ACTIVE|SL_FLAG_ARCH_SKINIT);
+		pr_info("AMD SKINIT setup complete\n");
+	}
+}
+
+void __init slaunch_setup(void)
+{
+	/*
+	 * If booted through secure launch entry point, the loadflags
+	 * option will be set.
+	 */
+	if (!(boot_params.hdr.loadflags & SLAUNCH_FLAG))
+		return;
+
+	if (boot_cpu_has(X86_FEATURE_SMX))
+		slaunch_setup_txt();
+	else if (boot_cpu_has(X86_FEATURE_SKINIT))
+		slaunch_setup_skinit();
+}
+
 static inline void smx_getsec_sexit(void)
 {
 	asm volatile ("getsec\n"
@@ -533,7 +561,7 @@ static inline void smx_getsec_sexit(void)
  * Used during kexec and on reboot paths to finalize the TXT state
  * and do an SEXIT exiting the DRTM and disabling SMX mode.
  */
-void slaunch_finalize(int do_sexit)
+static void slaunch_finalize_txt(int do_sexit)
 {
 	u64 one = TXT_REGVALUE_ONE, val;
 	void __iomem *config;
@@ -593,4 +621,25 @@ void slaunch_finalize(int do_sexit)
 	smx_getsec_sexit();
 
 	pr_info("TXT SEXIT complete.\n");
+}
+
+/*
+ * Used during kexec and on reboot paths to finalize the SKINIT
+ * PSP state.
+ */
+static void slaunch_finalize_skinit(void)
+{
+	/* AMD CPUs */
+	if (!slaunch_is_skinit_launch())
+		return;
+
+	slaunch_psp_finalize();
+}
+
+void slaunch_finalize(int do_sexit)
+{
+	if (boot_cpu_has(X86_FEATURE_SMX))
+		slaunch_finalize_txt(do_sexit);
+	else if (boot_cpu_has(X86_FEATURE_SKINIT))
+		slaunch_finalize_skinit();
 }
