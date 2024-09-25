@@ -547,7 +547,7 @@ static inline int tpm2_log_event(struct txt_heap_event_log_pointer2_1_element *e
 /*
  * External functions available in mainline kernel.
  */
-void slaunch_setup_txt(void);
+void slaunch_setup(void);
 void slaunch_fixup_jump_vector(void);
 u32 slaunch_get_flags(void);
 struct sl_ap_wake_info *slaunch_get_ap_wake_info(void);
@@ -563,7 +563,7 @@ void slaunch_psp_finalize(void);
 
 #else
 
-static inline void slaunch_setup_txt(void)
+static inline void slaunch_setup(void)
 {
 }
 
