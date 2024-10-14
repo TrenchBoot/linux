@@ -45,7 +45,6 @@ static struct tcg_efi_specid_event_algs tpm_algs[SL_TPM2_MAX_ALGS] = {0};
 
 extern u32 sl_cpu_type;
 extern u32 sl_mle_start;
-extern void *sl_skl_base;
 
 void __cold __noreturn __fortify_panic(const u8 reason, const size_t avail, const size_t size)
 {
@@ -109,16 +108,25 @@ static u64 sl_rdmsr(u32 reg)
 static struct slr_table *sl_locate_and_validate_slrt(void)
 {
 	struct txt_os_mle_data *os_mle_data;
-	struct slr_table *slrt;
+	struct slr_table *slrt = NULL;
+	const struct sl_header *sl_header;
 	void *txt_heap;
 
-	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
-	os_mle_data = txt_os_mle_data_start(txt_heap);
+	if (sl_cpu_type & SL_CPU_INTEL) {
+		txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
+		os_mle_data = txt_os_mle_data_start(txt_heap);
 
-	if (!os_mle_data->slrt)
+		slrt = (struct slr_table *)os_mle_data->slrt;
+	}
+	if (sl_cpu_type & SL_CPU_AMD) {
+		sl_header = sl_skl_base;
+
+		/* Bootloader's data is SLRT. */
+		slrt = sl_skl_base + sl_header->bootloader_data_offset;
+	}
+
+	if (!slrt)
 		sl_reset(SL_ERROR_INVALID_SLRT);
-
-	slrt = (struct slr_table *)os_mle_data->slrt;
 
 	if (slrt->magic != SLR_TABLE_MAGIC)
 		sl_reset(SL_ERROR_INVALID_SLRT);
@@ -336,13 +344,13 @@ static void sl_skinit_validate_buffers(void *bootparams)
 	struct boot_params *bp = (struct boot_params *)bootparams;
 	void *evtlog_end, *kernel_end;
 
-	/* On AMD, all the buffers should be below 4Gb */
+	/* On AMD, all the buffers should be below 4 GiB */
 	if ((u64)(evtlog_base + evtlog_size) > UINT_MAX)
 		sl_skinit_reset();
 
 	evtlog_end = evtlog_base + evtlog_size;
-	kernel_end = (void *)(u64)(bp->hdr.code32_start +
-				   (bp->hdr.syssize << 4));
+	kernel_end = (void *)(bp->hdr.code32_start +
+			      (u64)bp->hdr.syssize * 16ULL);
 
 	/*
 	 * This check is to ensure the event log buffer and the bootparams do
@@ -631,7 +639,7 @@ asmlinkage __visible void sl_main(void *bootparams)
 	/*
 	 * Testing this value indicates that the kernel was booted successfully
 	 * through the Secure Launch entry point and is the CPU is in a suitable
-     * mode.
+	 * mode.
 	 */
 	if (!(sl_cpu_type & (SL_CPU_INTEL | SL_CPU_AMD)))
 		return;

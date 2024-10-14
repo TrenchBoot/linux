@@ -380,6 +380,10 @@ SYM_CODE_START(startup_64)
 	 * move it into a callee saved register.
 	 */
 	movq	%rsi, %r15
+#ifdef CONFIG_SECURE_LAUNCH
+	/* Do the same with RBP that holds pointer to SLB on AMD */
+	movq	%rbp, %r14
+#endif
 
 	call	load_stage1_idt
 
@@ -508,6 +512,9 @@ SYM_FUNC_START_LOCAL_NOALIGN(.Lrelocated)
 /*
  * Jump to the decompressed kernel.
  */
+#ifdef CONFIG_SECURE_LAUNCH
+	movq	%r14, %rdi
+#endif
 	movq	%r15, %rsi
 	jmp	*%rax
 SYM_FUNC_END(.Lrelocated)

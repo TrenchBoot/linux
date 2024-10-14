@@ -442,6 +442,17 @@ static inline void *txt_sinit_mle_data_start(void *heap)
 		txt_os_sinit_data_size(heap) + sizeof(u64);
 }
 
+/* AMD Specific Structures and Definitions */
+struct sl_header {
+	u16 skl_entry_point;
+	u16 measured_prefix_size;
+	u16 skl_info_offset;
+	u16 bootloader_data_offset;
+} __packed;
+
+/* Physical address of SLB on AMD. */
+extern void *sl_skl_base;
+
 #if IS_ENABLED(CONFIG_SECURE_LAUNCH)
 
 /*

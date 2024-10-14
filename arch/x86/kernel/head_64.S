@@ -65,6 +65,11 @@ SYM_CODE_START_NOALIGN(startup_64)
 	 */
 	mov	%rsi, %r15
 
+#ifdef CONFIG_SECURE_LAUNCH
+	/* For AMD, save SKL base */
+	mov	%rdi, sl_skl_base(%rip)
+#endif
+
 	/* Set up the stack for verify_cpu() */
 	leaq	__top_init_kernel_stack(%rip), %rsp
 
@@ -136,6 +141,11 @@ SYM_CODE_START_NOALIGN(startup_64)
 	ANNOTATE_RETPOLINE_SAFE
 	jmp	*0f(%rip)
 SYM_CODE_END(startup_64)
+
+#ifdef CONFIG_SECURE_LAUNCH
+	.data
+SYM_DATA(sl_skl_base, .quad 0)
+#endif
 
 	__INITRODATA
 0:	.quad	common_startup_64

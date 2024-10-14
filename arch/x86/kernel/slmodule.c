@@ -252,25 +252,10 @@ static void slaunch_teardown_securityfs(void)
 	securityfs_remove(slaunch_dir);
 }
 
-static void slaunch_map_evtlog(void __iomem *txt, u64 slrt_pa,
+static void slaunch_map_evtlog(void __iomem *txt, struct slr_table *slrt,
 			       struct memfile *evtlog)
 {
-	struct slr_table *slrt;
 	struct slr_entry_log_info *log_info;
-	u64 size;
-
-	/* Get the SLRT and remap it */
-	slrt = memremap(slrt_pa, sizeof(*slrt), MEMREMAP_WB);
-	if (!slrt)
-		slaunch_reset(txt, "Error failed to memremap SLR Table header\n",
-			      SL_ERROR_SLRT_MAP);
-	size = slrt->size;
-	memunmap(slrt);
-
-	slrt = memremap(slrt_pa, size, MEMREMAP_WB);
-	if (!slrt)
-		slaunch_reset(txt, "Error failed to memremap whole SLR Table\n",
-			      SL_ERROR_SLRT_MAP);
 
 	log_info = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_LOG_INFO);
 	if (!log_info)
@@ -278,18 +263,14 @@ static void slaunch_map_evtlog(void __iomem *txt, u64 slrt_pa,
 			      SL_ERROR_SLRT_MISSING_ENTRY);
 
 	evtlog->size = log_info->size;
-	evtlog->addr = memremap(log_info->addr, log_info->size,
-				  MEMREMAP_WB);
+	evtlog->addr = memremap(log_info->addr, log_info->size, MEMREMAP_WB);
 	if (!evtlog->addr)
 		slaunch_reset(txt, "Error failed to memremap TPM event log\n",
 			      SL_ERROR_EVENTLOG_MAP);
-
-	memunmap(slrt);
 }
 
 static void slaunch_txt_evtlog(void __iomem *txt)
 {
-	struct slr_entry_log_info *log_info;
 	struct txt_os_mle_data *params;
 	struct slr_table *slrt;
 	void *os_sinit_data;
@@ -298,26 +279,28 @@ static void slaunch_txt_evtlog(void __iomem *txt)
 	memcpy_fromio(&base, txt + TXT_CR_HEAP_BASE, sizeof(base));
 	memcpy_fromio(&size, txt + TXT_CR_HEAP_SIZE, sizeof(size));
 
+	params = (struct txt_os_mle_data *)txt_os_mle_data_start(txt_heap);
+
+	/* Get the SLRT and remap it */
+	slrt = memremap(params->slrt, sizeof(*slrt), MEMREMAP_WB);
+	if (!slrt)
+		slaunch_reset(txt, "Error failed to memremap SLR Table header\n",
+			      SL_ERROR_SLRT_MAP);
+	size = slrt->size;
+	memunmap(slrt);
+
+	slrt = memremap(params->slrt, size, MEMREMAP_WB);
+	if (!slrt)
+		slaunch_reset(txt, "Error failed to memremap whole SLR Table\n",
+			      SL_ERROR_SLRT_MAP);
+
 	/* now map TXT heap */
 	txt_heap = memremap(base, size, MEMREMAP_WB);
 	if (!txt_heap)
 		slaunch_txt_reset(txt, "Error failed to memremap TXT heap\n",
 				  SL_ERROR_HEAP_MAP);
 
-	params = (struct txt_os_mle_data *)txt_os_mle_data_start(txt_heap);
-	slaunch_map_evtlog(txt, params->slrt, &sl_evtlog);
-
-	log_info = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_LOG_INFO);
-	if (!log_info)
-		slaunch_txt_reset(txt, "Error failed to find event log\n",
-				  SL_ERROR_SLRT_MISSING_ENTRY);
-
-	sl_evtlog.size = log_info->size;
-	sl_evtlog.addr = memremap(log_info->addr, log_info->size,
-				  MEMREMAP_WB);
-	if (!sl_evtlog.addr)
-		slaunch_txt_reset(txt, "Error failed to memremap TPM event log\n",
-				  SL_ERROR_EVENTLOG_MAP);
+	slaunch_map_evtlog(txt, slrt, &sl_evtlog);
 
 	memunmap(slrt);
 
@@ -342,10 +325,24 @@ static void slaunch_txt_evtlog(void __iomem *txt)
 
 static void slaunch_skinit_evtlog(void)
 {
-	// TODO: get this value somehow 
-	u64 slrt_base = 0;
+	struct sl_header *sl_header;
+	struct slr_table *slrt;
 
-	slaunch_map_evtlog(NULL, slrt_base, &sl_evtlog);
+	/*
+	 * SLB (region of memory that contains SKL) is defined to be 64 KiB in
+	 * size.
+	 */
+	sl_header = memremap((u64)sl_skl_base, 64 * 1024, MEMREMAP_WB);
+	if (!sl_header)
+		slaunch_skinit_reset("Error failed to memremap SLB base\n",
+				     SL_ERROR_EVENTLOG_MAP);
+
+	/* Bootloader's data is SLRT and all of it fits inside of SLB. */
+	slrt = sl_skl_base + sl_header->bootloader_data_offset;
+
+	slaunch_map_evtlog(NULL, slrt, &sl_evtlog);
+
+	memunmap(sl_header);
 
 	/*
 	 * See the comment for the following function concerning the
