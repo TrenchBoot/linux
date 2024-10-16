@@ -84,13 +84,13 @@ SYM_FUNC_START(sl_stub_entry)
 	 * this while on AMD the SKL does likewise.
 	 *
 	 * In addition, on Intel %ecx holds the MLE page directory pointer
-	 * table and on AMD %edx holds the physical base address of the SKL.
+	 * table and on AMD %ebp holds the physical base address of the SKL.
 	 */
 	call	1f
 1:
 	popl	%ebx
-	/* Move the address from label to functions start */
-	subl	rva(1b), %ebx
+	/* Move the address from label to function's start */
+	subl	$rva(1b), %ebx
 
 	/* Load GDT, set segment regs and lret to __SL32_CS */
 	leal	rva(sl_gdt_desc)(%ebx), %eax
@@ -120,7 +120,7 @@ SYM_FUNC_START(sl_stub_entry)
 	 * For AMD, save SKL base before the CPUID instruction overwrites it.
 	 * Performs cast from u32 to 64b void* for simpler use later.
 	 */
-	movl	%edx, rva(sl_skl_base)(%ebx)
+	movl	%ebp, rva(sl_skl_base)(%ebx)
 
 	/* Save our base pointer reg and page table for MLE */
 	pushl	%ebx
@@ -227,7 +227,7 @@ SYM_FUNC_START(sl_stub_entry)
 	/* Know it is AMD */
 	movl	$(SL_CPU_AMD), rva(sl_cpu_type)(%ebx)
 
-	/* On AMD %esi is set up by the Landing Zone, just go on */
+	/* On AMD %esi is set up by the SKL, just go on */
 
 .Lcpu_setup_done:
 	/*

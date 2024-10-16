@@ -506,7 +506,7 @@ SYM_FUNC_START_LOCAL_NOALIGN(.Lrelocated)
  */
 	/* pass struct boot_params pointer and output target address */
 	movq	%r15, %rdi
-	movq	%rbp, %rsi
+	movq	%r14, %rsi
 	call	extract_kernel		/* returns kernel entry point in %rax */
 
 /*

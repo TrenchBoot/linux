@@ -128,11 +128,19 @@ static struct slr_table *sl_locate_and_validate_slrt(void)
 	if (!slrt)
 		sl_reset(SL_ERROR_INVALID_SLRT);
 
-	if (slrt->magic != SLR_TABLE_MAGIC)
+	if (slrt->magic != SLR_TABLE_MAGIC) {
+		// hanged
 		sl_reset(SL_ERROR_INVALID_SLRT);
+	}
 
-	if (slrt->architecture != SLR_INTEL_TXT)
-		sl_reset(SL_ERROR_INVALID_SLRT);
+	if (sl_cpu_type & SL_CPU_INTEL) {
+		if (slrt->architecture != SLR_INTEL_TXT)
+			sl_reset(SL_ERROR_INVALID_SLRT);
+	}
+	if (sl_cpu_type & SL_CPU_AMD) {
+		if (slrt->architecture != SLR_AMD_SKINIT)
+			sl_reset(SL_ERROR_INVALID_SLRT);
+	}
 
 	return slrt;
 }
