@@ -298,6 +298,11 @@ SYM_CODE_START(startup_64)
 	cld
 	cli
 
+#ifdef CONFIG_SECURE_LAUNCH
+	/* Do the same with RBP that holds pointer to SLB on AMD */
+	movq	%rbp, %r14
+#endif
+
 	/* Setup data segments. */
 	xorl	%eax, %eax
 	movl	%eax, %ds
@@ -380,10 +385,6 @@ SYM_CODE_START(startup_64)
 	 * move it into a callee saved register.
 	 */
 	movq	%rsi, %r15
-#ifdef CONFIG_SECURE_LAUNCH
-	/* Do the same with RBP that holds pointer to SLB on AMD */
-	movq	%rbp, %r14
-#endif
 
 	call	load_stage1_idt
 
@@ -506,7 +507,7 @@ SYM_FUNC_START_LOCAL_NOALIGN(.Lrelocated)
  */
 	/* pass struct boot_params pointer and output target address */
 	movq	%r15, %rdi
-	movq	%r14, %rsi
+	movq	%rbp, %rsi
 	call	extract_kernel		/* returns kernel entry point in %rax */
 
 /*

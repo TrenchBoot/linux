@@ -543,7 +543,7 @@ static void sl_extend_slrt(struct slr_policy_entry *entry)
 	 * The flag SLR_POLICY_IMPLICIT_SIZE leaves it to the measuring code
 	 * to sort out.
 	 */
-	if (slrt->revision == 1) {
+	if (slrt->revision == 1 && (sl_cpu_type & SL_CPU_INTEL)) {
 		intel_info = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_INTEL_INFO);
 		if (!intel_info)
 			sl_reset(SL_ERROR_SLRT_MISSING_ENTRY);

@@ -328,17 +328,19 @@ static void slaunch_skinit_evtlog(void)
 	struct sl_header *sl_header;
 	struct slr_table *slrt;
 
+	printk(KERN_ERR "sl_skl_base = %p\n", sl_skl_base);
+
 	/*
 	 * SLB (region of memory that contains SKL) is defined to be 64 KiB in
 	 * size.
 	 */
-	sl_header = memremap((u64)sl_skl_base, 64 * 1024, MEMREMAP_WB);
+	sl_header = memremap((u32)(u64)sl_skl_base, 64 * 1024, MEMREMAP_WB);
 	if (!sl_header)
 		slaunch_skinit_reset("Error failed to memremap SLB base\n",
 				     SL_ERROR_EVENTLOG_MAP);
 
 	/* Bootloader's data is SLRT and all of it fits inside of SLB. */
-	slrt = sl_skl_base + sl_header->bootloader_data_offset;
+	slrt = (void *)sl_header + sl_header->bootloader_data_offset;
 
 	slaunch_map_evtlog(NULL, slrt, &sl_evtlog);
 
