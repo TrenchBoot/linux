@@ -249,8 +249,8 @@ static void notrace start_secondary(void *unused)
 
 	cpu_init_exception_handling();
 
-	/* Initialization specific for AMD SKINIT. */
-	slaunch_setup_skinit();
+	/* Initialization specific to AMD SKINIT. */
+	slaunch_skinit_cpu_setup();
 
 	/*
 	 * Load the microcode before reaching the AP alive synchronization

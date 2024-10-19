@@ -1445,7 +1445,7 @@ void __init trap_init(void)
 		idt_setup_traps();
 
 	/* If SKINIT was done on the BSP, this is the spot to enable GIF */
-	slaunch_setup_skinit();
+	slaunch_skinit_cpu_setup();
 
 	cpu_init();
 }

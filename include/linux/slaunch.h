@@ -443,6 +443,10 @@ static inline void *txt_sinit_mle_data_start(void *heap)
 }
 
 /* AMD Specific Structures and Definitions */
+
+/* SKL is located within SLB region of memory which has fixed size. */
+#define SKINIT_SLB_SIZE  (64 * 1024)
+
 struct sl_header {
 	u16 skl_entry_point;
 	u16 measured_prefix_size;
@@ -450,8 +454,13 @@ struct sl_header {
 	u16 bootloader_data_offset;
 } __packed;
 
-/* Physical address of SKL on AMD. */
-extern void *sl_skl_base;
+/*
+ * Physical address of SKL on AMD.  Defined and set in two places:
+ *  - in arch/x86/boot/compressed/sl_stub.S for sl_main.c before decompression
+ *  - in arch/x86/kernel/head_64.c for slaunch.c and slmodule.c
+ * arch/x86/boot/compressed/head_64.S passes the value to decompressed kernel.
+ */
+extern u64 sl_skl_base;
 
 #if IS_ENABLED(CONFIG_SECURE_LAUNCH)
 
@@ -536,7 +545,7 @@ static inline int tpm2_log_event(struct txt_heap_event_log_pointer2_1_element *e
  * External functions avalailable in mainline kernel.
  */
 void slaunch_late_setup(void);
-void slaunch_setup_skinit(void);
+void slaunch_skinit_cpu_setup(void);
 void slaunch_fixup_jump_vector(void);
 u32 slaunch_get_flags(void);
 struct sl_ap_wake_info *slaunch_get_ap_wake_info(void);
@@ -546,20 +555,13 @@ void __noreturn slaunch_txt_reset(void __iomem *txt,
 void __noreturn slaunch_skinit_reset(const char *msg, u64 error);
 void slaunch_finalize(int do_sexit);
 
-static inline bool slaunch_is_txt_launch(void)
-{
-	u32 mask =  SL_FLAG_ACTIVE | SL_FLAG_ARCH_TXT;
-
-	return (slaunch_get_flags() & mask) == mask;
-}
-
 #else
 
 static inline void slaunch_setup(void)
 {
 }
 
-static inline void slaunch_setup_skinit(void)
+static inline void slaunch_skinit_cpu_setup(void)
 {
 }
 
@@ -581,12 +583,21 @@ static inline void slaunch_finalize(int do_sexit)
 {
 }
 
+#endif /* !IS_ENABLED(CONFIG_SECURE_LAUNCH) */
+
 static inline bool slaunch_is_txt_launch(void)
 {
-	return false;
+	u32 mask = SL_FLAG_ACTIVE | SL_FLAG_ARCH_TXT;
+
+	return (slaunch_get_flags() & mask) == mask;
 }
 
-#endif /* !IS_ENABLED(CONFIG_SECURE_LAUNCH) */
+static inline bool slaunch_is_skinit_launch(void)
+{
+	u32 mask = SL_FLAG_ACTIVE | SL_FLAG_ARCH_SKINIT;
+
+	return (slaunch_get_flags() & mask) == mask;
+}
 
 #endif /* !__ASSEMBLY */
 

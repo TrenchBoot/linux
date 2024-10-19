@@ -29,8 +29,6 @@ static u64 evtlog_addr __ro_after_init;
 static u32 evtlog_size __ro_after_init;
 static u64 vtd_pmr_lo_size __ro_after_init;
 
-void *sl_skl_base;
-
 /* This should be plenty of room */
 static u8 txt_dmar[PAGE_SIZE] __aligned(16);
 
@@ -525,6 +523,10 @@ static void __init slaunch_setup_txt(void)
  */
 void __init slaunch_late_setup(void)
 {
+	struct sl_header *sl_header;
+	struct slr_table *slrt;
+	u64 vm_cr;
+
 	if (boot_cpu_has(X86_FEATURE_SMX)) {
 		slaunch_setup_txt();
 		return;
@@ -533,16 +535,17 @@ void __init slaunch_late_setup(void)
 	if (!boot_cpu_has(X86_FEATURE_SKINIT))
 		return;
 
-	sl_skl_base = (void *)0x44f0000;
-
-	struct sl_header *sl_header;
-	struct slr_table *slrt;
-
 	/*
-	 * SLB (region of memory that contains SKL) is defined to be 64 KiB in
-	 * size.
+	 * If the platform is performing a Secure Launch via SKINIT,
+	 * INIT_REDIRECTION flag will be active.
 	 */
-	sl_header = early_memremap((u32)(u64)sl_skl_base, 64 * 1024);
+	rdmsrl(MSR_VM_CR, vm_cr);
+	if (!(vm_cr & BIT(SVM_VM_CR_INIT_REDIRECTION)))
+		return;
+
+	slaunch_reserve_range(sl_skl_base, SKINIT_SLB_SIZE);
+
+	sl_header = early_memremap(sl_skl_base, SKINIT_SLB_SIZE);
 	if (!sl_header)
 		slaunch_skinit_reset("Error failed to memremap SLB base\n",
 				     SL_ERROR_EVENTLOG_MAP);
@@ -562,10 +565,7 @@ void __init slaunch_late_setup(void)
 	early_memunmap(slrt, sizeof(*slrt));
 
 	/* Set flags on BSP so subsequent code knows it was an SKINIT launch */
-	if (!(sl_flags & SL_FLAG_ARCH_SKINIT)) {
-		sl_flags |= (SL_FLAG_ACTIVE|SL_FLAG_ARCH_SKINIT);
-		pr_info("AMD SKINIT setup complete\n");
-	}
+	sl_flags |= (SL_FLAG_ACTIVE | SL_FLAG_ARCH_SKINIT);
 }
 
 static inline void smx_getsec_sexit(void)
@@ -652,19 +652,11 @@ void __noreturn slaunch_skinit_reset(const char *msg, u64 error)
 /*
  * AMD specific SKINIT CPU setup and initialization.
  */
-void slaunch_setup_skinit(void)
+void slaunch_skinit_cpu_setup(void)
 {
-	u64 val;
+	u64 vm_cr;
 
-	if (!boot_cpu_has(X86_FEATURE_SKINIT))
-		return;
-
-	/*
-	 * If the platform is performing a Secure Launch via SKINIT
-	 * INIT_REDIRECTION flag will be active.
-	 */
-	rdmsrl(MSR_VM_CR, val);
-	if (!(val & BIT(SVM_VM_CR_INIT_REDIRECTION)))
+	if (!slaunch_is_skinit_launch())
 		return;
 
 	/*
@@ -672,6 +664,7 @@ void slaunch_setup_skinit(void)
 	 * enabling GIF, so a pending INIT resets us, rather than causing a
 	 * panic due to an unknown exception.
 	 */
-	wrmsrl(MSR_VM_CR, val & ~SVM_VM_CR_INIT_REDIRECTION);
+	rdmsrl(MSR_VM_CR, vm_cr);
+	wrmsrl(MSR_VM_CR, vm_cr & ~SVM_VM_CR_INIT_REDIRECTION);
 	asm volatile ( "stgi" ::: "memory" );
 }
