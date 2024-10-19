@@ -450,7 +450,7 @@ struct sl_header {
 	u16 bootloader_data_offset;
 } __packed;
 
-/* Physical address of SLB on AMD. */
+/* Physical address of SKL on AMD. */
 extern void *sl_skl_base;
 
 #if IS_ENABLED(CONFIG_SECURE_LAUNCH)
@@ -535,7 +535,7 @@ static inline int tpm2_log_event(struct txt_heap_event_log_pointer2_1_element *e
 /*
  * External functions avalailable in mainline kernel.
  */
-void slaunch_setup_txt(void);
+void slaunch_late_setup(void);
 void slaunch_setup_skinit(void);
 void slaunch_fixup_jump_vector(void);
 u32 slaunch_get_flags(void);
@@ -555,7 +555,7 @@ static inline bool slaunch_is_txt_launch(void)
 
 #else
 
-static inline void slaunch_setup_txt(void)
+static inline void slaunch_setup(void)
 {
 }
 

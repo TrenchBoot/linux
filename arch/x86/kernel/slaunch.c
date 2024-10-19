@@ -29,6 +29,8 @@ static u64 evtlog_addr __ro_after_init;
 static u32 evtlog_size __ro_after_init;
 static u64 vtd_pmr_lo_size __ro_after_init;
 
+void *sl_skl_base;
+
 /* This should be plenty of room */
 static u8 txt_dmar[PAGE_SIZE] __aligned(16);
 
@@ -217,7 +219,7 @@ out:
 		slaunch_txt_reset(txt, errmsg, err);
 }
 
-static void __init slaunch_txt_reserve_range(u64 base, u64 size)
+static void __init slaunch_reserve_range(u64 base, u64 size)
 {
 	int type;
 
@@ -255,15 +257,15 @@ static void __init slaunch_txt_reserve(void __iomem *txt)
 
 	base = TXT_PRIV_CONFIG_REGS_BASE;
 	size = TXT_PUB_CONFIG_REGS_BASE - TXT_PRIV_CONFIG_REGS_BASE;
-	slaunch_txt_reserve_range(base, size);
+	slaunch_reserve_range(base, size);
 
 	memcpy_fromio(&heap_base, txt + TXT_CR_HEAP_BASE, sizeof(heap_base));
 	memcpy_fromio(&heap_size, txt + TXT_CR_HEAP_SIZE, sizeof(heap_size));
-	slaunch_txt_reserve_range(heap_base, heap_size);
+	slaunch_reserve_range(heap_base, heap_size);
 
 	memcpy_fromio(&base, txt + TXT_CR_SINIT_BASE, sizeof(base));
 	memcpy_fromio(&size, txt + TXT_CR_SINIT_SIZE, sizeof(size));
-	slaunch_txt_reserve_range(base, size);
+	slaunch_reserve_range(base, size);
 
 	field_offset = offsetof(struct txt_sinit_mle_data,
 				sinit_vtd_dmar_table_size);
@@ -288,14 +290,14 @@ static void __init slaunch_txt_reserve(void __iomem *txt)
 	for (i = 0; i < mdrnum; i++, mdr++) {
 		/* Spec says some entries can have length 0, ignore them */
 		if (mdr->type > 0 && mdr->length > 0)
-			slaunch_txt_reserve_range(mdr->address, mdr->length);
+			slaunch_reserve_range(mdr->address, mdr->length);
 	}
 
 	txt_early_put_heap_table(mdrs, mdroffset + mdrslen - 8);
 
 nomdr:
-	slaunch_txt_reserve_range(ap_wake_info.ap_wake_block,
-				  ap_wake_info.ap_wake_block_size);
+	slaunch_reserve_range(ap_wake_info.ap_wake_block,
+			      ap_wake_info.ap_wake_block_size);
 
 	/*
 	 * Earlier checks ensured that the event log was properly situated
@@ -304,16 +306,16 @@ nomdr:
 	 * already reserved.
 	 */
 	if (evtlog_addr < heap_base || evtlog_addr > (heap_base + heap_size))
-		slaunch_txt_reserve_range(evtlog_addr, evtlog_size);
+		slaunch_reserve_range(evtlog_addr, evtlog_size);
 
 	for (i = 0; i < e820_table->nr_entries; i++) {
 		base = e820_table->entries[i].addr;
 		size = e820_table->entries[i].size;
 		if (base >= vtd_pmr_lo_size && base < 0x100000000ULL)
-			slaunch_txt_reserve_range(base, size);
+			slaunch_reserve_range(base, size);
 		else if (base < vtd_pmr_lo_size && base + size > vtd_pmr_lo_size)
-			slaunch_txt_reserve_range(vtd_pmr_lo_size,
-						  base + size - vtd_pmr_lo_size);
+			slaunch_reserve_range(vtd_pmr_lo_size,
+					      base + size - vtd_pmr_lo_size);
 	}
 }
 
@@ -434,17 +436,11 @@ void __init slaunch_fixup_jump_vector(void)
 	pr_info("TXT AP startup vector address updated\n");
 }
 
-/*
- * Intel TXT specific late stub setup and validation called from within
- * x86 specific setup_arch().
- */
-void __init slaunch_setup_txt(void)
+/* Intel TXT specific late stub setup. */
+static void __init slaunch_setup_txt(void)
 {
 	u64 one = TXT_REGVALUE_ONE, val;
 	void __iomem *txt;
-
-	if (!boot_cpu_has(X86_FEATURE_SMX))
-		return;
 
 	/*
 	 * If booted through secure launch entry point, the loadflags
@@ -522,6 +518,54 @@ void __init slaunch_setup_txt(void)
 	early_iounmap(txt, TXT_NR_CONFIG_PAGES * PAGE_SIZE);
 
 	pr_info("Intel TXT setup complete\n");
+}
+
+/*
+ * Late stub setup and validation called from within x86 specific setup_arch().
+ */
+void __init slaunch_late_setup(void)
+{
+	if (boot_cpu_has(X86_FEATURE_SMX)) {
+		slaunch_setup_txt();
+		return;
+	}
+
+	if (!boot_cpu_has(X86_FEATURE_SKINIT))
+		return;
+
+	sl_skl_base = (void *)0x44f0000;
+
+	struct sl_header *sl_header;
+	struct slr_table *slrt;
+
+	/*
+	 * SLB (region of memory that contains SKL) is defined to be 64 KiB in
+	 * size.
+	 */
+	sl_header = early_memremap((u32)(u64)sl_skl_base, 64 * 1024);
+	if (!sl_header)
+		slaunch_skinit_reset("Error failed to memremap SLB base\n",
+				     SL_ERROR_EVENTLOG_MAP);
+
+	/* Bootloader's data is SLRT and all of it fits inside of SLB. */
+	slrt = (void *)sl_header + sl_header->bootloader_data_offset;
+
+	struct slr_entry_log_info *log_info;
+	log_info = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_LOG_INFO);
+
+	if (!log_info)
+		slaunch_skinit_reset("SLRT missing logging info entry\n",
+				     SL_ERROR_SLRT_MISSING_ENTRY);
+
+	slaunch_reserve_range(log_info->addr, log_info->size);
+
+	early_memunmap(slrt, sizeof(*slrt));
+
+	/* Set flags on BSP so subsequent code knows it was an SKINIT launch */
+	if (!(sl_flags & SL_FLAG_ARCH_SKINIT)) {
+		sl_flags |= (SL_FLAG_ACTIVE|SL_FLAG_ARCH_SKINIT);
+		pr_info("AMD SKINIT setup complete\n");
+	}
 }
 
 static inline void smx_getsec_sexit(void)
@@ -630,10 +674,4 @@ void slaunch_setup_skinit(void)
 	 */
 	wrmsrl(MSR_VM_CR, val & ~SVM_VM_CR_INIT_REDIRECTION);
 	asm volatile ( "stgi" ::: "memory" );
-
-	/* Set flags on BSP so subsequent code knows it was a SKINIT launch */
-	if (!(sl_flags & SL_FLAG_ARCH_SKINIT)) {
-		sl_flags |= (SL_FLAG_ACTIVE|SL_FLAG_ARCH_SKINIT);
-		pr_info("AMD SKINIT setup complete\n");
-	}
 }

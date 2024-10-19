@@ -142,11 +142,6 @@ SYM_CODE_START_NOALIGN(startup_64)
 	jmp	*0f(%rip)
 SYM_CODE_END(startup_64)
 
-#ifdef CONFIG_SECURE_LAUNCH
-	.data
-SYM_DATA(sl_skl_base, .quad 0)
-#endif
-
 	__INITRODATA
 0:	.quad	common_startup_64
 
