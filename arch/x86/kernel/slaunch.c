@@ -518,22 +518,12 @@ static void __init slaunch_setup_txt(void)
 	pr_info("Intel TXT setup complete\n");
 }
 
-/*
- * Late stub setup and validation called from within x86 specific setup_arch().
- */
-void __init slaunch_late_setup(void)
+/* AMD SKINIT specific late stub setup. */
+static void __init slaunch_setup_skinit(void)
 {
-	struct sl_header *sl_header;
+	struct skinit_sl_header *sl_header;
 	struct slr_table *slrt;
 	u64 vm_cr;
-
-	if (boot_cpu_has(X86_FEATURE_SMX)) {
-		slaunch_setup_txt();
-		return;
-	}
-
-	if (!boot_cpu_has(X86_FEATURE_SKINIT))
-		return;
 
 	/*
 	 * If the platform is performing a Secure Launch via SKINIT,
@@ -550,7 +540,7 @@ void __init slaunch_late_setup(void)
 		slaunch_skinit_reset("Error failed to memremap SLB base\n",
 				     SL_ERROR_EVENTLOG_MAP);
 
-	/* Bootloader's data is SLRT and all of it fits inside of SLB. */
+	/* SLRT is bootloader's data and it fits inside of SLB. */
 	slrt = (void *)sl_header + sl_header->bootloader_data_offset;
 
 	struct slr_entry_log_info *log_info;
@@ -562,10 +552,21 @@ void __init slaunch_late_setup(void)
 
 	slaunch_reserve_range(log_info->addr, log_info->size);
 
-	early_memunmap(slrt, sizeof(*slrt));
+	early_memunmap(sl_header, SKINIT_SLB_SIZE);
 
 	/* Set flags on BSP so subsequent code knows it was an SKINIT launch */
 	sl_flags |= (SL_FLAG_ACTIVE | SL_FLAG_ARCH_SKINIT);
+}
+
+/*
+ * Late stub setup and validation called from within x86-specific setup_arch().
+ */
+void __init slaunch_late_setup(void)
+{
+	if (boot_cpu_has(X86_FEATURE_SMX))
+		slaunch_setup_txt();
+	else if (boot_cpu_has(X86_FEATURE_SKINIT))
+		slaunch_setup_skinit();
 }
 
 static inline void smx_getsec_sexit(void)
@@ -650,7 +651,7 @@ void __noreturn slaunch_skinit_reset(const char *msg, u64 error)
 }
 
 /*
- * AMD specific SKINIT CPU setup and initialization.
+ * AMD specific SKINIT CPU setup.
  */
 void slaunch_skinit_cpu_setup(void)
 {

@@ -444,14 +444,19 @@ static inline void *txt_sinit_mle_data_start(void *heap)
 
 /* AMD Specific Structures and Definitions */
 
-/* SKL is located within SLB region of memory which has fixed size. */
+/*
+ * SLB (Secure Loader Block) region of memory has fixed size.
+ */
 #define SKINIT_SLB_SIZE  (64 * 1024)
 
-struct sl_header {
+/* SLB starts with this header. */
+struct skinit_sl_header {
+	/* This is defined in AMD64 Architecture Programmer’s Manual, Vol. 2 */
 	u16 skl_entry_point;
 	u16 measured_prefix_size;
+	/* This is specific to SKL (secure-kernel-loader). */
 	u16 skl_info_offset;
-	u16 bootloader_data_offset;
+	u16 bootloader_data_offset;  /* Points to SLRT */
 } __packed;
 
 /*

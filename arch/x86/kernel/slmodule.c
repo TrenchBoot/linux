@@ -325,7 +325,7 @@ static void slaunch_txt_evtlog(void __iomem *txt)
 
 static void slaunch_skinit_evtlog(void)
 {
-	struct sl_header *sl_header;
+	struct skinit_sl_header *sl_header;
 	struct slr_table *slrt;
 
 	printk(KERN_ERR "sl_skl_base = %#llx\n", sl_skl_base);

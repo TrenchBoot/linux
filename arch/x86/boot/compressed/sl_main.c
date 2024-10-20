@@ -109,7 +109,7 @@ static struct slr_table *sl_locate_and_validate_slrt(void)
 {
 	struct txt_os_mle_data *os_mle_data;
 	struct slr_table *slrt = NULL;
-	const struct sl_header *sl_header;
+	struct skinit_sl_header *sl_header;
 	void *txt_heap;
 
 	if (sl_cpu_type & SL_CPU_INTEL) {
@@ -119,7 +119,7 @@ static struct slr_table *sl_locate_and_validate_slrt(void)
 		slrt = (struct slr_table *)os_mle_data->slrt;
 	}
 	if (sl_cpu_type & SL_CPU_AMD) {
-		sl_header = (const struct sl_header *)sl_skl_base;
+		sl_header = (struct sl_header *)sl_skl_base;
 
 		/* Bootloader's data is SLRT. */
 		slrt = (void *)sl_skl_base + sl_header->bootloader_data_offset;
