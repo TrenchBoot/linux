@@ -338,18 +338,25 @@ static void slaunch_tpm2_extend_event(struct tpm_chip *tpm, void __iomem *txt,
 			case TPM_ALG_SHA256:
 				memcpy(&digests[j].digest[0], dptr,
 				       SHA256_DIGEST_SIZE);
-				alg_id_field = (u16 *)((u8 *)alg_id_field +
-					SHA256_DIGEST_SIZE + sizeof(u16));
 				break;
 			case TPM_ALG_SHA1:
 				memcpy(&digests[j].digest[0], dptr,
 				       SHA1_DIGEST_SIZE);
-				alg_id_field = (u16 *)((u8 *)alg_id_field +
-					SHA1_DIGEST_SIZE + sizeof(u16));
 				break;
 			default:
 				break;
 			}
+		}
+
+		switch (*alg_id_field) {
+		case TPM_ALG_SHA256:
+			alg_id_field = (u16 *)((u8 *)alg_id_field +
+				sizeof(u16) + SHA256_DIGEST_SIZE);
+			break;
+		case TPM_ALG_SHA1:
+			alg_id_field = (u16 *)((u8 *)alg_id_field +
+				sizeof(u16) + SHA1_DIGEST_SIZE);
+			break;
 		}
 	}
 
