@@ -391,12 +391,17 @@ static void slaunch_tpm2_extend(struct tpm_chip *tpm, void __iomem *txt)
 
 		/*
 		 * Marker events indicate where the Secure Launch early stub
-		 * started and ended adding post launch events.
+		 * started and ended adding post launch events. As they are
+		 * encountered, switch the event type to NO_ACTION so they
+		 * ignored in when the event log is processed since they are
+		 * not really measurements.
 		 */
 		if (event->event_type == TXT_EVTYPE_SLAUNCH_END) {
+			event->event_type = NO_ACTION;
 			end = 1;
 			break;
 		} else if (event->event_type == TXT_EVTYPE_SLAUNCH_START) {
+			event->event_type = NO_ACTION;
 			start = 1;
 			goto next;
 		}
@@ -429,13 +434,15 @@ static void slaunch_tpm_extend(struct tpm_chip *tpm, void __iomem *txt)
 		size = sizeof(*event) + event->event_size;
 
 		/*
-		 * Marker events indicate where the Secure Launch early stub
-		 * started and ended adding post launch events.
+		 * See comments in slaunch_tpm2_extend() concerning these special
+		 * event types.
 		 */
 		if (event->event_type == TXT_EVTYPE_SLAUNCH_END) {
+			event->event_type = NO_ACTION;
 			end = 1;
 			break;
 		} else if (event->event_type == TXT_EVTYPE_SLAUNCH_START) {
+			event->event_type = NO_ACTION;
 			start = 1;
 			goto next;
 		}
