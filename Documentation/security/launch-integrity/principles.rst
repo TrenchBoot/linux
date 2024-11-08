@@ -12,7 +12,7 @@ This document serves to establish a common understanding of what a system
 launch is, the integrity concern for system launch, and why using a Root of Trust
 (RoT) from a Dynamic Launch may be desirable. Throughout this document,
 terminology from the Trusted Computing Group (TCG) and National Institute for
-Science and Technology (NIST) is used to ensure that vendor natural language is
+Standards and Technology (NIST) is used to ensure that vendor natural language is
 used to describe and reference security-related concepts.
 
 System Launch
@@ -236,12 +236,12 @@ Glossary
     Guarding against improper information modification or destruction, and
     includes ensuring information non-repudiation and authenticity.
 
-    - NIST CNSSI No. 4009 - https://www.cnss.gov/CNSS/issuances/Instructions.cfm
+    - NIST Glossary - https://csrc.nist.gov/glossary
 
   mechanism
     A process or system that is used to produce a particular result.
 
-    - NIST Special Publication 800-160 (VOLUME 1 ) - https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-160v1.pdf
+    - NIST Special Publication 800-160 (VOLUME 1 ) - https://doi.org/10.6028/NIST.SP.800-160v1r1
 
   risk
     A measure of the extent to which an entity is threatened by a potential
@@ -249,7 +249,7 @@ Glossary
     that would arise if the circumstance or event occurs; and (ii) the
     likelihood of occurrence.
 
-    - NIST SP 800-30 Rev. 1 - https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-30r1.pdf
+    - NIST SP 800-30 Rev. 1 - https://doi.org/10.6028/NIST.SP.800-30r1
 
   security mechanism
     A device or function designed to provide one or more security services
@@ -286,13 +286,13 @@ Glossary
   trust anchor
     An authoritative entity for which trust is assumed.
 
-    - NIST SP 800-57 Part 1 Rev. 5 - https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-57pt1r5.pdf
+    - NIST SP 800-57 Part 1 Rev. 5 - https://doi.org/10.6028/NIST.SP.800-57pt1r5
 
   trusted
     An element that another element relies upon to fulfill critical
     requirements on its behalf.
 
-    - NISTIR 8320A - https://nvlpubs.nist.gov/nistpubs/ir/2021/NIST.IR.8320A.pdf
+    - NISTIR 8320A - https://doi.org/10.6028/NIST.IR.8320A
 
   trusted computing base (TCB)
     Totality of protection mechanisms within a computer system, including
