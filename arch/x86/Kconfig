@@ -2058,7 +2058,7 @@ config EFI_RUNTIME_MAP
 
 config SECURE_LAUNCH
 	bool "Secure Launch support"
-	depends on X86_64 && X86_X2APIC && TCG_TPM && CRYPTO_LIB_SHA1 && CRYPTO_LIB_SHA256
+	depends on X86_64 && X86_X2APIC && TCG_TIS && TCG_CRB && CRYPTO_LIB_SHA1 && CRYPTO_LIB_SHA256
 	help
 	   The Secure Launch feature allows a kernel to be loaded
 	   directly through an Intel TXT measured launch. Intel TXT
