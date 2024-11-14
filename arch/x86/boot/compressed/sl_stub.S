@@ -132,8 +132,7 @@ SYM_FUNC_START(sl_stub_entry)
 	movl	$0, (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_ERRORCODE)
 	movl	$0xffffffff, (TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_ESTS)
 
-	/* On Intel, the zero page address is passed in the TXT heap */
-	/* Read physical base of heap into EAX */
+	/* Read physical base of the TXT heap into %eax */
 	movl	(TXT_PRIV_CONFIG_REGS_BASE + TXT_CR_HEAP_BASE), %eax
 	/* Read the size of the BIOS data into ECX (first 8 bytes) */
 	movl	(%eax), %ecx
@@ -144,10 +143,11 @@ SYM_FUNC_START(sl_stub_entry)
 	call	sl_txt_verify_os_mle_struct
 
 	/*
-	 * Get the boot params address from the heap. Note %esi and %ebx MUST
-	 * be preserved across calls and operations.
+	 * Get the boot params address from the TXT info table in the SLRT.
+	 * Note %esi and %ebx MUST be preserved across calls and operations.
 	 */
-	movl	SL_boot_params_addr(%eax), %esi
+	movl	SL_txt_info(%eax), %edi
+	movl	SL_boot_params_addr(%edi), %esi
 
 	/* Save %ebx so the APs can find their way home */
 	movl	%ebx, (SL_mle_scratch + SL_SCRATCH_AP_EBX)(%eax)

@@ -422,6 +422,7 @@ static void sl_extend_slrt(struct slr_policy_entry *entry)
 {
 	struct slr_table *slrt = (struct slr_table *)entry->entity;
 	struct slr_entry_intel_info *intel_info;
+	struct slr_entry_intel_info intel_tmp;
 
 	/*
 	 * In revision one of the SLRT, the only table that needs to be
@@ -435,8 +436,16 @@ static void sl_extend_slrt(struct slr_policy_entry *entry)
 		if (!intel_info)
 			sl_txt_reset(SL_ERROR_SLRT_MISSING_ENTRY);
 
+		/*
+		 * Make a temp copy and zero out address fields since they should
+		 * not be measured.
+		 */
+		intel_tmp = *intel_info;
+		intel_tmp.boot_params_addr = 0;
+		intel_tmp.txt_heap = 0;
+
 		sl_tpm_extend_evtlog(entry->pcr, TXT_EVTYPE_SLAUNCH,
-				     (void *)entry->entity, sizeof(*intel_info),
+				     (void *)&intel_tmp, sizeof(*intel_info),
 				     entry->evt_info);
 	}
 }
