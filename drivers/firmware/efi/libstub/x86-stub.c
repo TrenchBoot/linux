@@ -931,7 +931,6 @@ static bool efi_secure_launch_update_boot_params(struct slr_table *slrt,
 {
 	struct slr_entry_intel_info *txt_info;
 	struct slr_entry_policy *policy;
-	struct txt_os_mle_data *os_mle;
 	bool updated = false;
 	int i;
 
@@ -939,11 +938,7 @@ static bool efi_secure_launch_update_boot_params(struct slr_table *slrt,
 	if (!txt_info)
 		return false;
 
-	os_mle = txt_os_mle_data_start((void *)txt_info->txt_heap);
-	if (!os_mle)
-		return false;
-
-	os_mle->boot_params_addr = (u64)boot_params;
+	txt_info->boot_params_addr = (u64)boot_params;
 
 	policy = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_ENTRY_POLICY);
 	if (!policy)
