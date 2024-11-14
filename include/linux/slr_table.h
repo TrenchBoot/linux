@@ -171,6 +171,7 @@ struct slr_txt_mtrr_state {
  */
 struct slr_entry_intel_info {
 	struct slr_entry_hdr hdr;
+	u64 boot_params_addr;
 	u64 txt_heap;
 	u64 saved_misc_enable_msr;
 	struct slr_txt_mtrr_state saved_bsp_mtrrs;
