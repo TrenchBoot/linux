@@ -15,6 +15,7 @@
 #define SL_FLAG_ACTIVE		0x00000001
 #define SL_FLAG_ARCH_TXT	0x00000002
 #define SL_FLAG_ARCH_SKINIT	0x00000004
+#define SL_FLAG_SKINIT_PSP	0x00000008
 
 /*
  * Secure Launch CPU Type
@@ -549,20 +550,6 @@ bool slaunch_psp_tmr_release(void);
 void slaunch_psp_setup(void);
 void slaunch_psp_finalize(void);
 
-static inline bool slaunch_is_txt_launch(void)
-{
-	u32 mask =  SL_FLAG_ACTIVE | SL_FLAG_ARCH_TXT;
-
-	return (slaunch_get_flags() & mask) == mask;
-}
-
-static inline bool slaunch_is_skinit_launch(void)
-{
-	u32 mask =  SL_FLAG_ACTIVE | SL_FLAG_ARCH_SKINIT;
-
-	return (slaunch_get_flags() & mask) == mask;
-}
-
 #else
 
 static inline void slaunch_setup(void)
@@ -592,17 +579,28 @@ static inline void slaunch_finalize(int do_sexit)
 	(void)do_sexit;
 }
 
+#endif /* !IS_ENABLED(CONFIG_SECURE_LAUNCH) */
+
 static inline bool slaunch_is_txt_launch(void)
 {
-	return false;
+	u32 mask = SL_FLAG_ACTIVE | SL_FLAG_ARCH_TXT;
+
+	return (slaunch_get_flags() & mask) == mask;
 }
 
 static inline bool slaunch_is_skinit_launch(void)
 {
-	return false;
+	u32 mask = SL_FLAG_ACTIVE | SL_FLAG_ARCH_SKINIT;
+
+	return (slaunch_get_flags() & mask) == mask;
 }
 
-#endif /* !IS_ENABLED(CONFIG_SECURE_LAUNCH) */
+static inline bool slaunch_is_skinit_psp(void)
+{
+	u32 mask = SL_FLAG_ACTIVE | SL_FLAG_ARCH_SKINIT | SL_FLAG_SKINIT_PSP;
+
+	return (slaunch_get_flags() & mask) == mask;
+}
 
 #endif /* !__ASSEMBLY */
 
