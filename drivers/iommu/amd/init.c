@@ -3324,7 +3324,7 @@ int __init amd_iommu_enable(void)
 		return ret;
 
 #if IS_ENABLED(CONFIG_SECURE_LAUNCH)
-	if (slaunch_is_skinit_launch()) {
+	if (slaunch_is_skinit_psp()) {
 		/* Initialize PSP access to SKINIT DRTM functions */
 		slaunch_psp_setup();
 
