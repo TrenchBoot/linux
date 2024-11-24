@@ -359,7 +359,7 @@ static void slaunch_skinit_evtlog(void)
 	}
 
 	if (!amd_info)
-		slaunch_skinit_reset("Error failed to find TPM event log\n", SL_ERROR_MISSING_EVENT_LOG);
+		slaunch_skinit_reset("Error failed to find AMD info\n", SL_ERROR_MISSING_EVENT_LOG);
 
 	amd_info_temp = *amd_info;
 	memunmap(amd_info);
