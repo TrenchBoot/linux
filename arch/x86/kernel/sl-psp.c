@@ -60,7 +60,7 @@
 #define	DRTM_CMD_READY			0
 #define	DRTM_RESPONSE_READY		1
 
-static bool slaunch_psp_early_setup = false;
+static bool slaunch_psp_early_setup_done = false;
 
 static volatile u32  __iomem *c2pmsg_72;
 static volatile u32  __iomem *c2pmsg_93;
@@ -177,7 +177,7 @@ static bool slaunch_wait_for_psp_ready(u32 *status)
 
 		/* TODO: select wait time appropriately */
 		mdelay(100);
-	};
+	}
 
 	if (!retry)
 		return false;
@@ -212,7 +212,7 @@ bool slaunch_psp_tmr_release(void)
 {
 	u32 status;
 
-	if (!slaunch_psp_early_setup)
+	if (!slaunch_psp_early_setup_done)
 		return false;
 
 	*c2pmsg_72 = DRTM_CMD_TMR_RELEASE << DRTM_MBOX_CMD_SHIFT;
@@ -233,7 +233,7 @@ bool slaunch_psp_tmr_release(void)
 
 void slaunch_psp_setup(void)
 {
-	if (slaunch_psp_early_setup)
+	if (slaunch_psp_early_setup_done)
 		return;
 
 	if (!slaunch_setup_c2pmsg_regs())
@@ -244,12 +244,11 @@ void slaunch_psp_setup(void)
 		return;
 	}
 
-	slaunch_psp_early_setup = true;
+	slaunch_psp_early_setup_done = true;
 }
 
 void slaunch_psp_finalize(void)
 {
-
 	if (!slaunch_tpm_locality_access()) {
 		pr_err("PSP failed to lock TPM DRTM localities\n");
 		return;
