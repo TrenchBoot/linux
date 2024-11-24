@@ -677,8 +677,8 @@ static void slaunch_finalize_txt(int do_sexit)
  */
 static void slaunch_finalize_skinit(void)
 {
-	/* AMD CPUs */
-	if (!slaunch_is_skinit_launch())
+	/* AMD CPUs with PSP-supported DRTM */
+	if (!slaunch_is_skinit_psp())
 		return;
 
 	slaunch_psp_finalize();
