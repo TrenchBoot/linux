@@ -567,10 +567,7 @@ static void __init slaunch_setup_skinit(void)
 		return;
 
 	/* Set flags on BSP so subsequent code knows it was a SKINIT launch */
-	if (!(sl_flags & SL_FLAG_ARCH_SKINIT)) {
-		sl_flags |= (SL_FLAG_ACTIVE|SL_FLAG_ARCH_SKINIT);
-		pr_info("AMD SKINIT setup complete\n");
-	}
+	sl_flags |= (SL_FLAG_ACTIVE | SL_FLAG_ARCH_SKINIT);
 
 	dev = NULL;
 	for_each_pci_dev(dev) {
@@ -699,15 +696,7 @@ void slaunch_cpu_setup_skinit(void)
 {
 	u64 val;
 
-	if (!boot_cpu_has(X86_FEATURE_SKINIT))
-		return;
-
-	/*
-	 * If the platform is performing a Secure Launch via SKINIT
-	 * INIT_REDIRECTION flag will be active.
-	 */
-	rdmsrl(MSR_VM_CR, val);
-	if (!(val & (1 << SVM_VM_CR_INIT_REDIRECTION)))
+	if (!slaunch_is_skinit_launch())
 		return;
 
 	/*
@@ -715,6 +704,7 @@ void slaunch_cpu_setup_skinit(void)
 	 * enabling GIF, so a pending INIT resets us, rather than causing a
 	 * panic due to an unknown exception.
 	 */
+	rdmsrl(MSR_VM_CR, val);
 	wrmsrl(MSR_VM_CR, val & ~(1 << SVM_VM_CR_INIT_REDIRECTION));
 
 	/* Enable Global Interrupts flag */
