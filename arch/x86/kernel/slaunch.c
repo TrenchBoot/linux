@@ -251,7 +251,7 @@ out:
 		slaunch_txt_reset(txt, errmsg, err);
 }
 
-static void __init slaunch_txt_reserve_range(u64 base, u64 size)
+static void __init slaunch_reserve_range(u64 base, u64 size)
 {
 	int type;
 
@@ -289,15 +289,15 @@ static void __init slaunch_txt_reserve(void __iomem *txt)
 
 	base = TXT_PRIV_CONFIG_REGS_BASE;
 	size = TXT_PUB_CONFIG_REGS_BASE - TXT_PRIV_CONFIG_REGS_BASE;
-	slaunch_txt_reserve_range(base, size);
+	slaunch_reserve_range(base, size);
 
 	memcpy_fromio(&heap_base, txt + TXT_CR_HEAP_BASE, sizeof(heap_base));
 	memcpy_fromio(&heap_size, txt + TXT_CR_HEAP_SIZE, sizeof(heap_size));
-	slaunch_txt_reserve_range(heap_base, heap_size);
+	slaunch_reserve_range(heap_base, heap_size);
 
 	memcpy_fromio(&base, txt + TXT_CR_SINIT_BASE, sizeof(base));
 	memcpy_fromio(&size, txt + TXT_CR_SINIT_SIZE, sizeof(size));
-	slaunch_txt_reserve_range(base, size);
+	slaunch_reserve_range(base, size);
 
 	field_offset = offsetof(struct txt_sinit_mle_data,
 				sinit_vtd_dmar_table_size);
@@ -322,14 +322,14 @@ static void __init slaunch_txt_reserve(void __iomem *txt)
 	for (i = 0; i < mdrnum; i++, mdr++) {
 		/* Spec says some entries can have length 0, ignore them */
 		if (mdr->type > 0 && mdr->length > 0)
-			slaunch_txt_reserve_range(mdr->address, mdr->length);
+			slaunch_reserve_range(mdr->address, mdr->length);
 	}
 
 	txt_early_put_heap_table(mdrs, mdroffset + mdrslen - 8);
 
 nomdr:
-	slaunch_txt_reserve_range(ap_wake_info.ap_wake_block,
-				  ap_wake_info.ap_wake_block_size);
+	slaunch_reserve_range(ap_wake_info.ap_wake_block,
+			      ap_wake_info.ap_wake_block_size);
 
 	/*
 	 * Earlier checks ensured that the event log was properly situated
@@ -338,16 +338,16 @@ nomdr:
 	 * already reserved.
 	 */
 	if (evtlog_addr < heap_base || evtlog_addr > (heap_base + heap_size))
-		slaunch_txt_reserve_range(evtlog_addr, evtlog_size);
+		slaunch_reserve_range(evtlog_addr, evtlog_size);
 
 	for (i = 0; i < e820_table->nr_entries; i++) {
 		base = e820_table->entries[i].addr;
 		size = e820_table->entries[i].size;
 		if (base >= vtd_pmr_lo_size && base < 0x100000000ULL)
-			slaunch_txt_reserve_range(base, size);
+			slaunch_reserve_range(base, size);
 		else if (base < vtd_pmr_lo_size && base + size > vtd_pmr_lo_size)
-			slaunch_txt_reserve_range(vtd_pmr_lo_size,
-						  base + size - vtd_pmr_lo_size);
+			slaunch_reserve_range(vtd_pmr_lo_size,
+					      base + size - vtd_pmr_lo_size);
 	}
 }
 
@@ -548,6 +548,64 @@ static void __init slaunch_setup_txt(void)
 	pr_info("Intel TXT setup complete\n");
 }
 
+static void slaunch_skinit_prepare(void)
+{
+	struct slr_entry_amd_info amd_info_temp;
+	struct slr_entry_amd_info *amd_info;
+	struct slr_entry_log_info *log_info;
+	struct setup_data *data;
+	struct slr_table *slrt;
+	u64 pa_data;
+
+	pa_data = (u64)boot_params.hdr.setup_data;
+	amd_info = NULL;
+
+	while (pa_data) {
+		data = (struct setup_data *)early_memremap(pa_data, sizeof(*data));
+		if (!data)
+			slaunch_skinit_reset("Error failed to early_memremap setup data\n",
+					     SL_ERROR_MAP_SETUP_DATA);
+
+		if (data->type == SETUP_SECURE_LAUNCH) {
+			early_memunmap(data, sizeof(*data));
+			amd_info = (struct slr_entry_amd_info *)
+				early_memremap(pa_data - sizeof(struct slr_entry_hdr),
+					       sizeof(*amd_info));
+			if (!amd_info)
+				slaunch_skinit_reset("Error failed to early_memremap AMD info\n",
+						     SL_ERROR_MAP_SETUP_DATA);
+			break;
+		}
+
+		pa_data = data->next;
+		early_memunmap(data, sizeof(*data));
+	}
+
+	if (!amd_info)
+		slaunch_skinit_reset("Error failed to find AMD info\n",
+				     SL_ERROR_MISSING_EVENT_LOG);
+
+	amd_info_temp = *amd_info;
+	early_memunmap(amd_info, sizeof(*amd_info));
+
+	slaunch_reserve_range(amd_info_temp.slrt_base, amd_info_temp.slrt_size);
+
+	/* Get the SLRT and remap it */
+	slrt = early_memremap(amd_info_temp.slrt_base, amd_info_temp.slrt_size);
+	if (!slrt)
+		slaunch_skinit_reset("Error failed to early_memremap SLR Table\n",
+				     SL_ERROR_SLRT_MAP);
+
+	log_info = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_LOG_INFO);
+	if (!log_info)
+		slaunch_skinit_reset("Error failed to find event log info SLR Table\n",
+				     SL_ERROR_SLRT_MISSING_ENTRY);
+
+	slaunch_reserve_range(log_info->addr, log_info->size);
+
+	early_memunmap(slrt, amd_info_temp.slrt_size);
+}
+
 /*
  * AMD SKINIT specific late stub setup and validation called from within
  * x86 specific setup_arch().
@@ -565,6 +623,8 @@ static void __init slaunch_setup_skinit(void)
 	rdmsrl(MSR_VM_CR, val);
 	if (!(val & (1 << SVM_VM_CR_INIT_REDIRECTION)))
 		return;
+
+	slaunch_skinit_prepare();
 
 	/* Set flags on BSP so subsequent code knows it was a SKINIT launch */
 	sl_flags |= (SL_FLAG_ACTIVE | SL_FLAG_ARCH_SKINIT);
