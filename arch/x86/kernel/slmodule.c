@@ -335,6 +335,7 @@ static void slaunch_skinit_evtlog(void)
 	u64 pa_data;
 
 	pa_data = (u64)boot_params.hdr.setup_data;
+	amd_info = NULL;
 
 	while (pa_data) {
 		data = (struct setup_data *)memremap(pa_data, sizeof(*data), MEMREMAP_WB);
