@@ -96,6 +96,7 @@ static struct slr_table *sl_locate_and_validate_slrt(struct boot_params *bp)
 	void *txt_heap;
 
 	if (sl_cpu_type & SL_CPU_AMD) {
+		slrt = NULL;
 		data = (struct setup_data *)bp->hdr.setup_data;
 		while (data) {
 			if (data->type == SETUP_SECURE_LAUNCH) {
