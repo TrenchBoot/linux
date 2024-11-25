@@ -11,6 +11,7 @@
 #include <linux/mm.h>
 #include <linux/io.h>
 #include <linux/uaccess.h>
+#include <linux/pci.h>
 #include <linux/security.h>
 #include <linux/memblock.h>
 #include <asm/segment.h>
@@ -31,6 +32,25 @@ static u64 vtd_pmr_lo_size __ro_after_init;
 
 /* This should be plenty of room */
 static u8 txt_dmar[PAGE_SIZE] __aligned(16);
+
+typedef enum {
+	PSP_NONE = 0,
+	PSP_V1,
+	PSP_V2,
+	PSP_V3
+} psp_version_t;
+
+static const struct pci_device_id psp_devs_list[] = {
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, 0x1537), .driver_data = PSP_NONE },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, 0x1456), .driver_data = PSP_V1 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, 0x1468), .driver_data = PSP_NONE },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, 0x1486), .driver_data = PSP_V2 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, 0x15DF), .driver_data = PSP_V3 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, 0x1649), .driver_data = PSP_V2 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, 0x14CA), .driver_data = PSP_V3 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, 0x15C7), .driver_data = PSP_NONE },
+	{ }
+};
 
 /*
  * Get the Secure Launch flags that indicate what kind of launch is being done.
@@ -535,6 +555,8 @@ static void __init slaunch_setup_txt(void)
 static void __init slaunch_setup_skinit(void)
 {
 	u64 val;
+	struct pci_dev *dev;
+	struct pci_device_id *psp_dev;
 
 	/*
 	 * If the platform is performing a Secure Launch via SKINIT
@@ -549,6 +571,17 @@ static void __init slaunch_setup_skinit(void)
 		sl_flags |= (SL_FLAG_ACTIVE|SL_FLAG_ARCH_SKINIT);
 		pr_info("AMD SKINIT setup complete\n");
 	}
+
+	dev = NULL;
+	for_each_pci_dev(dev) {
+		psp_dev = pci_match_id(psp_devs_list, dev);
+		if (psp_dev && psp_dev->driver_data != PSP_NONE) {
+			sl_flags |= SL_FLAG_SKINIT_PSP;
+			break;
+		}
+	}
+
+	pr_info("AMD SKINIT setup complete\n");
 }
 
 void __init slaunch_setup(void)
