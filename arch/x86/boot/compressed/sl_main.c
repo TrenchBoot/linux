@@ -558,30 +558,54 @@ static void sl_extend_slrt(struct slr_policy_entry *entry)
 	struct slr_table *slrt = (struct slr_table *)entry->entity;
 	struct slr_entry_intel_info *intel_info;
 	struct slr_entry_intel_info intel_tmp;
+	struct slr_entry_amd_info *amd_info;
+	struct slr_entry_amd_info amd_tmp;
 
 	/*
 	 * In revision one of the SLRT, the only table that needs to be
-	 * measured is the Intel info table. Everything else is meta-data,
-	 * addresses and sizes. Note the size of what to measure is not set.
-	 * The flag SLR_POLICY_IMPLICIT_SIZE leaves it to the measuring code
-	 * to sort out.
+	 * measured is the platform-specific info table. Everything else is
+	 * meta-data, addresses and sizes. Note the size of what to measure is
+	 * not set. The flag SLR_POLICY_IMPLICIT_SIZE leaves it to the measuring
+	 * code to sort out.
 	 */
-	if (slrt->revision == 1 && sl_cpu_type == SL_CPU_INTEL) {
-		intel_info = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_INTEL_INFO);
-		if (!intel_info)
-			sl_txt_reset(SL_ERROR_SLRT_MISSING_ENTRY);
+	if (slrt->revision == 1) {
+		if (sl_cpu_type == SL_CPU_INTEL) {
+			intel_info =
+				slr_next_entry_by_tag(slrt, NULL,
+						      SLR_ENTRY_INTEL_INFO);
+			if (!intel_info)
+				sl_txt_reset(SL_ERROR_SLRT_MISSING_ENTRY);
 
-		/*
-		 * Make a temp copy and zero out address fields since they should
-		 * not be measured.
-		 */
-		intel_tmp = *intel_info;
-		intel_tmp.boot_params_addr = 0;
-		intel_tmp.txt_heap = 0;
+			/*
+			 * Make a temp copy and zero out address fields since they should
+			 * not be measured.
+			 */
+			intel_tmp = *intel_info;
+			intel_tmp.boot_params_addr = 0;
+			intel_tmp.txt_heap = 0;
 
-		sl_tpm_extend_evtlog(entry->pcr, TXT_EVTYPE_SLAUNCH,
-				     (void *)&intel_tmp, sizeof(*intel_info),
-				     entry->evt_info);
+			sl_tpm_extend_evtlog(entry->pcr, TXT_EVTYPE_SLAUNCH,
+					     (void *)&intel_tmp, sizeof(*intel_info),
+					     entry->evt_info);
+		} else if (sl_cpu_type == SL_CPU_AMD) {
+			amd_info = slr_next_entry_by_tag(slrt, NULL,
+							 SLR_ENTRY_AMD_INFO);
+			if (!amd_info)
+				sl_txt_reset(SL_ERROR_SLRT_MISSING_ENTRY);
+
+			/*
+			 * Make a temp copy and zero out address fields since
+			 * they should not be measured.
+			 */
+			amd_tmp = *amd_info;
+			amd_tmp.next = 0;
+			amd_tmp.boot_params_base = 0;
+			amd_tmp.slrt_base = 0;
+
+			sl_tpm_extend_evtlog(entry->pcr, TXT_EVTYPE_SLAUNCH,
+					     &amd_tmp, sizeof(amd_tmp),
+					     entry->evt_info);
+		}
 	}
 }
 
