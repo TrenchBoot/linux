@@ -401,6 +401,9 @@ static void slaunch_skinit_evtlog(void)
 		sl_evtlog.size -= sizeof(struct tcg_pcr_event)
 			+ TCG_PCClientSpecIDEventStruct_SIZE;
 	}
+
+	/* Save pointer to the EFI SpecID log header */
+	efi_head = (struct tcg_efi_specid_event_head *)(skinit_evtlog + sizeof(struct tcg_pcr_event));
 }
 
 static void slaunch_tpm2_extend_event(struct tpm_chip *tpm, void __iomem *txt,
