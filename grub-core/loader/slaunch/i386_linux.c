@@ -121,6 +121,14 @@ grub_sl_find_kernel_info (struct grub_slaunch_params *slparams, grub_file_t kern
       goto fail;
     }
 
+  if (grub_memcmp (mle_hdr.uuid, GRUB_TXT_MLE_UUID, 16) != 0)
+    {
+      grub_dprintf ("linux", "Not an MLE header at %llu\n",
+                    (unsigned long long)slparams->mle_header_offset + real_size + GRUB_DISK_SECTOR_SIZE);
+      grub_error (GRUB_ERR_BAD_OS, N_("failed to locate MLE header"));
+      goto fail;
+    }
+
   slparams->mle_entry = mle_hdr.entry_point;
 
   return GRUB_ERR_NONE;
