@@ -1,32 +1,23 @@
 .. SPDX-License-Identifier: GPL-2.0
-.. Copyright (c) 2019-2024 Daniel P. Smith <dpsmith@apertussolutions.com>
+.. Copyright (c) 2019-2025 Daniel P. Smith <dpsmith@apertussolutions.com>
 
 ======================
 Secure Launch Overview
 ======================
 
 :Author: Daniel P. Smith
-:Date: August 2024
+:Date: March 2025
 
 Overview
 ========
 
-Prior to the start of the TrenchBoot project, the only active Open Source
-project supporting dynamic launch was Intel's tboot project to support their
-implementation of dynamic launch known as Intel Trusted eXecution Technology
-(TXT). The approach taken by tboot was to provide an exokernel that could
-handle the launch protocol implemented by the Intel provided loader, the SINIT
-Authenticated Code Module (ACM [2]_), and remained in memory to manage the SMX
-CPU mode that a dynamic launch would put a system. While it is not precluded
-from being used for a late launch, tboot's primary use case was to be
-used as an early launch solution. As a result, the TrenchBoot project started
-the development of Secure Launch kernel feature to provide a more generalized
-approach. The focus of the effort is twofold: first, to make the Linux
-kernel directly aware of the launch protocol used by Intel, AMD/Hygon, Arm, and
-potentially OpenPOWER; second, to make the Linux kernel able to
-initiate a dynamic launch. It is through this approach that the Secure Launch
-kernel feature creates a basis for the Linux kernel to be used in a variety of
-dynamic launch use cases.
+The TrenchBoot project started the development of Secure Launch kernel feature
+to provide a more generalized approach. The focus of the effort is twofold: first,
+to make the Linux kernel directly aware of the launch protocol used by platforms
+such as Intel, AMD/Hygon, Arm, and potentially OpenPOWER; second, to make the
+Linux kernel able to initiate a dynamic launch. It is through this approach that
+the Secure Launch kernel feature creates a basis for the Linux kernel to be used
+in a variety of dynamic launch use cases.
 
 .. note::
     A quick note on terminology. The larger open source project itself is
@@ -40,27 +31,27 @@ Goals
 The first use case that the TrenchBoot project focused on was the ability for
 the Linux kernel to be started by a dynamic launch, in particular as part of an
 early launch sequence. In this case, the dynamic launch will be initiated by
-any bootloader with associated support added to it. For example, the first
-targeted bootloader in this case was GRUB2. An integral part of establishing a
-measurement-based launch integrity involves measuring everything that is
-intended to be executed (kernel image, initrd, etc.) and everything that will
-configure that kernel to execute (command line, boot params, etc.), then
-storing those measurements in a protected manner. Both the Intel and AMD
-dynamic launch implementations leverage the Trusted Platform Module (TPM) to
-store those measurements. The TPM itself has been designed such that a dynamic
-launch unlocks a specific set of Platform Configuration Registers (PCR) for
-holding measurement taken during the dynamic launch. These are referred to as
-the DRTM PCRs, PCRs 17-22. Further details on this process can be found in the
-documentation for the GETSEC instruction provided by Intel's TXT and the SKINIT
-instruction provided by AMD's AMD-V. The documentation on these technologies
-can be readily found online; see the `Resources`_ section below for references.
+any bootloader with associated support added to it. The first targeted bootloader
+in this case was GRUB2. An integral part of establishing a measurement-based
+launch integrity involves measuring everything that is intended to be executed
+(kernel image, initrd, etc.) and everything that will configure that kernel to
+execute (command line, boot params, etc.), then storing those measurements in a
+protected manner. Both the Intel and AMD dynamic launch implementations leverage
+the Trusted Platform Module (TPM) to store those measurements. The TPM itself
+has been designed such that a dynamic launch unlocks a specific set of Platform
+Configuration Registers (PCR) for holding measurement taken during the dynamic
+launch. These are referred to as the DRTM PCRs, PCRs 17-22. Further details on this
+process can be found in the documentation for the GETSEC instruction provided by
+Intel's TXT and the SKINIT instruction provided by AMD's AMD-V. The documentation
+on these technologies can be readily found online; see the `Resources`_ section
+below for references.
 
 .. note::
     Currently, only Intel TXT is supported in this first release of the Secure
     Launch feature. AMD/Hygon SKINIT and Arm support will be added in a
     subsequent release.
 
-To enable the kernel to be launched by GETSEC a stub, the Secure Launch stub
+To enable the kernel to be launched by GETSEC, the Secure Launch stub
 must be built into the setup section of the compressed kernel to handle the
 specific state that the dynamic launch process leaves the BSP. Also, the Secure
 Launch stub must measure everything that is going to be used as early as
@@ -102,17 +93,16 @@ decisions:
 The one place where Secure Launch code is mixed directly in with kernel code is
 in the SMP boot code. This is due to the unique state that the dynamic launch
 leaves the APs in. On Intel, this involves using a method other than the
-standard INIT-SIPI sequence.
+standard INIT-SIPI sequence. In this case too though, the changes to the SMP
+code are minor and isolated.
 
-A final note is that originally the extending of the PCRs was completed in the
-Secure Launch stub when the measurements were taken. An alternative solution
-had to be implemented due to the TPM maintainers objecting to the PCR
-extensions being done with a minimal interface to the TPM that was an
-independent implementation of the mainline kernel driver. Since the mainline
-driver relies heavily on kernel interfaces not available in the compressed
-kernel, it was not possible to reuse the mainline TPM driver. This resulted in
-the decision to move the extension operations to the Secure Launch module in
-the mainline kernel, where the TPM driver would be available.
+A final note is that the original concept was to extend the DRTM PCRs in the
+Secure Launch stub when the measurements were taken. This requires access to the
+TPM early during boot time. Since the mainline kernel TPM driver relies heavily
+on kernel interfaces not available in the compressed kernel, it was not possible
+to reuse the mainline TPM driver. An alternate solution has been implemented
+that moves the extension operations to the Secure Launch module in the mainline
+kernel, where the TPM driver would be available.
 
 Basic Boot Flow
 ===============
@@ -152,7 +142,7 @@ kernel begins execution.*
    and setup tasks.
  - The SMP bring up code is modified to wake the waiting APs via the monitor
    address.
- - APs vector to rmpiggy and start up normally from that point.
+ - APs jump to rmpiggy and start up normally from that point.
  - SL platform module is registered as a late initcall module. It reads
    the TPM event log and extends the measurements taken into the TPM PCRs.
  - SL platform module initializes the securityfs interface to allow
@@ -170,7 +160,8 @@ understanding of Detail and Authorities it is recommended to review the TCG
 DRTM architecture.
 
 To determine PCR usage, Linux Secure Launch follows the TrenchBoot Secure
-Launch Specification of using a measurement policy stored in the SLRT. The
+Launch Specification of using a measurement policy stored in the Secure Launch
+Resource Table (SLRT), which is defined in the Secure Launch Specification.
 policy details what should be measured and the PCR in which to store the
 measurement. The measurement policy provides the ability to select the
 PCR.DLME_Detail (PCR20) PCR as the location for the DRTM components measured by

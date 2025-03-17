@@ -1,12 +1,12 @@
 .. SPDX-License-Identifier: GPL-2.0
-.. Copyright (c) 2019-2024 Daniel P. Smith <dpsmith@apertussolutions.com>
+.. Copyright (c) 2019-2025 Daniel P. Smith <dpsmith@apertussolutions.com>
 
 ===================================
 Secure Launch Config and Interfaces
 ===================================
 
 :Author: Daniel P. Smith
-:Date: August 2024
+:Date: March 2025
 
 Configuration
 =============
