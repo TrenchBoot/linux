@@ -2,8 +2,8 @@
 /*
  * Main Secure Launch header file.
  *
- * Copyright (c) 2024 Apertus Solutions, LLC
- * Copyright (c) 2024, Oracle and/or its affiliates.
+ * Copyright (c) 2025 Apertus Solutions, LLC
+ * Copyright (c) 2025, Oracle and/or its affiliates.
  */
 
 #ifndef _LINUX_SLAUNCH_H
@@ -418,6 +418,15 @@ static inline void *txt_sinit_mle_data_start(void *heap)
 /*
  * TPM event logging functions.
  */
+
+/*
+ * Find the TPM v2 event log element in the TXT heap. This element contains
+ * the information about the size and location of the DRTM event log. Note
+ * this is a TXT specific structure.
+ *
+ * See:
+ *   Intel Trusted Execution Technology - Measured Launch Environment Developer's Guide - Appendix C.
+ */
 static inline struct txt_heap_event_log_pointer2_1_element*
 tpm2_find_log2_1_element(struct txt_os_sinit_data *os_sinit_data)
 {
@@ -442,6 +451,9 @@ tpm2_find_log2_1_element(struct txt_os_sinit_data *os_sinit_data)
 	return NULL;
 }
 
+/*
+ * Log a TPM v1 formatted event to the given DRTM event log.
+ */
 static inline int tpm_log_event(void *evtlog_base, u32 evtlog_size,
 				u32 event_size, void *event)
 {
@@ -464,6 +476,9 @@ static inline int tpm_log_event(void *evtlog_base, u32 evtlog_size,
 	return 0;
 }
 
+/*
+ * Log a TPM v2 formatted event to the given DRTM event log.
+ */
 static inline int tpm2_log_event(struct txt_heap_event_log_pointer2_1_element *elem,
 				 void *evtlog_base, u32 evtlog_size,
 				 u32 event_size, void *event)
