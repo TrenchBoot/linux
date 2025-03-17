@@ -1,12 +1,12 @@
 .. SPDX-License-Identifier: GPL-2.0
-.. Copyright (c) 2019-2024 Daniel P. Smith <dpsmith@apertussolutions.com>
+.. Copyright (c) 2019-2025 Daniel P. Smith <dpsmith@apertussolutions.com>
 
 =======================
 System Launch Integrity
 =======================
 
 :Author: Daniel P. Smith
-:Date: August 2024
+:Date: March 2025
 
 This document serves to establish a common understanding of what a system
 launch is, the integrity concern for system launch, and why using a Root of Trust
@@ -20,14 +20,10 @@ System Launch
 
 There is a tendency to only consider the classical power-on boot as the only
 means to launch an Operating System (OS) on a computer system. In fact, most
-modern processors support two system launch methods. To provide clarity,
-it is important to establish a common definition of a system launch: during
-a single power life cycle of a system, a system launch consists of an initialization
-event, typically in hardware, that is followed by an executing software payload
-that takes the system from the initialized state to a running state. Driven by
-the Trusted Computing Group (TCG) architecture, modern processors are able to
-support two methods of system launch. These two methods of system launch are known
-as Static Launch and Dynamic Launch.
+modern processors support two system launch methods. Driven by the Trusted Computing
+Group (TCG) architecture, modern processors are able to support two methods of
+system launch. These two methods of system launch are known as Static Launch
+and Dynamic Launch.
 
 Static Launch
 -------------
@@ -69,19 +65,6 @@ late launch.
 System Integrity
 ================
 
-A computer system can be considered a collection of mechanisms that work
-together to produce a result. The assurance that the mechanisms are functioning
-correctly and producing the expected result is the integrity of the system. To
-ensure a system's integrity, there is a subset of these mechanisms, commonly
-referred to as security mechanisms, that is present to help ensure the system
-produces the expected result or at least detects the potential of an unexpected
-result. Since the security mechanisms are relied upon to ensue the integrity of
-the system, these mechanisms are trusted. Upon inspection, these security
-mechanisms each have a set of properties and these properties can be evaluated
-to determine how susceptible a mechanism might be to failure. This assessment is
-referred to as the Strength of Mechanism, which allows the trustworthiness of
-that mechanism to be quantified.
-
 For software systems, there are two system states for which the integrity is
 critical: when the software is loaded into memory and when the software is
 executing on the hardware. Ensuring that the expected software is loaded into
@@ -91,13 +74,11 @@ executing is the expected software is the runtime integrity of that software.
 Load-time Integrity
 -------------------
 
-It is critical to understand what load-time integrity establishes about a
-system and what is assumed, i.e. what is being trusted. Load-time integrity is
-when a trusted entity, i.e. an entity with an assumed integrity, takes an
-action to assess an entity being loaded into memory before it is used. A
-variety of mechanisms may be used to conduct the assessment, each with
-different properties. A particular property is whether the mechanism creates an
-evidence of the assessment. Often either cryptographic signature checking or
+Load-time integrity is when a trusted entity, i.e. an entity with an assumed
+integrity, takes an action to assess an entity being loaded into memory before
+it is used. A variety of mechanisms may be used to conduct the assessment, each
+with different properties. A particular property is whether the mechanism creates
+an evidence of the assessment. Often either cryptographic signature checking or
 hashing are the common assessment operations used.
 
 A signature checking assessment functions by requiring a representation of the
@@ -109,7 +90,7 @@ Computing Base (TCB), 2) there is no evidence to assert that an untampered
 adjudication was completed, and 3) the system must be an active participant in
 the key management infrastructure.
 
-A cryptographic hashing assessment does not adjudicate the assessment, but
+A cryptographic measurement does not adjudicate the assessment, but
 instead generates evidence of the assessment to be adjudicated independently.
 The benefits to this approach is that the assessment may be simple such that it
 may be implemented in an immutable mechanism, e.g. in hardware.  Additionally,
@@ -141,14 +122,17 @@ Trust Chains
 
 Building upon the understanding of security mechanisms to establish load-time
 integrity of an entity, it is possible to chain together load-time integrity
-assessments to establish the integrity of the whole system. This process is
-known as transitive trust and provides the concept of building a chain of
-load-time integrity assessments, commonly referred to as a trust chain. These
-assessments may be used to adjudicate the load-time integrity of the whole
-system. This trust chain is started by a trusted entity that does the first
-assessment. This first entity is referred to as the Root of Trust(RoT) with the
-entities name being derived from the mechanism used for the assessment, i.e.
-RoT for Verification (RTV) and RoT for Measurement (RTM).
+assessments to establish the integrity of the whole system. The process of
+creating this chain is using a series of transitive trust assertions to
+establish confidence in the load-time integrity of each component loaded.
+
+This process is known as transitive trust and provides the concept of building
+a chain of load-time integrity assessments, commonly referred to as a trust
+chain. These assessments may be used to adjudicate the load-time integrity of
+the whole system. This trust chain is started by a trusted entity that does the
+first assessment. This first entity is referred to as the Root of Trust(RoT)
+with the entities name being derived from the mechanism used for the assessment,
+i.e. RoT for Verification (RTV) and RoT for Measurement (RTM).
 
 A trust chain is itself a mechanism, specifically a mechanism of mechanisms,
 and therefore it also has a Strength of Mechanism. The factors that contribute
@@ -170,6 +154,15 @@ The TCG architecture for dynamic launch is composed of a component series
 used to set up and then carry out the launch. These components work together to
 construct an RTM trust chain that is rooted in the dynamic launch and thus commonly
 referred to as the Dynamic Root of Trust for Measurement (DRTM) chain.
+
+.. note::
+    Intel TXT pre-dates the TCG Dynamic Launch specification. In the Intel TXT
+    documentation, Dynamic Root of Trust for Measurement was abbreviated as DRTM.
+    When Dynamic Launch was codified in the TCG specification, it was opted to use
+    the acronym D-RTM. There is a similar situation with Static Root of Trust for
+    Measuremnt, in TCG documentation it will be acronymed as S-RTM but it is not
+    uncommon to see it as SRTM. For the purposes of the launch integrity documents,
+    DRTM and SRTM will be the preferred acronym.
 
 What follows is a brief explanation of each component in execution order. A
 subset of these components are what establishes the dynamic launch's trust
@@ -207,8 +200,8 @@ be the last. Depending on the usage and configuration, the DLME may be the
 final/target operating system, or it may be a bootloader that will load the
 final/target operating system.
 
-Why DRTM
-========
+Why DRTM?
+=========
 
 It is a fact that DRTM increases the load-time integrity of the system by
 providing a trust chain that has an immutable hardware RoT, uses a limited
@@ -219,9 +212,10 @@ seen with the BootHole exploit, which in fact did not affect the integrity of
 DRTM solutions, the sophistication of attacks targeting system launch is at an
 all-time high. There is no reason a system should not employ every available
 hardware integrity measure. This is the crux of a defense-in-depth
-approach to system security. In the past, the now closed SMI gap was often
-pointed to as invalidating DRTM, which in fact was nothing but a straw man
-argument. As has continued to be demonstrated, if/when SMM is corrupted, it can
+approach to system security.
+
+In the past, the now closed SMI gap was often pointed to as invalidating DRTM.
+As has continued to be demonstrated, if/when SMM is corrupted, it can
 always circumvent all load-time integrity (SRTM and DRTM) because it is a
 run-time integrity problem. Regardless, Intel and AMD have both deployed
 runtime integrity for SMI and SMM which is tied directly to DRTM such that this
