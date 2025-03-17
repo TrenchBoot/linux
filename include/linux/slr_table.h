@@ -2,18 +2,21 @@
 /*
  * TrenchBoot Secure Launch Resource Table
  *
- * The Secure Launch Resource Table is TrenchBoot project defined
- * specfication to provide cross-architecture compatibility. See
- * TrenchBoot Secure Launch kernel documentation for details.
+ * The Secure Launch Resource Table (SLRT) is a TrenchBoot project defined
+ * specfication to provide a cross-platform interface/ABI between
+ * the Secure Launch components. While most of the table is platform
+ * agnostic, platform or architecture specific entries can be added.
  *
- * Copyright (c) 2024 Apertus Solutions, LLC
- * Copyright (c) 2024, Oracle and/or its affiliates.
+ * See TrenchBoot Secure Launch kernel documentation for details.
+ *
+ * Copyright (c) 2025 Apertus Solutions, LLC
+ * Copyright (c) 2025, Oracle and/or its affiliates.
  */
 
 #ifndef _LINUX_SLR_TABLE_H
 #define _LINUX_SLR_TABLE_H
 
-/* Put this in efi.h if it becomes a standard */
+/* SLR table GUID for registering as an EFI Configuration Table (put this in efi.h if it becomes a standard) */
 #define SLR_TABLE_GUID				EFI_GUID(0x877a9b2a, 0x0385, 0x45d1, 0xa0, 0x34, 0x9d, 0xac, 0x9c, 0x9e, 0x56, 0x5f)
 
 /* SLR table header values */
@@ -199,11 +202,27 @@ struct slr_entry_uefi_config {
 	struct slr_uefi_cfg_entry uefi_cfg_entries[];
 } __packed;
 
+/*
+ * The SLRT is layed out as a Tag-Length-Value (TLV) data structure
+ * allowing a flexible number of entries in the table. An instance
+ * of the slr_table structure is present as a header at the beginning.
+ *
+ * The following functions help to manipulate the SLRT structure
+ * and contents.
+ */
+
+/*
+ * Return the address of the end of the SLRT past the final entry.
+ */
 static inline void *slr_end_of_entries(struct slr_table *table)
 {
 	return (void *)table + table->size;
 }
 
+/*
+ * Return the next entry in the SLRT given the current entry passed
+ * to the function. NULL is returned if there are no entries to return.
+ */
 static inline void *
 slr_next_entry(struct slr_table *table,
 	       struct slr_entry_hdr *curr)
@@ -218,6 +237,11 @@ slr_next_entry(struct slr_table *table,
 	return next;
 }
 
+/*
+ * Return the next entry with the given tag in the SLRT starting at the
+ * currenty entry. If entry is NULL, the search begins at the beginning of
+ * table.
+ */
 static inline void *
 slr_next_entry_by_tag(struct slr_table *table,
 		      struct slr_entry_hdr *entry,
@@ -238,6 +262,9 @@ slr_next_entry_by_tag(struct slr_table *table,
 	return NULL;
 }
 
+/*
+ * Add an entry to the SLRT. Entries are placed at the end.
+ */
 static inline int
 slr_add_entry(struct slr_table *table,
 	      struct slr_entry_hdr *entry)
@@ -257,6 +284,10 @@ slr_add_entry(struct slr_table *table,
 	return 0;
 }
 
+/*
+ * Initialize the SLRT for use. This prepares the meta-data in the SLRT
+ * header section and the table end marker entry.
+ */
 static inline void
 slr_init_table(struct slr_table *slrt, u16 architecture, u32 max_size)
 {
