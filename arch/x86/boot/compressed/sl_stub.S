@@ -3,7 +3,7 @@
 /*
  * Secure Launch protected mode entry point.
  *
- * Copyright (c) 2024, Oracle and/or its affiliates.
+ * Copyright (c) 2025, Oracle and/or its affiliates.
  */
 	.code32
 	.text
@@ -121,9 +121,9 @@ SYM_FUNC_START(sl_stub_entry)
 	incl	rva(sl_txt_cpu_count)(%ebx)
 
 	/*
-	 * Enable SMI with GETSEC[SMCTRL] which were disabled by SENTER.
+	 * On the BSP, enable SMI with GETSEC[SMCTRL] which were disabled by SENTER.
 	 * NMIs were also disabled by SENTER. Since there is no IDT for the BSP,
-	 * allow the mainline kernel re-enable them in the normal course of
+	 * allow the mainline kernel to re-enable them in the normal course of
 	 * booting.
 	 */
 	GETSEC	$(SMX_X86_GETSEC_SMCTRL)
