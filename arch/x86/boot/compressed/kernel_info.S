@@ -47,18 +47,18 @@ SYM_DATA_END_LABEL(kernel_info, SYM_L_LOCAL, kernel_info_end)
 	 * bit 9: Supported format of TPM 2.0 event log - TCG compliant
 	 */
 SYM_DATA_START(mle_header)
-	.long	0x9082ac5a  /* UUID0 */
-	.long	0x74a7476f  /* UUID1 */
-	.long	0xa2555c0f  /* UUID2 */
-	.long	0x42b651cb  /* UUID3 */
-	.long	0x00000034  /* MLE header size */
-	.long	0x00020002  /* MLE version 2.2 */
-	.long	roffset(sl_stub_entry_offset) /* Linear entry point of MLE (virt. address) */
-	.long	0x00000000  /* First valid page of MLE */
-	.long	0x00000000  /* Offset within binary of first byte of MLE */
-	.long	roffset(_edata_offset) /* Offset within binary of last byte + 1 of MLE */
-	.long	0x00000227  /* Bit vector of MLE-supported capabilities */
-	.long	0x00000000  /* Starting linear address of command line (unused) */
-	.long	0x00000000  /* Ending linear address of command line (unused) */
+	.long	0x9082ac5a			/* UUID0 */
+	.long	0x74a7476f			/* UUID1 */
+	.long	0xa2555c0f			/* UUID2 */
+	.long	0x42b651cb			/* UUID3 */
+	.long	0x00000034			/* MLE header size */
+	.long	0x00020002			/* MLE version 2.2 */
+	.long	roffset(sl_stub_entry_offset)	/* Linear entry point of MLE (virt. address) */
+	.long	0x00000000			/* First valid page of MLE */
+	.long	0x00000000			/* Offset within binary of first byte of MLE */
+	.long	roffset(_edata_offset)		/* Offset within binary of last byte + 1 of MLE */
+	.long	0x00000227			/* Bit vector of MLE-supported capabilities */
+	.long	0x00000000			/* Starting linear address of command line (unused) */
+	.long	0x00000000			/* Ending linear address of command line (unused) */
 SYM_DATA_END(mle_header)
 #endif
