@@ -1172,8 +1172,8 @@ int tpm_tis_core_init(struct device *dev, struct tpm_tis_data *priv, int irq,
 	}
 
 	/*
-	 * There are environments, for example, those that comply with the TCG D-RTM
-	 * specification that requires the TPM to be left in Locality 2.
+	 * In order to comply with the TCG D-RTM specification, relinquish all
+	 * the localities.
 	 */
 	for (i = 0; i <= TPM_MAX_LOCALITY; i++) {
 		if (check_locality(chip, i))
