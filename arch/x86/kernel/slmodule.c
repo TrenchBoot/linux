@@ -2,9 +2,9 @@
 /*
  * Secure Launch late validation/setup, securityfs exposure and finalization.
  *
- * Copyright (c) 2024 Apertus Solutions, LLC
- * Copyright (c) 2024 Assured Information Security, Inc.
- * Copyright (c) 2024, Oracle and/or its affiliates.
+ * Copyright (c) 2025 Apertus Solutions, LLC
+ * Copyright (c) 2025 Assured Information Security, Inc.
+ * Copyright (c) 2025, Oracle and/or its affiliates.
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
