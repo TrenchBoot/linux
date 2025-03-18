@@ -217,7 +217,7 @@ Value:  0xc0008005
 
 Description:
 
-During early validation, a buffer or region was found to straddle the 4GB
+During early validation, a buffer or region was found to straddle the 4Gb
 boundary. Because of the way TXT provides DMA memory protection, this is an unsafe
 configuration and is flagged as an error. This is most likely a configuration
 issue in the pre-launch environment. It could also be the sign of an attempted
@@ -339,7 +339,7 @@ Value:  0xc0008010
 
 Description:
 
-A memory region used by the MLE is above 4GB. In general this is not a problem
+A memory region used by the MLE is above 4Gb. In general this is not a problem
 because memory > 4Gb can be protected from DMA. There are certain buffers that
 should never be above 4Gb, and one of these caused the violation. This is most
 likely a configuration issue in the pre-launch environment. It could also be
@@ -385,8 +385,8 @@ Value:  0xc0008014
 
 Description:
 
-On a system with more than 4G of RAM, the high PMR [2]_ base address should be
-set to 4G. This error is due to that not being the case. This PMR value is set
+On a system with more than 4Gb of RAM, the high PMR [2]_ base address should be
+set to 4Gb. This error is due to that not being the case. This PMR value is set
 by the pre-launch environment, so the issue most likely originates there. It
 could also be the sign of an attempted attack.
 
@@ -397,8 +397,8 @@ Value:  0xc0008015
 
 Description:
 
-On a system with more than 4G of RAM, the high PMR [2]_ size should be set to
-cover all RAM > 4G. This error is due to that not being the case. This PMR
+On a system with more than 4Gb of RAM, the high PMR [2]_ size should be set to
+cover all RAM > 4Gb. This error is due to that not being the case. This PMR
 value is set by the pre-launch environment, so the issue most likely originates
 there. It could also be the sign of an attempted attack.
 
