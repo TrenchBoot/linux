@@ -11,7 +11,7 @@ Secure Launch Overview
 Overview
 ========
 
-The TrenchBoot project started the development of Secure Launch kernel feature
+The TrenchBoot project started the development of the Secure Launch kernel feature
 to provide a more generalized approach. The focus of the effort is twofold: first,
 to make the Linux kernel directly aware of the launch protocol used by platforms
 such as Intel, AMD/Hygon, Arm, and potentially OpenPOWER; second, to make the
@@ -108,7 +108,7 @@ Basic Boot Flow
 ===============
 
 Outlined here is a summary of the boot flow for Secure Launch. A more detailed
-review of Secure Launch process can be found in the Secure Launch
+review of the Secure Launch process can be found in the Secure Launch
 Specification (a link is located in the `Resources`_ section).
 
 Pre-launch: *Phase where the environment is prepared and configured to initiate
@@ -119,7 +119,7 @@ the secure launch by the boot chain.*
  - Set up the TXT heap and page tables describing the MLE [1]_ per the
    specification.
  - If non-UEFI platform, dl_stub is called.
- - If UEFI platforms, SLRT registered with UEFI and efi-stub called.
+ - If UEFI platform, SLRT registered with UEFI and efi-stub called.
  - Upon completion, efi-stub will call EBS followed by dl_stub.
  - The dl_stub will prepare the CPU and the TPM for the launch.
  - The secure launch is then initiated with the GETSET[SENTER] instruction.
@@ -154,7 +154,7 @@ kernel begins execution.*
 PCR Usage
 =========
 
-The TCG DRTM architecture there are three PCRs defined for usage, PCR.Details
+In the TCG DRTM architecture there are three PCRs defined for usage, PCR.Details
 (PCR17), PCR.Authorities (PCR18), and PCR.DLME_Authority (PCR19). For a deeper
 understanding of Detail and Authorities it is recommended to review the TCG
 DRTM architecture.
@@ -162,7 +162,7 @@ DRTM architecture.
 To determine PCR usage, Linux Secure Launch follows the TrenchBoot Secure
 Launch Specification of using a measurement policy stored in the Secure Launch
 Resource Table (SLRT), which is defined in the Secure Launch Specification.
-policy details what should be measured and the PCR in which to store the
+This policy details what should be measured and the PCR in which to store the
 measurement. The measurement policy provides the ability to select the
 PCR.DLME_Detail (PCR20) PCR as the location for the DRTM components measured by
 the kernel, e.g. external initrd image. This can then be combined with storing

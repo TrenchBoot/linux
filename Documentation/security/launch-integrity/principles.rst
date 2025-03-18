@@ -18,12 +18,10 @@ used to describe and reference security-related concepts.
 System Launch
 =============
 
-There is a tendency to only consider the classical power-on boot as the only
-means to launch an Operating System (OS) on a computer system. In fact, most
-modern processors support two system launch methods. Driven by the Trusted Computing
-Group (TCG) architecture, modern processors are able to support two methods of
-system launch. These two methods of system launch are known as Static Launch
-and Dynamic Launch.
+There is a tendency to consider the classical power-on boot as the only means to
+launch an Operating System (OS) on a computer system. In fact, driven by the
+Trusted Computing Group (TCG) architecture, modern processors are able to support
+two methods of system launch: Static Launch and Dynamic Launch.
 
 Static Launch
 -------------
@@ -40,14 +38,14 @@ It is because of this that static launch is referred to and thought of as being
 Dynamic Launch
 --------------
 
-Modern CPUs architectures provides a mechanism to re-initialize the system to a
-"known good" state without requiring a power event. This re-initialization
-event is the event for a dynamic launch and is referred to as the Dynamic
-Launch Event (DLE). The DLE functions by accepting a software payload, referred
+Modern CPU architectures provide a mechanism to re-initialize the system to a
+"known good" state without requiring a power event. This re-initialization is the
+starting point for a dynamic launch and is referred to as The Dynamic Launch Event
+(DLE). The DLE functions by accepting a software payload, referred
 to as the Dynamic Configuration Environment (DCE), that execution is handed to
 after the DLE is invoked. The DCE is responsible for bringing the system back
-to a running state. Since the dynamic launch is not tied to a power event like
-the static launch, this enables a dynamic launch to be initiated at any time
+to a running state. Since the dynamic launch is not tied to a power event like the
+static launch is, this enables a dynamic launch to be initiated at any time
 and multiple times during a single power life cycle. This dynamism is the
 reasoning behind referring to this system launch as "dynamic".
 
@@ -65,11 +63,11 @@ late launch.
 System Integrity
 ================
 
-For software systems, there are two system states for which the integrity is
-critical: when the software is loaded into memory and when the software is
-executing on the hardware. Ensuring that the expected software is loaded into
-memory is referred to as load-time integrity while ensuring that the software
-executing is the expected software is the runtime integrity of that software.
+For software systems, there are two system states for which the integrity of the
+software is critical: when it is loaded into memory and when it is executing on the
+hardware. Ensuring that the expected software is loaded into memory is referred to
+as load-time integrity while ensuring that the software executing is the expected
+payload is the runtime integrity of that software.
 
 Load-time Integrity
 -------------------
@@ -83,12 +81,11 @@ hashing are the common assessment operations used.
 
 A signature checking assessment functions by requiring a representation of the
 accepted authorities and uses those representations to assess if the entity has
-been signed by an accepted authority. The benefit to this process is that
-assessment process includes an adjudication of the assessment. The drawbacks
-are that 1) the adjudication is susceptible to tampering by the Trusted
-Computing Base (TCB), 2) there is no evidence to assert that an untampered
-adjudication was completed, and 3) the system must be an active participant in
-the key management infrastructure.
+been signed by an accepted authority. The benefit of this process is that it
+includes an adjudication of the assessment. The drawbacks are that 1) the adjudication
+is susceptible to tampering by the Trusted Computing Base (TCB), 2) there is no
+evidence to assert that an untampered adjudication was completed, and 3) the system
+must be an active participant in the key management infrastructure.
 
 A cryptographic measurement does not adjudicate the assessment, but
 instead generates evidence of the assessment to be adjudicated independently.
