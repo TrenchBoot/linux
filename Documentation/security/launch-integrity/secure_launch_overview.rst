@@ -41,10 +41,10 @@ the Trusted Platform Module (TPM) to store those measurements. The TPM itself
 has been designed such that a dynamic launch unlocks a specific set of Platform
 Configuration Registers (PCR) for holding measurement taken during the dynamic
 launch. These are referred to as the DRTM PCRs, PCRs 17-22. Further details on this
-process can be found in the documentation for the GETSEC instruction provided by
-Intel's TXT and the SKINIT instruction provided by AMD's AMD-V. The documentation
-on these technologies can be readily found online; see the `Resources`_ section
-below for references.
+process can be found respectively in the documentation for the GETSEC instruction
+provided by Intel's TXT and the SKINIT instruction provided by AMD's AMD-V. The
+documentation on these technologies can be readily found online; see
+the `Resources`_ section below for references.
 
 .. note::
     Currently, only Intel TXT is supported in this first release of the Secure
@@ -56,7 +56,7 @@ must be built into the setup section of the compressed kernel to handle the
 specific state that the dynamic launch process leaves the BSP. Also, the Secure
 Launch stub must measure everything that is going to be used as early as
 possible. This stub code and subsequent code must also deal with the specific
-state that the dynamic launch leaves the APs as well.
+state that the dynamic launch leaves the APs in.
 
 Design Decisions
 ================
@@ -82,6 +82,9 @@ decisions:
    needed DRTM measurements.
  - After the call to sl_main(), the main kernel is decompressed and boots as
    it normally would.
+ - Support is introduced in the SMP boot code to properly wake the APs. This
+   is required due to the unique state the dynamic launch leaves the APs in
+   (i.e. they cannot be woken with the standard INIT-SIPI sequence).
  - Final setup for the Secure Launch kernel is done in a separate Secure
    Launch module that is loaded via a late initcall. This code is responsible
    for extending the measurements taken earlier into the TPM DRTM PCRs and
@@ -90,18 +93,12 @@ decisions:
  - On the reboot and kexec paths, calls are made to a function to finalize the
    state of the Secure Launch kernel.
 
-The one place where Secure Launch code is mixed directly in with kernel code is
-in the SMP boot code. This is due to the unique state that the dynamic launch
-leaves the APs in. On Intel, this involves using a method other than the
-standard INIT-SIPI sequence. In this case too though, the changes to the SMP
-code are minor and isolated.
-
 A final note is that the original concept was to extend the DRTM PCRs in the
 Secure Launch stub when the measurements were taken. This requires access to the
 TPM early during boot time. Since the mainline kernel TPM driver relies heavily
 on kernel interfaces not available in the compressed kernel, it was not possible
-to reuse the mainline TPM driver. An alternate solution has been implemented
-that moves the extension operations to the Secure Launch module in the mainline
+to reuse the mainline TPM driver. An alternate solution that has been implemented,
+moves the extension operations to the Secure Launch module in the mainline
 kernel, where the TPM driver would be available.
 
 Basic Boot Flow
@@ -154,10 +151,10 @@ kernel begins execution.*
 PCR Usage
 =========
 
-In the TCG DRTM architecture there are three PCRs defined for usage, PCR.Details
+In the TCG DRTM architecture there are three PCRs defined for usage: PCR.Details
 (PCR17), PCR.Authorities (PCR18), and PCR.DLME_Authority (PCR19). For a deeper
-understanding of Detail and Authorities it is recommended to review the TCG
-DRTM architecture.
+understanding of Details and Authorities, review the TCG DRTM architecture
+documentation.
 
 To determine PCR usage, Linux Secure Launch follows the TrenchBoot Secure
 Launch Specification of using a measurement policy stored in the Secure Launch
@@ -165,7 +162,7 @@ Resource Table (SLRT), which is defined in the Secure Launch Specification.
 This policy details what should be measured and the PCR in which to store the
 measurement. The measurement policy provides the ability to select the
 PCR.DLME_Detail (PCR20) PCR as the location for the DRTM components measured by
-the kernel, e.g. external initrd image. This can then be combined with storing
+the kernel, e.g. external initrd image. This can be combined with storing
 the user authority in the PCR.DLME_Authority PCR to seal/attest to different
 variations of platform details/authorities and user details/authorities. An
 example of how this can be achieved was presented in the FOSDEM - 2021 talk
@@ -176,7 +173,7 @@ SHA-1 Usage
 
 Secure Launch is written to be compliant with the Intel TXT Measured Launch
 Developer's Guide. The MLE Guide dictates that the system can be configured to
-use both the SHA-1 and SHA-2 hashing algorithms. The choice is dictated by what
+use both the SHA-1 and SHA-2 hashing algorithms. The choice is dictated by the
 hash algorithm banks firmware enabled at system start time.
 
 Regardless of the preference towards SHA-2, if the firmware elected to start
@@ -186,15 +183,15 @@ algorithms requested in the launch configuration. If SHA-1 can be disabled in
 the firmware setup, then TXT and Secure Launch will only use the SHA-2 banks
 while establishing the launch environment.
 
-Ultimately, the security of an RTM solution is how and what measurements are
+Ultimately, the security of a RTM solution relies on how and what measurements are
 used to assess the health of a system. If SHA-1 measurements are made but not
-used, i.e. the attestation enforcement only uses SHA-2, then it has zero impact
+used, i.e. the attestation enforcement only uses SHA-2, then it has no impact
 on the security of the system.
 
 Finally, there are older systems with TPM 1.2 chips that only support SHA-1. If
 the system integrator (whether that be the OEM, employer, distro maintainer,
 system administrator, or end user) chooses to use older hardware that only has
-a TPM 1.2 chip, then they are accepting the risk it creates in their solution.
+a TPM 1.2 chip, then they accept the risk it creates in their solution.
 
 Resources
 =========
