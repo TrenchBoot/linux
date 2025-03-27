@@ -3,7 +3,7 @@
  * TrenchBoot Secure Launch Resource Table
  *
  * The Secure Launch Resource Table (SLRT) is a TrenchBoot project defined
- * specfication to provide a cross-platform interface/ABI between
+ * specification to provide a cross-platform interface/ABI between
  * the Secure Launch components. While most of the table is platform
  * agnostic, platform or architecture specific entries can be added.
  *
@@ -203,7 +203,7 @@ struct slr_entry_uefi_config {
 } __packed;
 
 /*
- * The SLRT is layed out as a Tag-Length-Value (TLV) data structure
+ * The SLRT is laid out as a Tag-Length-Value (TLV) data structure
  * allowing a flexible number of entries in the table. An instance
  * of the slr_table structure is present as a header at the beginning.
  *
