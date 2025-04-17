@@ -610,28 +610,33 @@ sl_txt_ap_wake_begin:
 	 * after mwait returns. Currently %esp points to just past the pushed APIC
 	 * ID value.
 	 */
-	movl	%esp, %eax
-	subl	$(TXT_BOOT_STACK_SIZE - 4), %eax
-	movl	$0, (%eax)
+	movl	%esp, %edi
+	subl	$(TXT_BOOT_STACK_SIZE - 4), %edi
+	movl	$0, (%edi)
 
-	/* Clear ecx/edx so no invalid extensions or hints are passed to monitor */
+1:
+	/* Load eax and clear ecx/edx so no invalid extensions or hints are passed to monitor */
+	movl	%edi, %eax
 	xorl	%ecx, %ecx
 	xorl	%edx, %edx
 
 	/*
-	 * Arm the monitor and wait for it to be poked by he SMP bringup code. The mwait
+	 * Arm the monitor and wait for it to be triggered by the SMP bringup code. The mwait
 	 * instruction can return for a number of reasons. Test to see if it returned
 	 * because the monitor was written to.
 	 */
 	monitor
 
-1:
-	mfence
-	mwait
-	movl	(%eax), %edx
-	testl	%edx, %edx
-	jz	1b
+	cmpl	$0, (%eax)
+	jnz	2f
 
+	/* Clear eax since there are no hints sent to mwait */
+	xorl	%eax, %eax
+
+	mwait
+	jmp	1b
+
+2:
 	/*
 	 * This is the long absolute jump to the 32b Secure Launch protected mode stub
 	 * code in sl_trampoline_start32() in the rmpiggy. The jump address will be
