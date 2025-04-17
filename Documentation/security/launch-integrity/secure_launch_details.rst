@@ -33,7 +33,7 @@ KASLR Configuration
 -------------------
 
 Due to Secure Launch hardware implementation details and how KASLR functions,
-Secure Launch is not able to interoperate with KASLR at this time. Attempts to
+Secure Launch is not able to interoperate with KASLR currently. Attempts to
 enable KASLR in a kernel started using Secure Launch may result in crashes and
 other instabilities at boot. Even in cases where Secure Launch and KASLR work
 together, it is still recommended that KASLR be disabled to avoid introducing
@@ -66,7 +66,7 @@ When doing a Secure Launch, the IOMMU should always be enabled and the drivers
 loaded. However, IOMMU passthrough mode should never be used. This leaves the
 MLE completely exposed to DMA after the PMRs [2]_ are disabled. The current
 default mode is to use IOMMU in lazy translated mode, but strict translated
-mode is the preferred IOMMU mode and this should be selected in the build
+mode, is the preferred IOMMU mode and this should be selected in the build
 configuration::
 
   "Device Drivers" -->
@@ -243,7 +243,7 @@ Value:  0xc0008007
 Description:
 
 During early Secure Launch validation, an invalid variable MTRR count was
-found. The pre-launch environment passes a number of MSR values to the MLE to
+found. The pre-launch environment passes several MSR values to the MLE to
 restore including the MTRRs. The values are restored by the Secure Launch early
 entry point code. After measuring the values supplied by the pre-launch
 environment, a discrepancy was found, validating the values. It could be the
@@ -339,7 +339,7 @@ Value:  0xc0008010
 
 Description:
 
-A memory region used by the MLE is above 4Gb. In general this is not a problem
+A memory region used by the MLE is above 4Gb. In general, this is not a problem
 because memory > 4Gb can be protected from DMA. There are certain buffers that
 should never be above 4Gb, and one of these caused the violation. This is most
 likely a configuration issue in the pre-launch environment. It could also be
@@ -352,8 +352,8 @@ Value:  0xc0008011
 
 Description:
 
-The backup copy of the ACPI DMAR table which is supposed to be located in the
-TXT heap could not be found. This is due to a bug in the platform's ACM module
+The backup copy of the ACPI DMAR table, which is expected to be in the
+TXT heap, could not be found. This is due to a bug in the platform's ACM module
 or in firmware.
 
 ======  =======================
@@ -363,7 +363,7 @@ Value:  0xc0008012
 
 Description:
 
-The backup copy of the ACPI DMAR table in the TXT heap is to large to be stored
+The backup copy of the ACPI DMAR table in the TXT heap is too large to be stored
 for later usage. This error is very unlikely to occur since the area reserved
 for the copy is far larger than the DMAR should be.
 
@@ -433,7 +433,7 @@ Value:  0xc0008018
 Description:
 
 The external initrd provided is larger than 4Gb. This is not a valid
-configuration for a Secure Launch due to managing DMA protection.
+configuration for Secure Launch due to managing DMA protection.
 
 ======  =========================
 Name:   SL_ERROR_HEAP_ZERO_OFFSET

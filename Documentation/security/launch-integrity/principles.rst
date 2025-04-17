@@ -20,7 +20,7 @@ System Launch
 
 There is a tendency to consider the classical power-on boot as the only means to
 launch an Operating System (OS) on a computer. In fact, driven by the
-Trusted Computing Group (TCG) architecture, modern processors are able to support
+Trusted Computing Group (TCG) architecture, modern processors can support
 two methods of system launch: Static Launch and Dynamic Launch.
 
 Static Launch
@@ -44,8 +44,8 @@ starting point for a dynamic launch and is referred to as The Dynamic Launch Eve
 (DLE). The DLE functions by accepting a software payload, referred
 to as the Dynamic Configuration Environment (DCE), that execution is handed to
 after the DLE is invoked. The DCE is responsible for bringing the system back
-to a running state. Since the dynamic launch is not tied to a power event like the
-static launch is, this enables a dynamic launch to be initiated at any time
+to a running state. Since the dynamic launch is not tied to a power event like
+static launch, this enables a dynamic launch to be initiated at any time
 and multiple times during a single power life cycle. This dynamism is the
 reasoning behind referring to this system launch as "dynamic".
 
@@ -76,7 +76,7 @@ Load-time integrity is when a trusted entity, i.e. an entity with an assumed
 integrity, takes an action to assess an entity being loaded into memory before
 it is used. A variety of mechanisms may be used to conduct the assessment, each
 with different properties. A particular property is whether the mechanism creates
-an evidence of the assessment. Often either cryptographic signature checking or
+evidence of the assessment. Often either cryptographic signature checking or
 hashing are the common assessment operations used.
 
 A signature checking assessment functions by requiring a representation of the
@@ -132,7 +132,7 @@ with the entity's name being derived from the mechanism used for the assessment,
 i.e. RoT for Verification (RTV) and RoT for Measurement (RTM).
 
 A trust chain is itself a mechanism, specifically a mechanism of mechanisms,
-and therefore it also has a Strength of Mechanism. The factors that contribute
+and therefore, it also has a Strength of Mechanism. The factors that contribute
 to the strength of a trust chain are:
 
   - The strength of the chain's RoT
@@ -263,8 +263,8 @@ Glossary
     functions. In this case, the process can be iterated. The second group of
     functions can give a trustworthy description of the third group of
     functions, etc. Transitive trust is used to provide a trustworthy
-    description of platform characteristics, and also to prove that
-    non-migratable keys are in fact non-migratable.
+    description of platform characteristics and to prove that non-migratable
+    keys are in fact non-migratable.
 
     - TCG Glossary - https://trustedcomputinggroup.org/wp-content/uploads/TCG-Glossary-V1.1-Rev-1.0.pdf
 

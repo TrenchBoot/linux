@@ -29,8 +29,8 @@ Goals
 =====
 
 The first use case that the TrenchBoot project focused on was the ability for
-the Linux kernel to be started by a dynamic launch, in particular as part of an
-early launch sequence. In this case, the dynamic launch will be initiated by
+the Linux kernel to be started by a dynamic launch as part of an early
+launch sequence. In this case, the dynamic launch will be initiated by
 any bootloader with associated support added to it. The first targeted bootloader
 in this case was GRUB2. An integral part of establishing a measurement-based
 launch integrity involves measuring everything that is intended to be executed
@@ -61,7 +61,7 @@ state that the dynamic launch leaves the APs in.
 Design Decisions
 ================
 
-A number of design decisions were made during the development of the Secure
+Several design decisions were made during the development of the Secure
 Launch feature. The two primary guiding decisions were:
 
  - Keeping the Secure Launch code as separate from the rest of the kernel
@@ -106,12 +106,12 @@ Basic Boot Flow
 
 Outlined here is a summary of the boot flow for Secure Launch. A more detailed
 review of the Secure Launch process can be found in the Secure Launch
-Specification (a link is located in the `Resources`_ section).
+Specification (a link is in the `Resources`_ section).
 
 Pre-launch: *Phase where the environment is prepared and configured to initiate
 the secure launch by the boot chain.*
 
- - The SLRT is initialized and dl_stub is placed in memory.
+ - The SLRT is initialized, and dl_stub is placed in memory.
  - Load the kernel, initrd and ACM [2]_ into memory.
  - Set up the TXT heap and page tables describing the MLE [1]_ per the
    specification.
@@ -183,7 +183,7 @@ algorithms requested in the launch configuration. If SHA-1 can be disabled in
 the firmware setup, then TXT and Secure Launch will only use the SHA-2 banks
 while establishing the launch environment.
 
-Ultimately, the security of a RTM solution relies on how and what measurements are
+Ultimately, the security of an RTM solution relies on how and what measurements are
 used to assess the health of a system. If SHA-1 measurements are made but not
 used, i.e. the attestation enforcement only uses SHA-2, then it has no impact
 on the security of the system.
