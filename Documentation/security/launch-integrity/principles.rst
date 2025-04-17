@@ -157,7 +157,7 @@ referred to as the Dynamic Root of Trust for Measurement (DRTM) chain.
     documentation, Dynamic Root of Trust for Measurement was abbreviated as DRTM.
     When Dynamic Launch was codified in the TCG specification, it was given
     the acronym D-RTM. There is a similar situation with Static Root of Trust for
-    Measuremnt. In TCG documentation it will be given the acronym S-RTM but it is not
+    Measurement. In TCG documentation it will be given the acronym S-RTM but it is not
     uncommon to see it as SRTM. For the purposes of the launch integrity documents,
     DRTM and SRTM will be the preferred acronym.
 
