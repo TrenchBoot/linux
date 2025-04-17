@@ -127,7 +127,7 @@ kernel begins execution.*
  - Entry from the dynamic launch jumps to the SL stub.
  - SL stub fixes up the world on the BSP.
  - For TXT, SL stub wakes the APs, fixes up their worlds.
- - For TXT, APs are left halted using MONITOR/MWAIT intructions.
+ - For TXT, APs are left in an optimized (MONITOR/MWAIT) wait state.
  - SL stub jumps to startup_32.
  - SL main does validation of buffers and memory locations. It sets
    the boot parameter loadflag value SLAUNCH_FLAG to inform the main
