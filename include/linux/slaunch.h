@@ -437,15 +437,12 @@ tpm2_find_log2_1_element(struct txt_os_sinit_data *os_sinit_data)
 		((u8 *)os_sinit_data + sizeof(struct txt_os_sinit_data));
 
 	while (ext_elem->type != TXT_HEAP_EXTDATA_TYPE_END) {
-		if (ext_elem->type ==
-		    TXT_HEAP_EXTDATA_TYPE_EVENT_LOG_POINTER2_1) {
+		if (ext_elem->type == TXT_HEAP_EXTDATA_TYPE_EVENT_LOG_POINTER2_1) {
 			return (struct txt_heap_event_log_pointer2_1_element *)
-				((u8 *)ext_elem +
-					sizeof(struct txt_heap_ext_data_element));
+				((u8 *)ext_elem + sizeof(struct txt_heap_ext_data_element));
 		}
-		ext_elem =
-			(struct txt_heap_ext_data_element *)
-			((u8 *)ext_elem + ext_elem->size);
+		ext_elem = (struct txt_heap_ext_data_element *)
+			    ((u8 *)ext_elem + ext_elem->size);
 	}
 
 	return NULL;
@@ -508,7 +505,7 @@ static inline int tpm2_log_event(struct txt_heap_event_log_pointer2_1_element *e
 }
 
 /*
- * External functions avalailable in mainline kernel.
+ * External functions available in mainline kernel.
  */
 void slaunch_setup_txt(void);
 void slaunch_fixup_jump_vector(void);
@@ -521,7 +518,7 @@ void slaunch_finalize(int do_sexit);
 
 static inline bool slaunch_is_txt_launch(void)
 {
-	u32 mask =  SL_FLAG_ACTIVE | SL_FLAG_ARCH_TXT;
+	u32 mask = SL_FLAG_ACTIVE | SL_FLAG_ARCH_TXT;
 
 	return (slaunch_get_flags() & mask) == mask;
 }
