@@ -717,6 +717,7 @@ int tpm_chip_set_locality(struct tpm_chip *chip, u8 locality)
 	chip->kernel_locality = locality;
 	chip->flags &= ~TPM_CHIP_FLAG_SET_LOCALITY_ENABLED;
 	tpm_put_ops(chip);
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(tpm_chip_set_locality);
