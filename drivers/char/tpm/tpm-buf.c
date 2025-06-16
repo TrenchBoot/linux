@@ -3,7 +3,6 @@
  * Handling of TPM command and other buffers.
  */
 
-#include <linux/tpm_command.h>
 #include <linux/module.h>
 #include <linux/tpm.h>
 
@@ -296,7 +295,7 @@ void tpm1_buf_append_extend(struct tpm_buf *buf, u32 pcr_idx, const u8 *hash)
 	if (buf->flags & TPM_BUF_INVALID)
 		return;
 
-	if (!tpm1_buf_is_command(buf, TPM_ORD_EXTEND)) {
+	if (!tpm1_buf_is_command(buf, TPM_ORD_PCR_EXTEND)) {
 		WARN(1, "tpm_buf: invalid TPM_Extend command\n");
 		buf->flags |= TPM_BUF_INVALID;
 		return;
