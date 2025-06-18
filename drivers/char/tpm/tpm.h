@@ -50,12 +50,6 @@ enum tpm_addr {
 	TPM_ADDR = 0x4E,
 };
 
-/* 128 bytes is an arbitrary cap. This could be as large as TPM_BUFSIZE - 18
- * bytes, but 128 is still a relatively large number of random bytes and
- * anything much bigger causes users of struct tpm_cmd_t to start getting
- * compiler warnings about stack frame size. */
-#define TPM_MAX_RNG_DATA	128
-
 #include "tpm1_structs.h"
 #include "tpm2_structs.h"
 

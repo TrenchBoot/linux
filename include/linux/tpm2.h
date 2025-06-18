@@ -164,11 +164,6 @@ enum tpm2_session_attributes {
 	TPM2_SA_AUDIT			= BIT(7),
 };
 
-enum tpm2_pcr_select {
-	TPM2_PLATFORM_PCR	= 24,
-	TPM2_PCR_SELECT_MIN	= ((TPM2_PLATFORM_PCR + 7) / 8),
-};
-
 enum tpm2_handle_types {
 	TPM2_HT_HMAC_SESSION	= 0x02000000,
 	TPM2_HT_POLICY_SESSION	= 0x03000000,
