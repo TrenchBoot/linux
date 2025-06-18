@@ -29,46 +29,11 @@
 #include "tpm1.h"
 #include "tpm2.h"
 
-#define TPM_DIGEST_SIZE		20	/* Max TPM v1.2 PCR size */
-#define TPM_HEADER_SIZE		10
-#define TPM_BUFSIZE		4096
-
-#define TPM2_PLATFORM_PCR	24
-#define TPM2_PCR_SELECT_MIN	3
-#define TPM2_MAX_DIGEST_SIZE	SHA512_DIGEST_SIZE
-#define TPM2_MAX_BANKS		4
-
 struct tpm_chip;
 struct trusted_key_payload;
 struct trusted_key_options;
 /* opaque structure, holds auth session parameters like the session key */
 struct tpm2_auth;
-
-/* if you add a new hash to this, increment TPM_MAX_HASHES below */
-enum tpm_algorithms {
-	TPM_ALG_ERROR		= 0x0000,
-	TPM_ALG_SHA1		= 0x0004,
-	TPM_ALG_AES		= 0x0006,
-	TPM_ALG_KEYEDHASH	= 0x0008,
-	TPM_ALG_SHA256		= 0x000B,
-	TPM_ALG_SHA384		= 0x000C,
-	TPM_ALG_SHA512		= 0x000D,
-	TPM_ALG_NULL		= 0x0010,
-	TPM_ALG_SM3_256		= 0x0012,
-	TPM_ALG_ECC		= 0x0023,
-	TPM_ALG_CFB		= 0x0043,
-};
-
-/*
- * maximum number of hashing algorithms a TPM can have.  This is
- * basically a count of every hash in tpm_algorithms above
- */
-#define TPM_MAX_HASHES	5
-
-struct tpm_digest {
-	u16 alg_id;
-	u8 digest[TPM2_MAX_DIGEST_SIZE];
-} __packed;
 
 struct tpm_bank_info {
 	u16 alg_id;
@@ -242,15 +207,6 @@ enum tpm_chip_flags {
 };
 
 #define to_tpm_chip(d) container_of(d, struct tpm_chip, dev)
-
-struct tpm_header {
-	__be16 tag;
-	__be32 length;
-	union {
-		__be32 ordinal;
-		__be32 return_code;
-	};
-} __packed;
 
 enum tpm_buf_flags {
 	/* TPM2B format: */
