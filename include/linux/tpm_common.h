@@ -57,6 +57,16 @@ enum tpm_localities {
 };
 
 /*
+ * Structure to represent active PCR algorithm banks usable by the
+ * TPM.
+ */
+struct tpm_bank_info {
+	u16 alg_id;
+	u16 digest_size;
+	u16 crypto_id;
+};
+
+/*
  * 128 bytes is an arbitrary cap. This could be as large as TPM_BUFSIZE - 18
  * bytes, but 128 is still a relatively large number of random bytes and
  * anything much bigger causes users of struct tpm_cmd_t to start getting
