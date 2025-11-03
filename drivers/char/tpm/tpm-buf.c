@@ -3,8 +3,13 @@
  * Handling of TPM command and other buffers.
  */
 
+#include <linux/types.h>
 #include <linux/module.h>
-#include <linux/tpm.h>
+#include <crypto/sha2.h>
+#include <linux/tpm_common.h>
+#include <linux/tpm1.h>
+#include <linux/tpm2.h>
+#include <linux/tpm_buf.h>
 
 static void __tpm_buf_size_invariant(struct tpm_buf *buf, u16 buf_size)
 {
