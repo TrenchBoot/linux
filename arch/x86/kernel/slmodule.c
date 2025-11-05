@@ -312,151 +312,7 @@ static void slaunch_intel_evtlog(void __iomem *txt)
 	efi_head = (struct tcg_efi_specid_event_head *)(sl_evtlog.addr + sizeof(struct tcg_pcr_event));
 }
 
-static void slaunch_tpm2_extend_event(struct tpm_chip *tpm, void __iomem *txt,
-				      struct tcg_pcr_event2_head *event)
-{
-	u16 *alg_id_field = (u16 *)((u8 *)event + sizeof(*event));
-	struct tpm_digest *digests;
-	u8 *dptr;
-	int ret;
-	u32 i;
-
-	/*
-	 * Early SL code ensured the TPM algorithm information passed via
-	 * the log is valid. Small sanity check here.
-	 */
-	if (event->count != efi_head->num_algs)
-		slaunch_txt_reset(txt, "Event digest count mismatch with event log\n",
-				  SL_ERROR_TPM_EVENT_COUNT);
-
-	digests = kzalloc(efi_head->num_algs * sizeof(*digests), GFP_KERNEL);
-	if (!digests)
-		slaunch_txt_reset(txt, "Failed to allocate array of digests\n",
-				  SL_ERROR_GENERIC);
-
-	for (i = 0; i < event->count; i++) {
-		dptr = (u8 *)alg_id_field + sizeof(u16);
-
-		/* Setup each digest for the extend */
-		digests[i].alg_id = efi_head->digest_sizes[i].alg_id;
-		memcpy(&digests[i].digest[0], dptr,
-			efi_head->digest_sizes[i].digest_size);
-
-		alg_id_field = (u16 *)((u8 *)alg_id_field + sizeof(u16) +
-				efi_head->digest_sizes[i].digest_size);
-	}
-
-	ret = tpm_pcr_extend(tpm, event->pcr_idx, digests);
-	if (ret) {
-		pr_err("Error extending TPM20 PCR, result: %d\n", ret);
-		slaunch_txt_reset(txt, "Failed to extend TPM20 PCR\n",
-				  SL_ERROR_TPM_EXTEND);
-	}
-
-	kfree(digests);
-}
-
-static void slaunch_tpm2_extend(struct tpm_chip *tpm, void __iomem *txt)
-{
-	struct tcg_pcr_event *event_header;
-	struct tcg_pcr_event2_head *event;
-	int start = 0, end = 0, size;
-
-	event_header = (struct tcg_pcr_event *)(sl_evtlog.addr +
-						evtlog21->first_record_offset);
-
-	/* Skip first TPM 1.2 event to get to first TPM 2.0 event */
-	event = (struct tcg_pcr_event2_head *)((u8 *)event_header + sizeof(*event_header) +
-					       event_header->event_size);
-
-	while ((void  *)event < sl_evtlog.addr + evtlog21->next_record_offset) {
-		size = __calc_tpm2_event_size(event, event_header, false);
-		if (!size)
-			slaunch_txt_reset(txt, "TPM20 invalid event in event log\n",
-					  SL_ERROR_TPM_INVALID_EVENT);
-
-		/*
-		 * Marker events indicate where the Secure Launch early stub
-		 * started and ended adding post launch events. As they are
-		 * encountered, switch the event type to NO_ACTION so they
-		 * ignored in when the event log is processed since they are
-		 * not really measurements.
-		 */
-		if (event->event_type == TXT_EVTYPE_SLAUNCH_END) {
-			event->event_type = NO_ACTION;
-			end = 1;
-			break;
-		} else if (event->event_type == TXT_EVTYPE_SLAUNCH_START) {
-			event->event_type = NO_ACTION;
-			start = 1;
-			goto next;
-		}
-
-		if (start)
-			slaunch_tpm2_extend_event(tpm, txt, event);
-
-next:
-		event = (struct tcg_pcr_event2_head *)((u8 *)event + size);
-	}
-
-	if (!start || !end)
-		slaunch_txt_reset(txt, "Missing start or end events for extending TPM20 PCRs\n",
-				  SL_ERROR_TPM_EXTEND);
-}
-
-static void slaunch_tpm_extend(struct tpm_chip *tpm, void __iomem *txt)
-{
-	struct tpm_event_log_header *event_header;
-	struct tcg_pcr_event *event;
-	struct tpm_digest digest;
-	int start = 0, end = 0;
-	int size, ret;
-
-	event_header = (struct tpm_event_log_header *)sl_evtlog.addr;
-	event = (struct tcg_pcr_event *)((u8 *)event_header +
-				sizeof(*event_header));
-
-	while ((void  *)event < sl_evtlog.addr + event_header->next_event_offset) {
-		size = sizeof(*event) + event->event_size;
-
-		/*
-		 * See comments in slaunch_tpm2_extend() concerning these special
-		 * event types.
-		 */
-		if (event->event_type == TXT_EVTYPE_SLAUNCH_END) {
-			event->event_type = NO_ACTION;
-			end = 1;
-			break;
-		} else if (event->event_type == TXT_EVTYPE_SLAUNCH_START) {
-			event->event_type = NO_ACTION;
-			start = 1;
-			goto next;
-		}
-
-		if (start) {
-			memset(&digest.digest[0], 0, TPM2_MAX_DIGEST_SIZE);
-			digest.alg_id = TPM_ALG_SHA1;
-			memcpy(&digest.digest[0], &event->digest[0],
-			       SHA1_DIGEST_SIZE);
-
-			ret = tpm_pcr_extend(tpm, event->pcr_idx, &digest);
-			if (ret) {
-				pr_err("Error extending TPM12 PCR, result: %d\n", ret);
-				slaunch_txt_reset(txt, "Failed to extend TPM12 PCR\n",
-						  SL_ERROR_TPM_EXTEND);
-			}
-		}
-
-next:
-		event = (struct tcg_pcr_event *)((u8 *)event + size);
-	}
-
-	if (!start || !end)
-		slaunch_txt_reset(txt, "Missing start or end events for extending TPM12 PCRs\n",
-				  SL_ERROR_TPM_EXTEND);
-}
-
-static void slaunch_pcr_extend(void __iomem *txt)
+static void slaunch_tpm_open_locality2(void __iomem *txt)
 {
 	struct tpm_chip *tpm;
 	int rc;
@@ -470,11 +326,6 @@ static void slaunch_pcr_extend(void __iomem *txt)
 	if (rc)
 		slaunch_txt_reset(txt, "Could not set TPM chip locality 2\n",
 				  SL_ERROR_TPM_INIT);
-
-	if (evtlog21)
-		slaunch_tpm2_extend(tpm, txt);
-	else
-		slaunch_tpm_extend(tpm, txt);
 }
 
 static int __init slaunch_module_init(void)
@@ -493,7 +344,7 @@ static int __init slaunch_module_init(void)
 
 	/* Only Intel TXT is supported at this point */
 	slaunch_intel_evtlog(txt);
-	slaunch_pcr_extend(txt);
+	slaunch_tpm_open_locality2(txt);
 	iounmap(txt);
 
 	return slaunch_expose_securityfs();
