@@ -18,8 +18,9 @@
 #include <asm/bootparam_utils.h>
 #include <linux/slr_table.h>
 #include <linux/slaunch.h>
-#include <crypto/sha1.h>
-#include <crypto/sha2.h>
+
+#include "timer.h"
+#include "tpm.h"
 
 #define CAPS_VARIABLE_MTRR_COUNT_MASK	0xff
 
@@ -33,6 +34,9 @@ static u32 tpm_log_ver = SL_TPM_LOG;
 static u32 tpm_num_algs;
 static struct tcg_efi_specid_event_algs *tpm_algs;
 static u8 event_buf[PAGE_SIZE];
+
+/* Simple instance of a TPM chip object */
+static struct tpm_chip chip;
 
 extern u32 sl_cpu_type;
 extern u32 sl_mle_start;
@@ -275,9 +279,9 @@ static void sl_find_event_log_algorithms(void)
 	}
 }
 
-static void sl_tpm_log_event(u32 pcr, u32 event_type,
-			     const u8 *data, u32 length,
-			     const u8 *event_data, u32 event_size)
+static void sl_tpm1_extend(u32 pcr, u32 event_type,
+			   const u8 *data, u32 length,
+			   const u8 *event_data, u32 event_size)
 {
 	u8 sha1_hash[SHA1_DIGEST_SIZE] = {0};
 	struct tcg_pcr_event *pcr_event;
@@ -300,13 +304,17 @@ static void sl_tpm_log_event(u32 pcr, u32 event_type,
 
 	total_size = sizeof(*pcr_event) + event_size;
 
+	/* Do the TPM extend then log the event */
+	if (tpm1_pcr_extend(&chip, pcr, &sha1_hash[0]))
+		sl_txt_reset(SL_ERROR_TPM_EXTEND);
+
 	if (tpm_log_event(evtlog_base, evtlog_size, total_size, pcr_event))
 		sl_txt_reset(SL_ERROR_TPM_LOGGING_FAILED);
 }
 
-static void sl_tpm2_log_event(u32 pcr, u32 event_type,
-			      const u8 *data, u32 length,
-			      const u8 *event_data, u32 event_size)
+static void sl_tpm2_extend(u32 pcr, u32 event_type,
+			   const u8 *data, u32 length,
+			   const u8 *event_data, u32 event_size)
 {
 	struct sha256_ctx sctx256 = {0};
 	struct tcg_pcr_event2_head *head;
@@ -315,6 +323,7 @@ static void sl_tpm2_log_event(u32 pcr, u32 event_type,
 	u32 total_size, alg_idx;
 	u16 *alg_ptr;
 	u8 *dgst_ptr;
+	int rc;
 
 	/* Clear on each use */
 	memset(event_buf, 0, PAGE_SIZE);
@@ -359,19 +368,24 @@ static void sl_tpm2_log_event(u32 pcr, u32 event_type,
 		memcpy((u8 *)event + sizeof(*event), event_data, event_size);
 	total_size += sizeof(*event) + event_size;
 
+	/*
+	 * Do the TPM extend then log the event. Note the digest list is packed in the event behind the
+	 * event header.
+	 */
+	rc = tpm2_pcr_extend(&chip, pcr, (struct tpm_digest *)(event_buf + sizeof(*head)), head->count);
+	if (rc)
+		sl_txt_reset(SL_ERROR_TPM_EXTEND);
+
 	if (tpm2_log_event(log21_elem, evtlog_base, evtlog_size, total_size, &event_buf[0]))
 		sl_txt_reset(SL_ERROR_TPM_LOGGING_FAILED);
 }
 
-static void sl_tpm_extend_evtlog(u32 pcr, u32 type,
-				 const u8 *data, u32 length, const char *desc)
+static void sl_tpm_extend(u32 pcr, u32 type, const u8 *data, u32 length, const char *desc)
 {
-	if (tpm_log_ver == SL_TPM2_LOG)
-		sl_tpm2_log_event(pcr, type, data, length,
-				  (const u8 *)desc, strlen(desc));
+	if (chip.family == TPM_FAMILY_20)
+		sl_tpm2_extend(pcr, type, data, length, (const u8 *)desc, strlen(desc));
 	else
-		sl_tpm_log_event(pcr, type, data, length,
-				 (const u8 *)desc, strlen(desc));
+		sl_tpm1_extend(pcr, type, data, length, (const u8 *)desc, strlen(desc));
 }
 
 static struct setup_data *sl_handle_setup_data(struct setup_data *curr,
@@ -391,9 +405,8 @@ static struct setup_data *sl_handle_setup_data(struct setup_data *curr,
 
 		sl_check_pmr_coverage((void *)ind->addr, ind->len, true);
 
-		sl_tpm_extend_evtlog(entry->pcr, TXT_EVTYPE_SLAUNCH,
-				     (void *)ind->addr, ind->len,
-				     entry->evt_info);
+		sl_tpm_extend(entry->pcr, TXT_EVTYPE_SLAUNCH, (void *)ind->addr, ind->len,
+			      entry->evt_info);
 
 		return next;
 	}
@@ -401,10 +414,8 @@ static struct setup_data *sl_handle_setup_data(struct setup_data *curr,
 	sl_check_pmr_coverage(((u8 *)curr) + sizeof(*curr),
 			      curr->len, true);
 
-	sl_tpm_extend_evtlog(entry->pcr, TXT_EVTYPE_SLAUNCH,
-			     ((u8 *)curr) + sizeof(*curr),
-			     curr->len,
-			     entry->evt_info);
+	sl_tpm_extend(entry->pcr, TXT_EVTYPE_SLAUNCH, ((u8 *)curr) + sizeof(*curr), curr->len,
+		      entry->evt_info);
 
 	return next;
 }
@@ -448,9 +459,8 @@ static void sl_extend_slrt(struct slr_policy_entry *entry)
 		intel_tmp.boot_params_addr = 0;
 		intel_tmp.txt_heap = 0;
 
-		sl_tpm_extend_evtlog(entry->pcr, TXT_EVTYPE_SLAUNCH,
-				     (void *)&intel_tmp, sizeof(*intel_info),
-				     entry->evt_info);
+		sl_tpm_extend(entry->pcr, TXT_EVTYPE_SLAUNCH, (void *)&intel_tmp,
+			      sizeof(*intel_info), entry->evt_info);
 	}
 }
 
@@ -496,10 +506,10 @@ static void sl_process_extend_policy(struct slr_table *slrt)
 		case SLR_ET_UNUSED:
 			continue;
 		default:
-			sl_tpm_extend_evtlog(policy->policy_entries[i].pcr, TXT_EVTYPE_SLAUNCH,
-					     (void *)policy->policy_entries[i].entity,
-					     policy->policy_entries[i].size,
-					     policy->policy_entries[i].evt_info);
+			sl_tpm_extend(policy->policy_entries[i].pcr, TXT_EVTYPE_SLAUNCH,
+				      (void *)policy->policy_entries[i].entity,
+				      policy->policy_entries[i].size,
+				      policy->policy_entries[i].evt_info);
 		}
 	}
 }
@@ -519,10 +529,10 @@ static void sl_process_extend_uefi_config(struct slr_table *slrt)
 		return;
 
 	for (i = 0; i < uefi_config->nr_entries; i++) {
-		sl_tpm_extend_evtlog(uefi_config->uefi_cfg_entries[i].pcr, TXT_EVTYPE_SLAUNCH,
-				     (void *)uefi_config->uefi_cfg_entries[i].cfg,
-				     uefi_config->uefi_cfg_entries[i].size,
-				     uefi_config->uefi_cfg_entries[i].evt_info);
+		sl_tpm_extend(uefi_config->uefi_cfg_entries[i].pcr, TXT_EVTYPE_SLAUNCH,
+			      (void *)uefi_config->uefi_cfg_entries[i].cfg,
+			      uefi_config->uefi_cfg_entries[i].size,
+			      uefi_config->uefi_cfg_entries[i].evt_info);
 	}
 }
 
@@ -552,6 +562,7 @@ asmlinkage __visible void sl_main(void *bootparams)
 	if (!(sl_cpu_type & SL_CPU_INTEL))
 		return;
 
+	/* Find the SLRT setup by the pre-launch stage */
 	slrt = sl_locate_and_validate_slrt();
 
 	/* Locate the TPM event log. */
@@ -567,6 +578,26 @@ asmlinkage __visible void sl_main(void *bootparams)
 	if (tpm_log_ver == SL_TPM2_LOG)
 		sl_find_event_log_algorithms();
 
+	/* Calibrate an early x86 timer for the TPM to use */
+	pit_calibrate();
+
+	/*
+	 * Prepare the early TPM driver to do PCR extends for the DRTM
+	 * measurements. On a successful DRTM launch, TPM locality 2
+	 * should be available to open/acquire.
+	 *
+	 * Note that the early TPM driver does not use interrupts but
+	 * rather polling for command completion (there is no infrastructure
+	 * setup for servicing interrupts in the setup kernel).
+	 */
+	if (early_tpm_init(&chip, TIS_MEM_X86_LPC_BASE))
+		sl_txt_reset(SL_ERROR_TPM_INIT);
+	if (tpm_tis_request_locality(&chip, TPM_LOCALITY_2) < 0)
+		sl_txt_reset(SL_ERROR_TPM_INIT);
+	if (chip.family == TPM_FAMILY_20 && tpm_log_ver != SL_TPM2_LOG)
+		sl_txt_reset(SL_ERROR_TPM_INIT);
+	tpm_tis_disable_interrupts(&chip);
+
 	/*
 	 * Sanitize them before measuring. Set the SLAUNCH_FLAG early since if
 	 * anything fails, the system will reset anyway.
@@ -576,14 +607,12 @@ asmlinkage __visible void sl_main(void *bootparams)
 
 	sl_check_pmr_coverage(bootparams, PAGE_SIZE, false);
 
-	/* Place event log SL specific tags before and after measurements */
-	sl_tpm_extend_evtlog(17, TXT_EVTYPE_SLAUNCH_START, NULL, 0, "");
-
+	/*
+	 * Extend measurements into the TPM for entities specified in the
+	 * SLRT policies.
+	 */
 	sl_process_extend_policy(slrt);
-
 	sl_process_extend_uefi_config(slrt);
-
-	sl_tpm_extend_evtlog(17, TXT_EVTYPE_SLAUNCH_END, NULL, 0, "");
 
 	/* No PMR check is needed, the TXT heap is covered by the DPR */
 	txt_heap = (void *)sl_txt_read(TXT_CR_HEAP_BASE);
@@ -594,4 +623,7 @@ asmlinkage __visible void sl_main(void *bootparams)
 	 * misc enable MSRs are what we expect.
 	 */
 	sl_txt_validate_msrs(os_mle_data);
+
+	/* Shut down early TPM driver, release localities */
+	early_tpm_fini(&chip);
 }
