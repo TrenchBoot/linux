@@ -159,8 +159,6 @@
  */
 #define TXT_EVTYPE_BASE			0x400
 #define TXT_EVTYPE_SLAUNCH		(TXT_EVTYPE_BASE + 0x102)
-#define TXT_EVTYPE_SLAUNCH_START	(TXT_EVTYPE_BASE + 0x103)
-#define TXT_EVTYPE_SLAUNCH_END		(TXT_EVTYPE_BASE + 0x104)
 
 /*
  * MLE scratch area offsets
@@ -172,7 +170,6 @@
 #ifndef __ASSEMBLY__
 
 #include <linux/io.h>
-#include <linux/tpm.h>
 #include <linux/tpm_eventlog.h>
 
 /*
