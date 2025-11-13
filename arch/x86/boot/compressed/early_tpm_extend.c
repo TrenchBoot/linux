@@ -58,13 +58,13 @@ static u8 tpm_buf_page[PAGE_SIZE];
  * Single threaded environment only running on BSP. Use a single shared
  * page for all TPM extend operations.
  */
-static inline u8 *tpm_buf_alloc_page(void)
+static inline struct tpm_buf *tpm_buf_alloc_page(void)
 {
 	memset(tpm_buf_page, 0, PAGE_SIZE);
-	return tpm_buf_page;
+	return (struct tpm_buf *)tpm_buf_page;
 }
 
-static inline void tpm_buf_free_page(unsigned long p)
+static inline void tpm_buf_free_page(void)
 {
 	memset(tpm_buf_page, 0, PAGE_SIZE);
 }
@@ -75,7 +75,6 @@ static inline void tpm_buf_free_page(unsigned long p)
 #undef WARN_ON
 #define WARN_ON(c) (0)
 
-#define TPM_BUF_PROVIDE_ALLOCATOR
 #include "../../../../drivers/char/tpm/tpm-buf.c"
 
 static u32 tpm_get_alg_size(u16 alg_id)
@@ -463,27 +462,25 @@ static enum tpm_family tpm_find_interface_and_family(struct tpm_chip* chip)
  */
 int tpm1_pcr_extend(struct tpm_chip *chip, u32 pcr_idx, const u8 *hash)
 {
-	struct tpm_buf buf;
 	int rc = 0;
 
-	/* TODO fix use of TPM buf
-	rc = tpm_buf_init(&buf, TPM_TAG_RQU_COMMAND, TPM_ORD_PCR_EXTEND);
-	if (rc)
-		return rc;
-	*/
+	struct tpm_buf *buf = tpm_buf_alloc_page();
+	if (!buf)
+		return -ENOMEM;
 
-	tpm_buf_append_u32(&buf, pcr_idx);
-	tpm_buf_append(&buf, hash, TPM_DIGEST_SIZE);
+	tpm_buf_init(buf, TPM_BUFSIZE);
+	tpm_buf_reset(buf, TPM_TAG_RQU_COMMAND, TPM_ORD_PCR_EXTEND);
 
-	rc = tpm_tis_transmit(chip, buf.data, PAGE_SIZE);
+	tpm_buf_append_u32(buf, pcr_idx);
+	tpm_buf_append(buf, hash, TPM_DIGEST_SIZE);
+
+	rc = tpm_tis_transmit(chip, buf->data, PAGE_SIZE);
 
 	/* Ignoring output */
 	if (rc > 0)
 		rc = 0;
 
-	/* TODO fix use of TPM buf
-	tpm_buf_destroy(&buf);
-	*/
+	tpm_buf_free_page();
 
 	return rc;
 }
@@ -504,46 +501,44 @@ int tpm1_pcr_extend(struct tpm_chip *chip, u32 pcr_idx, const u8 *hash)
 int tpm2_pcr_extend(struct tpm_chip *chip, u32 pcr_idx,
 		    struct tpm_digest *digests, u32 digest_count)
 {
-	struct tpm_buf buf;
 	int rc = 0;
 	int i;
 
-	/* TODO fix use of TPM buf
-	rc = tpm_buf_init(&buf, TPM2_ST_SESSIONS, TPM2_CC_PCR_EXTEND);
-	if (rc)
-		return rc;
-	*/
+	struct tpm_buf *buf = tpm_buf_alloc_page();
+	if (!buf)
+		return -ENOMEM;
 
-	tpm_buf_append_handle(&buf, pcr_idx);
+	tpm_buf_init(buf, TPM_BUFSIZE);
+	tpm_buf_reset(buf, TPM2_ST_SESSIONS, TPM2_CC_PCR_EXTEND);
+
+	tpm_buf_append_handle(buf, pcr_idx);
 
 	/* Setup a NULL auth session for the command */
-	tpm_buf_append_u32(&buf, 9);
+	tpm_buf_append_u32(buf, 9);
 	/* auth handle */
-	tpm_buf_append_u32(&buf, TPM2_RS_PW);
+	tpm_buf_append_u32(buf, TPM2_RS_PW);
 	/* nonce */
-	tpm_buf_append_u16(&buf, 0);
+	tpm_buf_append_u16(buf, 0);
 	/* attributes */
-	tpm_buf_append_u8(&buf, 0);
+	tpm_buf_append_u8(buf, 0);
 	/* passphrase */
-	tpm_buf_append_u16(&buf, 0);
+	tpm_buf_append_u16(buf, 0);
 
-	tpm_buf_append_u32(&buf, digest_count);
+	tpm_buf_append_u32(buf, digest_count);
 
 	for (i = 0; i < digest_count; i++) {
-		tpm_buf_append_u16(&buf, digests[i].alg_id);
-		tpm_buf_append(&buf, (const unsigned char *)&digests[i].digest,
+		tpm_buf_append_u16(buf, digests[i].alg_id);
+		tpm_buf_append(buf, (const unsigned char *)&digests[i].digest,
 			       tpm_get_alg_size(digests[i].alg_id));
 	}
 
-	rc = tpm_tis_transmit(chip, buf.data, PAGE_SIZE);
+	rc = tpm_tis_transmit(chip, buf->data, PAGE_SIZE);
 
 	/* Ignoring output */
 	if (rc > 0)
 		rc = 0;
 
-	/* TODO fix use of TPM buf
-	tpm_buf_destroy(&buf);
-	*/
+	tpm_buf_free_page();
 
 	return rc;
 }
