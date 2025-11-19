@@ -374,7 +374,7 @@ SYM_FUNC_START(sl_txt_ap_entry)
 	movw	%dx, %ss
 
 	/* Load our reloc AP stack */
-	movl	$(TXT_BOOT_STACK_SIZE), %edx
+	movl	$(SL_BOOT_STACK_SIZE), %edx
 	mull	%edx
 	leal	(sl_stacks_end - sl_txt_ap_wake_begin)(%ecx), %esp
 	subl	%eax, %esp
@@ -611,7 +611,7 @@ sl_txt_ap_wake_begin:
 	 * ID value.
 	 */
 	movl	%esp, %edi
-	subl	$(TXT_BOOT_STACK_SIZE - 4), %edi
+	subl	$(SL_BOOT_STACK_SIZE - 4), %edi
 	movl	$0, (%edi)
 
 1:
@@ -689,7 +689,7 @@ SYM_DATA_END_LABEL(sl_ap_gdt, SYM_L_LOCAL, sl_ap_gdt_end)
 	/* Small stacks for BSP and APs to work with */
 	.balign 64
 SYM_DATA_START_LOCAL(sl_stacks)
-	.fill (TXT_MAX_CPUS * TXT_BOOT_STACK_SIZE), 1, 0
+	.fill (SL_MAX_CPUS * SL_BOOT_STACK_SIZE), 1, 0
 SYM_DATA_END_LABEL(sl_stacks, SYM_L_LOCAL, sl_stacks_end)
 
 /* This is the end of the relocated AP wake code block */

@@ -210,7 +210,7 @@ static void sl_find_drtm_event_log(struct slr_table *slrt)
 		sl_txt_reset(SL_ERROR_OS_SINIT_BAD_VERSION);
 
 	/* Find the TPM2.0 logging extended heap element */
-	log21_elem = tpm2_find_log2_1_element(os_sinit_data);
+	log21_elem = txt_find_log2_1_element(os_sinit_data);
 
 	/* If found, this implies TPM2 log and family */
 	if (log21_elem)
@@ -405,7 +405,7 @@ static struct setup_data *sl_handle_setup_data(struct setup_data *curr,
 
 		sl_check_pmr_coverage((void *)ind->addr, ind->len, true);
 
-		sl_tpm_extend(entry->pcr, TXT_EVTYPE_SLAUNCH, (void *)ind->addr, ind->len,
+		sl_tpm_extend(entry->pcr, SL_EVTYPE_SECURE_LAUNCH, (void *)ind->addr, ind->len,
 			      entry->evt_info);
 
 		return next;
@@ -414,7 +414,7 @@ static struct setup_data *sl_handle_setup_data(struct setup_data *curr,
 	sl_check_pmr_coverage(((u8 *)curr) + sizeof(*curr),
 			      curr->len, true);
 
-	sl_tpm_extend(entry->pcr, TXT_EVTYPE_SLAUNCH, ((u8 *)curr) + sizeof(*curr), curr->len,
+	sl_tpm_extend(entry->pcr, SL_EVTYPE_SECURE_LAUNCH, ((u8 *)curr) + sizeof(*curr), curr->len,
 		      entry->evt_info);
 
 	return next;
@@ -459,7 +459,7 @@ static void sl_extend_slrt(struct slr_policy_entry *entry)
 		intel_tmp.boot_params_addr = 0;
 		intel_tmp.txt_heap = 0;
 
-		sl_tpm_extend(entry->pcr, TXT_EVTYPE_SLAUNCH, (void *)&intel_tmp,
+		sl_tpm_extend(entry->pcr, SL_EVTYPE_SECURE_LAUNCH, (void *)&intel_tmp,
 			      sizeof(*intel_info), entry->evt_info);
 	}
 }
@@ -506,7 +506,7 @@ static void sl_process_extend_policy(struct slr_table *slrt)
 		case SLR_ET_UNUSED:
 			continue;
 		default:
-			sl_tpm_extend(policy->policy_entries[i].pcr, TXT_EVTYPE_SLAUNCH,
+			sl_tpm_extend(policy->policy_entries[i].pcr, SL_EVTYPE_SECURE_LAUNCH,
 				      (void *)policy->policy_entries[i].entity,
 				      policy->policy_entries[i].size,
 				      policy->policy_entries[i].evt_info);
@@ -529,7 +529,7 @@ static void sl_process_extend_uefi_config(struct slr_table *slrt)
 		return;
 
 	for (i = 0; i < uefi_config->nr_entries; i++) {
-		sl_tpm_extend(uefi_config->uefi_cfg_entries[i].pcr, TXT_EVTYPE_SLAUNCH,
+		sl_tpm_extend(uefi_config->uefi_cfg_entries[i].pcr, SL_EVTYPE_SECURE_LAUNCH,
 			      (void *)uefi_config->uefi_cfg_entries[i].cfg,
 			      uefi_config->uefi_cfg_entries[i].size,
 			      uefi_config->uefi_cfg_entries[i].evt_info);
