@@ -853,7 +853,7 @@ static void slaunch_wakeup_cpu_from_txt(int cpu, int apicid)
 	stack_monitor = (struct sl_ap_stack_and_monitor *)__va(ap_wake_info->ap_wake_block +
 							       ap_wake_info->ap_stacks_offset);
 
-	for (unsigned int i = TXT_MAX_CPUS - 1; i >= 0; i--) {
+	for (unsigned int i = SL_MAX_CPUS - 1; i >= 0; i--) {
 		if (stack_monitor[i].apicid == apicid) {
 			stack_monitor[i].monitor = 1;
 			break;
