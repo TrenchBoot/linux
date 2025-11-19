@@ -1026,7 +1026,7 @@ void __init setup_arch(char **cmdline_p)
 	early_gart_iommu_check();
 #endif
 
-	slaunch_setup_txt();
+	slaunch_setup();
 
 	/*
 	 * partially used pages are not usable - thus

@@ -67,8 +67,7 @@ struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table_header *dmar)
  * If running within a TXT established DRTM, this is the proper way to reset
  * the system if a failure occurs or a security issue is found.
  */
-void __noreturn slaunch_txt_reset(void __iomem *txt,
-				  const char *msg, u64 error)
+static void __noreturn slaunch_txt_reset(void __iomem *txt, const char *msg, u64 error)
 {
 	u64 one = 1, val;
 
@@ -93,6 +92,21 @@ void __noreturn slaunch_txt_reset(void __iomem *txt,
 }
 
 /*
+ * Handle fatal errors during DRTM initialization.
+ */
+void __noreturn slaunch_reset(void *ctx, const char *msg, u64 error)
+{
+	if (slaunch_is_txt_launch())
+		slaunch_txt_reset(ctx, msg, error);
+
+	/* Generic handler for x86 */
+	pr_err("Secure Launch: %s - error: 0x%llx", msg, error);
+	asm volatile ("ud2");
+
+	unreachable();
+}
+
+/*
  * The TXT heap is too big to map all at once with early_ioremap
  * so it is done a table at a time.
  */
@@ -104,8 +118,7 @@ static void __init *txt_early_get_heap_table(void __iomem *txt, u32 type,
 	int i;
 
 	if (type > TXT_SINIT_TABLE_MAX)
-		slaunch_txt_reset(txt, "Error invalid table type for early heap walk\n",
-				  SL_ERROR_HEAP_WALK);
+		slaunch_reset(txt, "Error invalid table type for early heap walk\n", SL_ERROR_HEAP_WALK);
 
 	memcpy_fromio(&base, txt + TXT_CR_HEAP_BASE, sizeof(base));
 	memcpy_fromio(&size, txt + TXT_CR_HEAP_SIZE, sizeof(size));
@@ -115,8 +128,7 @@ static void __init *txt_early_get_heap_table(void __iomem *txt, u32 type,
 		base += offset;
 		heap = early_memremap(base, sizeof(u64));
 		if (!heap)
-			slaunch_txt_reset(txt, "Error early_memremap of heap for heap walk\n",
-					  SL_ERROR_HEAP_MAP);
+			slaunch_reset(txt, "Error early_memremap of heap for heap walk\n", SL_ERROR_HEAP_MAP);
 
 		offset = *((u64 *)heap);
 
@@ -125,8 +137,7 @@ static void __init *txt_early_get_heap_table(void __iomem *txt, u32 type,
 		 * implies the TXT heap is corrupted.
 		 */
 		if (!offset)
-			slaunch_txt_reset(txt, "Error invalid 0 offset in heap walk\n",
-					  SL_ERROR_HEAP_ZERO_OFFSET);
+			slaunch_reset(txt, "Error invalid 0 offset in heap walk\n", SL_ERROR_HEAP_ZERO_OFFSET);
 
 		early_memunmap(heap, sizeof(u64));
 	}
@@ -135,8 +146,7 @@ static void __init *txt_early_get_heap_table(void __iomem *txt, u32 type,
 	base += sizeof(u64);
 	heap = early_memremap(base, bytes);
 	if (!heap)
-		slaunch_txt_reset(txt, "Error early_memremap of heap section\n",
-				  SL_ERROR_HEAP_MAP);
+		slaunch_reset(txt, "Error early_memremap of heap section\n", SL_ERROR_HEAP_MAP);
 
 	return heap;
 }
@@ -213,7 +223,7 @@ out:
 	txt_early_put_heap_table(os_sinit_data, field_offset);
 
 	if (err)
-		slaunch_txt_reset(txt, errmsg, err);
+		slaunch_reset(txt, errmsg, err);
 }
 
 static void __init slaunch_txt_reserve_range(u64 base, u64 size)
@@ -338,18 +348,15 @@ static void __init slaunch_copy_dmar_table(void __iomem *txt)
 	txt_early_put_heap_table(sinit_mle_data, field_offset);
 
 	if (!dmar_size || !dmar_offset)
-		slaunch_txt_reset(txt, "Error invalid DMAR table values\n",
-				  SL_ERROR_HEAP_INVALID_DMAR);
+		slaunch_reset(txt, "Error invalid DMAR table values\n", SL_ERROR_HEAP_INVALID_DMAR);
 
 	if (unlikely(dmar_size > PAGE_SIZE))
-		slaunch_txt_reset(txt, "Error DMAR too big to store\n",
-				  SL_ERROR_HEAP_DMAR_SIZE);
+		slaunch_reset(txt, "Error DMAR too big to store\n", SL_ERROR_HEAP_DMAR_SIZE);
 
 	dmar = txt_early_get_heap_table(txt, TXT_SINIT_MLE_DATA_TABLE,
 					dmar_offset + dmar_size - 8);
 	if (!dmar)
-		slaunch_txt_reset(txt, "Error early_ioremap of DMAR\n",
-				  SL_ERROR_HEAP_DMAR_MAP);
+		slaunch_reset(txt, "Error early_ioremap of DMAR\n", SL_ERROR_HEAP_DMAR_MAP);
 
 	memcpy(txt_dmar, dmar + dmar_offset - 8, dmar_size);
 
@@ -386,22 +393,19 @@ static void __init slaunch_fetch_values(void __iomem *txt)
 
 	slrt = (struct slr_table *)early_memremap(os_mle_data->slrt, sizeof(*slrt));
 	if (!slrt)
-		slaunch_txt_reset(txt, "Error early_memremap of SLRT failed\n",
-				  SL_ERROR_SLRT_MAP);
+		slaunch_reset(txt, "Error early_memremap of SLRT failed\n", SL_ERROR_SLRT_MAP);
 
 	size = slrt->size;
 	early_memunmap(slrt, sizeof(*slrt));
 
 	slrt = (struct slr_table *)early_memremap(os_mle_data->slrt, size);
 	if (!slrt)
-		slaunch_txt_reset(txt, "Error early_memremap of SLRT failed\n",
-				  SL_ERROR_SLRT_MAP);
+		slaunch_reset(txt, "Error early_memremap of SLRT failed\n", SL_ERROR_SLRT_MAP);
 
 	log_info = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_LOG_INFO);
 
 	if (!log_info)
-		slaunch_txt_reset(txt, "SLRT missing logging info entry\n",
-				  SL_ERROR_SLRT_MISSING_ENTRY);
+		slaunch_reset(txt, "SLRT missing logging info entry\n", SL_ERROR_SLRT_MISSING_ENTRY);
 
 	evtlog_addr = log_info->addr;
 	evtlog_size = log_info->size;
@@ -415,20 +419,10 @@ static void __init slaunch_fetch_values(void __iomem *txt)
  * Intel TXT specific late stub setup and validation called from within
  * x86 specific setup_arch().
  */
-void __init slaunch_setup_txt(void)
+static void __init slaunch_setup_txt(void)
 {
 	u64 one = TXT_REGVALUE_ONE, val;
 	void __iomem *txt;
-
-	if (!boot_cpu_has(X86_FEATURE_SMX))
-		return;
-
-	/*
-	 * If booted through secure launch entry point, the loadflags
-	 * option will be set.
-	 */
-	if (!(boot_params.hdr.loadflags & SLAUNCH_FLAG))
-		return;
 
 	/*
 	 * See if SENTER was done by reading the status register in the
@@ -501,6 +495,18 @@ void __init slaunch_setup_txt(void)
 	pr_info("Intel TXT setup complete\n");
 }
 
+void __init slaunch_setup(void)
+{
+	/*
+	 * If booted through secure launch entry point, the loadflags
+	 * option will be set.
+	 */
+	if (!(boot_params.hdr.loadflags & SLAUNCH_FLAG))
+		return;
+
+	if (boot_cpu_has(X86_FEATURE_SMX))
+		slaunch_setup_txt();
+}
 /*
  * Called to fix the long jump address for the waiting APs to vector to
  * the correct startup location in the Secure Launch stub in the rmpiggy.
