@@ -258,35 +258,30 @@ static void slaunch_intel_evtlog(void __iomem *txt)
 	/* now map TXT heap */
 	txt_heap = memremap(base, size, MEMREMAP_WB);
 	if (!txt_heap)
-		slaunch_txt_reset(txt, "Error failed to memremap TXT heap\n",
-				  SL_ERROR_HEAP_MAP);
+		slaunch_reset(txt, "Error failed to memremap TXT heap\n", SL_ERROR_HEAP_MAP);
 
 	params = (struct txt_os_mle_data *)txt_os_mle_data_start(txt_heap);
 
 	/* Get the SLRT and remap it */
 	slrt = memremap(params->slrt, sizeof(*slrt), MEMREMAP_WB);
 	if (!slrt)
-		slaunch_txt_reset(txt, "Error failed to memremap SLR Table\n",
-				  SL_ERROR_SLRT_MAP);
+		slaunch_reset(txt, "Error failed to memremap SLR Table\n", SL_ERROR_SLRT_MAP);
 	size = slrt->size;
 	memunmap(slrt);
 
 	slrt = memremap(params->slrt, size, MEMREMAP_WB);
 	if (!slrt)
-		slaunch_txt_reset(txt, "Error failed to memremap SLR Table\n",
-				  SL_ERROR_SLRT_MAP);
+		slaunch_reset(txt, "Error failed to memremap SLR Table\n", SL_ERROR_SLRT_MAP);
 
 	log_info = slr_next_entry_by_tag(slrt, NULL, SLR_ENTRY_LOG_INFO);
 	if (!log_info)
-		slaunch_txt_reset(txt, "Error failed to memremap SLR Table\n",
-				  SL_ERROR_SLRT_MISSING_ENTRY);
+		slaunch_reset(txt, "Error failed to memremap SLR Table\n", SL_ERROR_SLRT_MISSING_ENTRY);
 
 	sl_evtlog.size = log_info->size;
 	sl_evtlog.addr = memremap(log_info->addr, log_info->size,
 				  MEMREMAP_WB);
 	if (!sl_evtlog.addr)
-		slaunch_txt_reset(txt, "Error failed to memremap TPM event log\n",
-				  SL_ERROR_EVENTLOG_MAP);
+		slaunch_reset(txt, "Error failed to memremap TPM event log\n", SL_ERROR_EVENTLOG_MAP);
 
 	memunmap(slrt);
 
@@ -298,15 +293,14 @@ static void slaunch_intel_evtlog(void __iomem *txt)
 	/* For TPM 2.0 logs, the extended heap element must be located */
 	os_sinit_data = txt_os_sinit_data_start(txt_heap);
 
-	evtlog21 = tpm2_find_log2_1_element(os_sinit_data);
+	evtlog21 = txt_find_log2_1_element(os_sinit_data);
 
 	/*
 	 * If this fails, things are in really bad shape. Any attempt to write
 	 * events to the log will fail.
 	 */
 	if (!evtlog21)
-		slaunch_txt_reset(txt, "Error failed to find TPM20 event log element\n",
-				  SL_ERROR_TPM_INVALID_LOG20);
+		slaunch_reset(txt, "Error failed to find TPM20 event log element\n", SL_ERROR_TPM_INVALID_LOG20);
 
 	/* Save pointer to the EFI SpecID log header */
 	efi_head = (struct tcg_efi_specid_event_head *)(sl_evtlog.addr + sizeof(struct tcg_pcr_event));
@@ -319,13 +313,11 @@ static void slaunch_tpm_open_locality2(void __iomem *txt)
 
 	tpm = tpm_default_chip();
 	if (!tpm)
-		slaunch_txt_reset(txt, "Could not get default TPM chip\n",
-				  SL_ERROR_TPM_INIT);
+		slaunch_reset(txt, "Could not get default TPM chip\n", SL_ERROR_TPM_INIT);
 
 	rc = tpm_chip_set_locality(tpm, 2);
 	if (rc)
-		slaunch_txt_reset(txt, "Could not set TPM chip locality 2\n",
-				  SL_ERROR_TPM_INIT);
+		slaunch_reset(txt, "Could not set TPM chip locality 2\n", SL_ERROR_TPM_INIT);
 }
 
 static int __init slaunch_module_init(void)
