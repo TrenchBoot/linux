@@ -779,6 +779,10 @@ static void native_machine_restart(char *__unused)
 
 	if (!reboot_force)
 		machine_shutdown();
+	/*
+	 * The comments for slaunch_finalize() explains the use of the conditional
+	 * parameter do_sexit and the conditions required to do the SEXIT op.
+	 */
 	slaunch_finalize(!reboot_force);
 	__machine_emergency_restart(0);
 }
@@ -790,7 +794,6 @@ static void native_machine_halt(void)
 
 	tboot_shutdown(TB_SHUTDOWN_HALT);
 
-	/* SEXIT done after machine_shutdown() to meet TXT requirements */
 	slaunch_finalize(1);
 
 	stop_this_cpu(NULL);
