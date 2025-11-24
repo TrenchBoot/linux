@@ -19,6 +19,7 @@
 #include <linux/slr_table.h>
 #include <linux/slaunch.h>
 
+#include "../msr.h"
 #include "timer.h"
 #include "tpm.h"
 
@@ -73,13 +74,13 @@ static void __noreturn sl_txt_reset(u64 error)
 	unreachable();
 }
 
-static u64 sl_rdmsr(u32 reg)
+static inline u64 sl_rdmsr(u32 reg)
 {
-	u64 lo, hi;
+	struct msr m;
 
-	asm volatile ("rdmsr" : "=a" (lo), "=d" (hi) : "c" (reg));
+	boot_rdmsr(reg, &m);
 
-	return (hi << 32) | lo;
+	return m.q;
 }
 
 static struct slr_table *sl_locate_and_validate_slrt(void)
@@ -105,6 +106,11 @@ static struct slr_table *sl_locate_and_validate_slrt(void)
 	return slrt;
 }
 
+/*
+ * This is a validation routine that allows checking if a block of memory
+ * is proected from external access by being in a PMR range. If allow_hi is set,
+ * ranges above 4GB are allowed.
+ */
 static void sl_check_pmr_coverage(void *base, u32 size, bool allow_hi)
 {
 	struct txt_os_sinit_data *os_sinit_data;
@@ -420,6 +426,11 @@ static struct setup_data *sl_handle_setup_data(struct setup_data *curr,
 	return next;
 }
 
+/*
+ * The setup_data linked list in the boot_params (if present) must be
+ * processed element by element. Indirect elements need to have their
+ * pointers followed to the actual data to measure.
+ */
 static void sl_extend_setup_data(struct slr_policy_entry *entry)
 {
 	struct setup_data *data;
@@ -481,7 +492,8 @@ static void sl_extend_txt_os2mle(struct slr_policy_entry *entry)
 }
 
 /*
- * Process all policy entries and extend the measurements to the evtlog
+ * Process all policy entries and extend the measurements to the evtlog. Note
+ * that some entries need special processing which is done in subroutines.
  */
 static void sl_process_extend_policy(struct slr_table *slrt)
 {
@@ -543,7 +555,7 @@ asmlinkage __visible void sl_check_region(void *base, u32 size)
 
 asmlinkage __visible void sl_main(void *bootparams)
 {
-	struct boot_params *bp  = (struct boot_params *)bootparams;
+	struct boot_params *bp = (struct boot_params *)bootparams;
 	struct txt_os_mle_data *os_mle_data;
 	struct slr_table *slrt;
 	void *txt_heap;
