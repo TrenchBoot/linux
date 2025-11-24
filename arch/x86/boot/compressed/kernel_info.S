@@ -4,7 +4,7 @@
 #include <asm/bootparam.h>
 
 /*
- * The kernel_info structure is not placed at a fixed offest in the
+ * The kernel_info structure is not placed at a fixed offset in the
  * kernel image. So this macro and the support in the linker file
  * allow the relative offsets for the MLE header within the kernel
  * image to be configured at build time.
