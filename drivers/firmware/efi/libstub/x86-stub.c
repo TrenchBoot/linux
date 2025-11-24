@@ -798,6 +798,7 @@ static efi_status_t efi_decompress_kernel(unsigned long *kernel_entry,
 }
 
 #if (IS_ENABLED(CONFIG_SECURE_LAUNCH))
+
 static bool efi_secure_launch_update_boot_params(struct slr_table *slrt,
 						 struct boot_params *boot_params)
 {
@@ -882,7 +883,14 @@ static void efi_secure_launch(struct boot_params *boot_params)
 
 	unreachable();
 }
-#endif
+
+#else
+
+static void efi_secure_launch(struct boot_params *boot_params)
+{
+}
+
+#endif /* IS_ENABLED(CONFIG_SECURE_LAUNCH) */
 
 static void __noreturn enter_kernel(unsigned long kernel_addr,
 				    struct boot_params *boot_params)
@@ -1018,10 +1026,8 @@ void __noreturn efi_stub_entry(efi_handle_t handle,
 		goto fail;
 	}
 
-#if (IS_ENABLED(CONFIG_SECURE_LAUNCH))
 	/* If a Secure Launch is in progress, this never returns */
 	efi_secure_launch(boot_params);
-#endif
 
 	/*
 	 * Call the SEV init code while still running with the firmware's
