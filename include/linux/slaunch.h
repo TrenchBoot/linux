@@ -28,8 +28,8 @@
 /*
  * Secure Launch Defined Error Codes used in MLE-initiated TXT resets.
  *
- * TXT Specification
- * Appendix I ACM Error Codes
+ * Intel Trusted Execution Technology (TXT) Software Development Guide
+ * Appendix I - ACM Error Codes
  */
 #define SL_ERROR_GENERIC		0xc0008001
 #define SL_ERROR_TPM_INIT		0xc0008002
@@ -77,12 +77,15 @@
 /*
  * Secure Launch event log entry type. The TXT specification defines the
  * base event value as 0x400 for DRTM values.
+ *
+ * Intel Trusted Execution Technology (TXT) Software Development Guide
+ * Appendix F - TPM Event Log
  */
 #define SL_EVTYPE_BASE			0x400
 #define SL_EVTYPE_SECURE_LAUNCH		(SL_EVTYPE_BASE + 0x102)
 
 /*
- * MLE scratch area offsets
+ * MLE scratch area offsets withing TXT OS-MLE SL defined portion of the heap.
  */
 #define SL_SCRATCH_AP_EBX		0
 #define SL_SCRATCH_AP_JMP_OFFSET	4
@@ -115,6 +118,12 @@ struct sl_ap_wake_info {
 
 /*
  * Secure Launch defined OS/MLE TXT Heap table
+ *
+ * This table is defined at the top level by the TXT specification
+ * but the format of this structure is implementation specific.
+ *
+ * Intel Trusted Execution Technology (TXT) Software Development Guide
+ * Appendix C - Intel TXT Heap Memory
  */
 struct txt_os_mle_data {
 	u32 version;
@@ -126,7 +135,7 @@ struct txt_os_mle_data {
 	u8 mle_scratch[64];
 } __packed;
 
-#if IS_ENABLED(CONFIG_SECURE_LAUNCH)
+#ifdef CONFIG_SECURE_LAUNCH
 
 /*
  * TPM event logging functions.
@@ -192,7 +201,7 @@ static inline int tpm2_log_event(struct txt_heap_event_log_pointer2_1_element *e
  * External functions available in mainline kernel.
  */
 void slaunch_setup(void);
-void slaunch_fixup_jump_vector(void);
+void slaunch_fixup_ap_wake_vector(void);
 u32 slaunch_get_flags(void);
 struct sl_ap_wake_info *slaunch_get_ap_wake_info(void);
 struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table_header *dmar);
@@ -212,7 +221,7 @@ static inline void slaunch_setup(void)
 {
 }
 
-static inline void slaunch_fixup_jump_vector(void)
+static inline void slaunch_fixup_ap_wake_vector(void)
 {
 }
 
@@ -235,7 +244,7 @@ static inline bool slaunch_is_txt_launch(void)
 	return false;
 }
 
-#endif /* !IS_ENABLED(CONFIG_SECURE_LAUNCH) */
+#endif /* !CONFIG_SECURE_LAUNCH */
 
 #endif /* !__ASSEMBLER__ */
 
