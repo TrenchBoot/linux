@@ -834,14 +834,18 @@ int common_cpu_up(unsigned int cpu, struct task_struct *idle)
 	return 0;
 }
 
-#ifdef CONFIG_SECURE_LAUNCH
+#if (IS_ENABLED(CONFIG_SECURE_LAUNCH))
 
 /*
  * TXT AP startup is quite different than normal. The APs cannot have #INIT
  * asserted on them or receive SIPIs. The early Secure Launch code has parked
- * the APs using monitor/mwait. This will wake the APs by writing the monitor
- * and have them jump to the protected mode code in the rmpiggy where the rest
- * of the SMP boot of the AP will proceed normally.
+ * the APs using MONITOR/MWAIT in the safe AP wake block area (details in
+ * sl_stub.S). The SMP boot will wake the APs by writing the MONITOR associated
+ * with the AP and have them jump to the protected mode code in the rmpiggy where
+ * the rest of the SMP boot of the AP will proceed normally.
+ *
+ * Intel Trusted Execution Technology (TXT) Software Development Guide
+ * Section 2.3 -  MLE Initialization
  */
 static void slaunch_wakeup_cpu_from_txt(int cpu, int apicid)
 {
@@ -867,7 +871,7 @@ static inline void slaunch_wakeup_cpu_from_txt(int cpu, int apicid)
 {
 }
 
-#endif  /* !CONFIG_SECURE_LAUNCH */
+#endif  /* IS_ENABLED(CONFIG_SECURE_LAUNCH) */
 
 /*
  * NOTE - on most systems this is a PHYSICAL apic ID, but on multiquad
