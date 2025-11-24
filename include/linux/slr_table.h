@@ -70,7 +70,7 @@
 #define SLR_ET_TXT_OS2MLE	0x0010
 #define SLR_ET_UNUSED		0xffff
 
-#ifndef __ASSEMBLY__
+#ifndef __ASSEMBLER__
 
 /*
  * Primary Secure Launch Resource Table Header
@@ -239,7 +239,7 @@ slr_next_entry(struct slr_table *table,
 
 /*
  * Return the next entry with the given tag in the SLRT starting at the
- * currenty entry. If entry is NULL, the search begins at the beginning of
+ * current entry. If entry is NULL, the search begins at the beginning of
  * table.
  */
 static inline void *
@@ -277,7 +277,7 @@ slr_add_entry(struct slr_table *table,
 	memcpy((u8 *)table + table->size - sizeof(*end), entry, entry->size);
 	table->size += entry->size;
 
-	end  = (struct slr_entry_hdr *)((u8 *)table + table->size - sizeof(*end));
+	end = (struct slr_entry_hdr *)((u8 *)table + table->size - sizeof(*end));
 	end->tag = SLR_ENTRY_END;
 	end->size = sizeof(*end);
 
@@ -286,7 +286,7 @@ slr_add_entry(struct slr_table *table,
 
 /*
  * Initialize the SLRT for use. This prepares the meta-data in the SLRT
- * header section and the table end marker entry.
+ * header section of the table and table end entry.
  */
 static inline void
 slr_init_table(struct slr_table *slrt, u16 architecture, u32 max_size)
@@ -303,6 +303,6 @@ slr_init_table(struct slr_table *slrt, u16 architecture, u32 max_size)
 	end->size = sizeof(*end);
 }
 
-#endif /* !__ASSEMBLY */
+#endif /* !__ASSEMBLER__ */
 
 #endif /* _LINUX_SLR_TABLE_H */
