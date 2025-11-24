@@ -68,10 +68,11 @@ SYM_FUNC_START(sl_stub_entry)
 	cld
 
 	/*
-	 * On entry, %ebx has the entry abs offset to sl_stub_entry. The rva()
+	 * On entry, %ebx has the entry absolute offset to sl_stub_entry. The rva()
 	 * macro is used to generate relative references using %ebx as a base, as
 	 * to avoid absolute relocations, which would require fixups at runtime.
-	 * Only %cs and %ds segments are known good.
+	 * Only %cs and %ds segments are known good after a TXT launch and can be
+	 * used to establish a new GDT and segments.
 	 */
 
 	/* Load GDT, set segment regs and lret to __SL32_CS */
@@ -327,8 +328,7 @@ SYM_FUNC_START(sl_txt_ap_entry)
 	cli
 	cld
 	/*
-	 * The %cs and %ds segments are known good after waking the AP.
-	 * First order of business is to find where we are and
+	 * AP entry point, first order of business is to find where we are and
 	 * save it in %ebx.
 	 */
 
@@ -344,6 +344,12 @@ SYM_FUNC_START(sl_txt_ap_entry)
 
 	/* Save TXT info ptr in %edi for call to sl_txt_load_regs */
 	movl	SL_txt_info(%eax), %edi
+
+	/*
+	 * Only the %cs and %ds segments are known good after waking the AP,
+	 * as with entry on the BSP. First locate a stack to use then establish
+	 * a new GDT and segments.
+	 */
 
 	/* Lock and get our stack index */
 	movl	$1, %ecx
@@ -415,11 +421,23 @@ SYM_FUNC_START(sl_txt_ap_entry)
 	 */
 	lock incl	rva(sl_txt_cpu_count)(%ebx)
 
+	/*
+	 * Final jump to the AP wake block (see comment below). Here the APs
+	 * will idle until the Secure Launch SMP MONITOR/MWAIT framework
+	 * releases them to mainline kernel control.
+	 */
 	movl	rva(sl_txt_ap_wake_block)(%ebx), %eax
 	jmp	*%eax
 SYM_FUNC_END(sl_txt_ap_entry)
 
 SYM_FUNC_START(sl_txt_reloc_ap_wake)
+	/*
+	 * What is called the "AP wake block" is simply a chunk of protected
+	 * memory that the bootloader handed the MLE. The MLE implementation will
+	 * shuffle the AP entry point code from here in the setup kernel into this wake
+	 * block where it cannot be overwritten by kernel decompression, relocation, etc.
+	 */
+
 	/* Save boot params register */
 	pushl	%esi
 
@@ -544,7 +562,11 @@ SYM_FUNC_START(sl_txt_wake_aps)
 	/* Save boot params register */
 	pushl	%esi
 
-	/* First setup the MLE join structure and load it into TXT reg */
+	/*
+	 * First setup the MLE join structure and load it into the TXT regiter.
+	 * This structure defines the information needed to wake the APs and
+	 * safely be joined with the DRTM.
+	 */
 	leal	rva(sl_gdt)(%ebx), %eax
 	leal	rva(sl_txt_ap_entry)(%ebx), %ecx
 	leal	rva(sl_smx_rlp_mle_join)(%ebx), %edx
@@ -571,7 +593,7 @@ SYM_FUNC_START(sl_txt_wake_aps)
 	movl	(SL_rlp_wakeup_addr + 8)(%eax), %edi
 
 	/* Determine how to wake up the APs */
-	testl	$(1 << TXT_SINIT_MLE_CAP_WAKE_MONITOR), %esi
+	testl	$(1 << TXT_SINIT_MLE_CAP_RLP_WAKE_MONITOR), %esi
 	jz	.Lwake_getsec
 
 	/* Wake using MWAIT MONITOR */
@@ -584,7 +606,7 @@ SYM_FUNC_START(sl_txt_wake_aps)
 
 .Laps_awake:
 	/*
-	 * All of the APs are woken up and rendesvous in the relocated wake
+	 * All of the APs are woken up and rendezvous in the relocated wake
 	 * block starting at sl_txt_ap_wake_begin. Wait for all of them to
 	 * halt.
 	 */
@@ -599,6 +621,23 @@ SYM_FUNC_END(sl_txt_wake_aps)
 /* This is the beginning of the relocated AP wake code block */
 	.global sl_txt_ap_wake_begin
 sl_txt_ap_wake_begin:
+	/*
+	 * Note on the stack layout for the APs. The individual 128 byte stacks
+	 * fully occupy 2 cache lines. The first is for the MONITOR address
+	 * and the second contains the APICID written to it. Note the whole
+	 * cache line is unused other than the monitor field; nothing else should
+	 * write the cache line and wake the monitor.
+	 *
+	 * esp -> +-----------+
+	 *        |  APIC ID  |
+	 *        |-----------|
+	 *        |  PAD[15]  |
+	 *        |-----------|
+	 *        |  PAD[15]  |
+	 *        |-----------|
+	 *        |  MONITOR  |
+	 *        +-----------+
+	 */
 
 	/* Get the LAPIC ID for each AP and stash it on the stack */
 	movl	$(MSR_IA32_X2APIC_APICID), %ecx
