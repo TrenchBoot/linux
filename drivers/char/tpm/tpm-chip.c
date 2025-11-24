@@ -713,7 +713,7 @@ int tpm_chip_set_locality(struct tpm_chip *chip, u8 locality)
 {
 	int ret;
 
-	if (locality < 0 || locality >= TPM_MAX_LOCALITY)
+	if (locality >= TPM_MAX_LOCALITY)
 		return -EINVAL;
 
 	ret = tpm_try_get_ops(chip);
@@ -722,7 +722,7 @@ int tpm_chip_set_locality(struct tpm_chip *chip, u8 locality)
 
 	if (!(chip->flags & TPM_CHIP_FLAG_SET_LOCALITY_ENABLED)) {
 		tpm_put_ops(chip);
-		return -EINVAL;
+		return -EPERM;
 	}
 
 	chip->kernel_locality = locality;
