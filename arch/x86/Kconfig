@@ -1976,8 +1976,10 @@ config EFI_RUNTIME_MAP
 	  See also Documentation/ABI/testing/sysfs-firmware-efi-runtime-map.
 
 config SECURE_LAUNCH
-	bool "Secure Launch support"
-	depends on X86_64 && X86_X2APIC && TCG_TIS && TCG_CRB && CRYPTO_LIB_SHA1 && CRYPTO_LIB_SHA256
+	bool "Secure Launch DRTM support"
+	depends on X86_64 && X86_X2APIC && TCG_TIS && TCG_CRB
+	select CRYPTO_LIB_SHA1
+	select CRYPTO_LIB_SHA256
 	help
 	   The Secure Launch feature allows a kernel to be loaded
 	   directly through an Intel TXT measured launch. Intel TXT
