@@ -10,7 +10,7 @@
 #define _ASM_X86_TXT_H
 
 /*
- * Intel Safer Mode Extensions (SMX)
+ * Intel Safer Mode Extensions (SMX) and Trusted eXecution Technology (TXT)
  *
  * Intel SMX provides a programming interface to establish a Measured Launched
  * Environment (MLE). The measurement and protection mechanisms supported by the
@@ -72,8 +72,8 @@
 /*
  * SINIT/MLE Capabilities Field Bit Definitions
  */
-#define TXT_SINIT_MLE_CAP_WAKE_GETSEC	0
-#define TXT_SINIT_MLE_CAP_WAKE_MONITOR	1
+#define TXT_SINIT_MLE_CAP_RLP_WAKE_GETSEC	0
+#define TXT_SINIT_MLE_CAP_RLP_WAKE_MONITOR	1
 
 /*
  * OS/MLE Secure Launch Specific Definitions
@@ -132,10 +132,9 @@ struct txt_bios_data {
 	u64 reserved1;
 	u64 reserved2;
 	u32 num_logical_procs;
-	/* Versions >= 5 with updates in version 6 */
 	u32 sinit_flags;
 	u32 mle_flags;
-	/* Versions >= 4 */
+	/* Versions >= 5 with updates in version 6 */
 	/* Ext Data Elements */
 } __packed;
 
