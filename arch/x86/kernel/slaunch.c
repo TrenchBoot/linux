@@ -538,7 +538,7 @@ static inline void smx_getsec_sexit(void)
 
 /*
  * Used during kexec and on reboot paths to finalize the TXT state
- * and do an SEXIT exiting the DRTM and disabling SMX mode.
+ * and do an SEXIT SMX operation, exiting the DRTM and disabling SMX mode.
  */
 void slaunch_finalize(int do_sexit)
 {
@@ -551,7 +551,7 @@ void slaunch_finalize(int do_sexit)
 	config = ioremap(TXT_PRIV_CONFIG_REGS_BASE, TXT_NR_CONFIG_PAGES *
 			 PAGE_SIZE);
 	if (!config) {
-		pr_emerg("Error SEXIT failed to ioremap TXT private reqs\n");
+		pr_emerg("TXT: SEXIT failed to ioremap TXT private registers\n");
 		return;
 	}
 
@@ -568,18 +568,17 @@ void slaunch_finalize(int do_sexit)
 	memcpy_fromio(&val, config + TXT_CR_E2STS, sizeof(val));
 
 	/*
-	 * Calls to iounmap are not being done because of the state of the
-	 * system this late in the kexec process. Local IRQs are disabled and
-	 * iounmap causes a TLB flush which in turn causes a warning. Leaving
-	 * thse mappings is not an issue since the next kernel is going to
-	 * completely re-setup memory management.
+	 * Calls to iounmap are skipped due to the system state this late in the
+	 * kexec process. Local IRQs are disabled and iounmap causes a TLB flush
+	 * which in turn causes a warning. Leaving thse mappings is not an issue
+	 * since the next kernel is going to completely re-setup memory management.
 	 */
 
 	/* Map public registers and do a final read fence */
 	config = ioremap(TXT_PUB_CONFIG_REGS_BASE, TXT_NR_CONFIG_PAGES *
 			 PAGE_SIZE);
 	if (!config) {
-		pr_emerg("Error SEXIT failed to ioremap TXT public reqs\n");
+		pr_emerg("TXT: SEXIT failed to ioremap TXT public registers\n");
 		return;
 	}
 
@@ -587,13 +586,24 @@ void slaunch_finalize(int do_sexit)
 
 	pr_emerg("TXT clear secrets bit and unlock memory complete.\n");
 
+	/*
+	 * Mostly finalized but the system is still in SMX mode. At this point if the
+	 * system has been quiesced, the APs are halted and the current process is
+	 * running on the BSP, a final GETSEC(SEXIT) can be done exiting DRTM/SMX mode.
+	 * This cannot be done on certain boot paths where the system has not been quiesced
+	 * (e.g. where machine_shutdown() has not been called).
+	 */
 	if (!do_sexit)
 		return;
 
 	if (smp_processor_id() != 0)
-		panic("Error TXT SEXIT must be called on CPU 0\n");
+		panic("TXT: SEXIT must be called on CPU 0\n");
 
-	/* In case SMX mode was disabled, enable it for SEXIT */
+	/*
+	 * In case SMX mode was disabled, enable it for SEXIT. Clearing the bit
+	 * anytime during DRTM operation will not have an affect until the next
+	 * GETSEC() op is performed.
+	 */
 	cr4_set_bits(X86_CR4_SMXE);
 
 	/* Do the SEXIT SMX operation */
