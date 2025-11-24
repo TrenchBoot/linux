@@ -507,11 +507,12 @@ void __init slaunch_setup(void)
 	if (boot_cpu_has(X86_FEATURE_SMX))
 		slaunch_setup_txt();
 }
+
 /*
  * Called to fix the long jump address for the waiting APs to vector to
  * the correct startup location in the Secure Launch stub in the rmpiggy.
  */
-void __init slaunch_fixup_jump_vector(void)
+void __init slaunch_fixup_ap_wake_vector(void)
 {
 	struct sl_ap_wake_info *ap_wake_info;
 	u32 *ap_jmp_ptr;
