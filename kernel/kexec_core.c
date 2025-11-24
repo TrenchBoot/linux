@@ -1198,7 +1198,11 @@ int kernel_kexec(void)
 		pr_notice("Starting new kernel\n");
 		machine_shutdown();
 
-		/* Finalize TXT registers and do SEXIT */
+		/*
+		 * If a Secure Launch is in progress and the current kernel is
+		 * running as a DRTM with TXT, finalize the Secure Launch state
+		 * and do the GETSEC(SEXIT) returning from SMX mode to do the KEXEC.
+		 */
 		slaunch_finalize(1);
 	}
 
