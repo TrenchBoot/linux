@@ -38,7 +38,8 @@ typedef enum {
 	PSP_NONE = 0,
 	PSP_V1,
 	PSP_V2,
-	PSP_V3
+	PSP_V3,
+	ASP
 } psp_version_t;
 
 static const struct pci_device_id psp_devs_list[] __initconst = {
@@ -49,7 +50,8 @@ static const struct pci_device_id psp_devs_list[] __initconst = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, 0x15DF), .driver_data = PSP_V3 },
 	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, 0x1649), .driver_data = PSP_V2 },
 	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, 0x14CA), .driver_data = PSP_V3 },
-	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, 0x15C7), .driver_data = PSP_NONE },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, 0x15C7), .driver_data = PSP_V3 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, 0x156E), .driver_data = ASP },
 	{ }
 };
 
