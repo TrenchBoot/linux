@@ -24,8 +24,7 @@
 
 static u32 sl_flags __ro_after_init;
 static struct sl_ap_wake_info ap_wake_info __ro_after_init;
-static u64 evtlog_addr __ro_after_init;
-static u32 evtlog_size __ro_after_init;
+static struct slr_entry_log_info sl_log_info __ro_after_init;
 static u64 vtd_pmr_lo_size __ro_after_init;
 
 /* This should be plenty of room */
@@ -47,6 +46,14 @@ u32 slaunch_get_flags(void)
 struct sl_ap_wake_info *slaunch_get_ap_wake_info(void)
 {
 	return &ap_wake_info;
+}
+
+/*
+ * Return the event log information from SLRT.
+ */
+struct slr_entry_log_info  *slaunch_get_log_info(void)
+{
+	return &sl_log_info;
 }
 
 /*
@@ -312,8 +319,8 @@ nomdr:
 	 * event log needs to be reserved. If it is in the TXT heap, it is
 	 * already reserved.
 	 */
-	if (evtlog_addr < heap_base || evtlog_addr > (heap_base + heap_size))
-		slaunch_txt_reserve_range(evtlog_addr, evtlog_size);
+	if (sl_log_info.addr < heap_base || sl_log_info.addr > (heap_base + heap_size))
+		slaunch_txt_reserve_range(sl_log_info.addr, sl_log_info.size);
 
 	for (i = 0; i < e820_table->nr_entries; i++) {
 		base = e820_table->entries[i].addr;
@@ -407,8 +414,7 @@ static void __init slaunch_fetch_values(void __iomem *txt)
 	if (!log_info)
 		slaunch_reset(txt, "SLRT missing logging info entry\n", SL_ERROR_SLRT_MISSING_ENTRY);
 
-	evtlog_addr = log_info->addr;
-	evtlog_size = log_info->size;
+	sl_log_info = *log_info;
 
 	early_memunmap(slrt, size);
 
