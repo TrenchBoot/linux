@@ -321,6 +321,7 @@ static int tpm_tis_recv(struct tpm_chip *chip, u8 *buf, int count)
 		goto out;
 	}
 
+	__tis_cancel(chip);
 	return size;
 out:
 	__tis_cancel(chip);
