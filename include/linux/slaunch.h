@@ -204,6 +204,7 @@ void slaunch_setup(void);
 void slaunch_fixup_ap_wake_vector(void);
 u32 slaunch_get_flags(void);
 struct sl_ap_wake_info *slaunch_get_ap_wake_info(void);
+struct slr_entry_log_info  *slaunch_get_log_info(void);
 struct acpi_table_header *slaunch_get_dmar_table(struct acpi_table_header *dmar);
 void __noreturn slaunch_reset(void *ctx, const char *msg, u64 error);
 void slaunch_finalize(int do_sexit);
