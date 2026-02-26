@@ -118,7 +118,7 @@ static inline void tpm_write32(struct tpm_chip *chip, u32 field, u32 val)
 	writel(val, mmio_addr);
 }
 
-static unsigned long ticks_per_ms = (5UL * 1000 * 1000 /* cpu_khz */ / 1000);
+static unsigned long ticks_per_ms = (5UL * 1000 * 1000 /* cpu_khz */);
 
 static inline ktime_t tpm_now_ms(void)
 {
