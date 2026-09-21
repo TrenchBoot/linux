@@ -18,6 +18,7 @@
 #include <asm/sections.h>
 #include <asm/tlbflush.h>
 #include <asm/e820/api.h>
+#include <asm/pci-direct.h>
 #include <asm/svm.h>
 #include <asm/setup.h>
 #include <asm/realmode.h>
@@ -40,7 +41,7 @@ typedef enum {
 	PSP_V3
 } psp_version_t;
 
-static const struct pci_device_id psp_devs_list[] = {
+static const struct pci_device_id psp_devs_list[] __initconst = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, 0x1537), .driver_data = PSP_NONE },
 	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, 0x1456), .driver_data = PSP_V1 },
 	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, 0x1468), .driver_data = PSP_NONE },
@@ -607,14 +608,67 @@ static void slaunch_skinit_prepare(void)
 }
 
 /*
+ * Match a PCI device against psp_devs_list, the PSP ids that GRUB and the
+ * Secure Kernel Loader (SKL) also use.
+ */
+static bool __init slaunch_is_drtm_psp(u16 vendor, u16 device)
+{
+	const struct pci_device_id *psp_dev;
+
+	for (psp_dev = psp_devs_list; psp_dev->vendor; psp_dev++) {
+		if (psp_dev->vendor == vendor && psp_dev->device == device &&
+		    psp_dev->driver_data != PSP_NONE)
+			return true;
+	}
+
+	return false;
+}
+
+/*
+ * Look for a PSP with a DRTM mailbox. This runs from setup_arch(), before
+ * the PCI core has enumerated anything, so walk PCI configuration space
+ * directly, as early_quirks() does.
+ */
+static bool __init slaunch_skinit_find_psp(void)
+{
+	unsigned int bus, devfn, slot, func;
+	u32 id;
+
+	if (!early_pci_allowed()) {
+		pr_warn("Early PCI access disabled, PSP TMR will not be released\n");
+		return false;
+	}
+
+	for (bus = 0; bus < 256; bus++) {
+		for (devfn = 0; devfn < 256; devfn++) {
+			slot = PCI_SLOT(devfn);
+			func = PCI_FUNC(devfn);
+			id = read_pci_config(bus, slot, func, PCI_VENDOR_ID);
+			if ((id & 0xffff) == 0xffff) {
+				/* No function 0 means an empty slot */
+				if (func == 0)
+					devfn += 7;
+				continue;
+			}
+
+			if (slaunch_is_drtm_psp(id & 0xffff, id >> 16)) {
+				pr_info("AMD PSP %04x found at %02x:%02x.%u\n",
+					id >> 16, bus, slot, func);
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+/*
  * AMD SKINIT specific late stub setup and validation called from within
  * x86 specific setup_arch().
  */
 static void __init slaunch_setup_skinit(void)
 {
 	u64 val;
-	struct pci_dev *dev;
-	struct pci_device_id *psp_dev;
 
 	/*
 	 * If the platform is performing a Secure Launch via SKINIT
@@ -629,14 +683,8 @@ static void __init slaunch_setup_skinit(void)
 	/* Set flags on BSP so subsequent code knows it was a SKINIT launch */
 	sl_flags |= (SL_FLAG_ACTIVE | SL_FLAG_ARCH_SKINIT);
 
-	dev = NULL;
-	for_each_pci_dev(dev) {
-		psp_dev = pci_match_id(psp_devs_list, dev);
-		if (psp_dev && psp_dev->driver_data != PSP_NONE) {
-			sl_flags |= SL_FLAG_SKINIT_PSP;
-			break;
-		}
-	}
+	if (slaunch_skinit_find_psp())
+		sl_flags |= SL_FLAG_SKINIT_PSP;
 
 	pr_info("AMD SKINIT setup complete\n");
 }
