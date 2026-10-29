@@ -249,10 +249,14 @@ void slaunch_psp_setup(void)
 
 void slaunch_psp_finalize(void)
 {
+	if (!slaunch_psp_early_setup_done)
+		return;
+
 	if (!slaunch_tpm_locality_access()) {
 		pr_err("PSP failed to lock TPM DRTM localities\n");
 		return;
 	}
 
 	slaunch_clear_c2pmsg_regs();
+	slaunch_psp_early_setup_done = false;
 }
